@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolvePaperclipConfigPath, resolvePaperclipEnvPath } from "./paths.js";
-import type { DeploymentExposure, DeploymentMode } from "@paperclipai/shared";
+import { resolveSubstaffConfigPath, resolveSubstaffEnvPath } from "./paths.js";
+import type { DeploymentMode } from "@substaff/shared";
 
 import { parse as parseEnvFileContents } from "dotenv";
 
@@ -11,28 +11,17 @@ type ExternalPostgresInfo = {
   connectionString: string;
 };
 
-type EmbeddedPostgresInfo = {
-  mode: "embedded-postgres";
-  dataDir: string;
-  port: number;
-};
-
 type StartupBannerOptions = {
   host: string;
   deploymentMode: DeploymentMode;
-  deploymentExposure: DeploymentExposure;
   authReady: boolean;
   requestedPort: number;
   listenPort: number;
   uiMode: UiMode;
-  db: ExternalPostgresInfo | EmbeddedPostgresInfo;
+  db: ExternalPostgresInfo;
   migrationSummary: string;
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
-  databaseBackupEnabled: boolean;
-  databaseBackupIntervalMinutes: number;
-  databaseBackupRetentionDays: number;
-  databaseBackupDir: string;
 };
 
 const ansi = {
@@ -71,7 +60,7 @@ function resolveAgentJwtSecretStatus(
   status: "pass" | "warn";
   message: string;
 } {
-  const envValue = process.env.PAPERCLIP_AGENT_JWT_SECRET?.trim();
+  const envValue = process.env.SUBSTAFF_AGENT_JWT_SECRET?.trim();
   if (envValue) {
     return {
       status: "pass",
@@ -81,7 +70,7 @@ function resolveAgentJwtSecretStatus(
 
   if (existsSync(envFilePath)) {
     const parsed = parseEnvFileContents(readFileSync(envFilePath, "utf-8"));
-    const fileValue = typeof parsed.PAPERCLIP_AGENT_JWT_SECRET === "string" ? parsed.PAPERCLIP_AGENT_JWT_SECRET.trim() : "";
+    const fileValue = typeof parsed.SUBSTAFF_AGENT_JWT_SECRET === "string" ? parsed.SUBSTAFF_AGENT_JWT_SECRET.trim() : "";
     if (fileValue) {
       return {
         status: "warn",
@@ -92,7 +81,7 @@ function resolveAgentJwtSecretStatus(
 
   return {
     status: "warn",
-    message: "missing (run `pnpm paperclipai onboard`)",
+    message: "missing (run `pnpm substaff onboard`)",
   };
 }
 
@@ -101,14 +90,11 @@ export function printStartupBanner(opts: StartupBannerOptions): void {
   const baseUrl = `http://${baseHost}:${opts.listenPort}`;
   const apiUrl = `${baseUrl}/api`;
   const uiUrl = opts.uiMode === "none" ? "disabled" : baseUrl;
-  const configPath = resolvePaperclipConfigPath();
-  const envFilePath = resolvePaperclipEnvPath();
+  const configPath = resolveSubstaffConfigPath();
+  const envFilePath = resolveSubstaffEnvPath();
   const agentJwtSecret = resolveAgentJwtSecretStatus(envFilePath);
 
-  const dbMode =
-    opts.db.mode === "embedded-postgres"
-      ? color("embedded-postgres", "green")
-      : color("external-postgres", "yellow");
+  const dbMode = color("external-postgres", "yellow");
   const uiMode =
     opts.uiMode === "vite-dev"
       ? color("vite-dev-middleware", "cyan")
@@ -121,25 +107,19 @@ export function printStartupBanner(opts: StartupBannerOptions): void {
       ? `${opts.listenPort}`
       : `${opts.listenPort} ${color(`(requested ${opts.requestedPort})`, "dim")}`;
 
-  const dbDetails =
-    opts.db.mode === "embedded-postgres"
-      ? `${opts.db.dataDir} ${color(`(pg:${opts.db.port})`, "dim")}`
-      : redactConnectionString(opts.db.connectionString);
+  const dbDetails = redactConnectionString(opts.db.connectionString);
 
   const heartbeat = opts.heartbeatSchedulerEnabled
     ? `enabled ${color(`(${opts.heartbeatSchedulerIntervalMs}ms)`, "dim")}`
     : color("disabled", "yellow");
-  const dbBackup = opts.databaseBackupEnabled
-    ? `enabled ${color(`(every ${opts.databaseBackupIntervalMinutes}m, keep ${opts.databaseBackupRetentionDays}d)`, "dim")}`
-    : color("disabled", "yellow");
 
   const art = [
-    color("██████╗  █████╗ ██████╗ ███████╗██████╗  ██████╗██╗     ██╗██████╗ ", "cyan"),
-    color("██╔══██╗██╔══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝██║     ██║██╔══██╗", "cyan"),
-    color("██████╔╝███████║██████╔╝█████╗  ██████╔╝██║     ██║     ██║██████╔╝", "cyan"),
-    color("██╔═══╝ ██╔══██║██╔═══╝ ██╔══╝  ██╔══██╗██║     ██║     ██║██╔═══╝ ", "cyan"),
-    color("██║     ██║  ██║██║     ███████╗██║  ██║╚██████╗███████╗██║██║     ", "cyan"),
-    color("╚═╝     ╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝╚═╝╚═╝     ", "cyan"),
+    color("███████╗██╗   ██╗██████╗ ███████╗████████╗ █████╗ ███████╗███████╗", "cyan"),
+    color("██╔════╝██║   ██║██╔══██╗██╔════╝╚══██╔══╝██╔══██╗██╔════╝██╔════╝", "cyan"),
+    color("███████╗██║   ██║██████╔╝███████╗   ██║   ███████║█████╗  █████╗  ", "cyan"),
+    color("╚════██║██║   ██║██╔══██╗╚════██║   ██║   ██╔══██║██╔══╝  ██╔══╝  ", "cyan"),
+    color("███████║╚██████╔╝██████╔╝███████║   ██║   ██║  ██║██║     ██║     ", "cyan"),
+    color("╚══════╝ ╚═════╝ ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝     ╚═╝     ", "cyan"),
   ];
 
   const lines = [
@@ -147,7 +127,7 @@ export function printStartupBanner(opts: StartupBannerOptions): void {
     ...art,
     color("  ───────────────────────────────────────────────────────", "blue"),
     row("Mode", `${dbMode}  |  ${uiMode}`),
-    row("Deploy", `${opts.deploymentMode} (${opts.deploymentExposure})`),
+    row("Deploy", `${opts.deploymentMode}`),
     row("Auth", opts.authReady ? color("ready", "green") : color("not-ready", "yellow")),
     row("Server", portValue),
     row("API", `${apiUrl} ${color(`(health: ${apiUrl}/health)`, "dim")}`),
@@ -161,8 +141,6 @@ export function printStartupBanner(opts: StartupBannerOptions): void {
         : color(agentJwtSecret.message, "yellow"),
     ),
     row("Heartbeat", heartbeat),
-    row("DB Backup", dbBackup),
-    row("Backup Dir", opts.databaseBackupDir),
     row("Config", configPath),
     agentJwtSecret.status === "warn"
       ? color("  ───────────────────────────────────────────────────────", "yellow")

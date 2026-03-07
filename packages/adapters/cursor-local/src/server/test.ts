@@ -2,7 +2,7 @@ import type {
   AdapterEnvironmentCheck,
   AdapterEnvironmentTestContext,
   AdapterEnvironmentTestResult,
-} from "@paperclipai/adapter-utils";
+} from "@substaff/adapter-utils";
 import {
   asString,
   asStringArray,
@@ -11,7 +11,7 @@ import {
   ensureCommandResolvable,
   ensurePathInEnv,
   runChildProcess,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@substaff/adapter-utils/server-utils";
 import path from "node:path";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "../index.js";
 import { parseCursorJsonl } from "./parse.js";

@@ -45,11 +45,17 @@ export function CompanySettings() {
     },
   });
 
-  const settingsMutation = useMutation({
-    mutationFn: (requireApproval: boolean) =>
-      companiesApi.update(selectedCompanyId!, {
-        requireBoardApprovalForNewAgents: requireApproval,
-      }),
+  const hireApprovalMutation = useMutation({
+    mutationFn: (requireHireApproval: boolean) =>
+      companiesApi.update(selectedCompanyId!, { requireHireApproval }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    },
+  });
+
+  const planApprovalMutation = useMutation({
+    mutationFn: (requirePlanApproval: boolean) =>
+      companiesApi.update(selectedCompanyId!, { requirePlanApproval }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
     },
@@ -231,8 +237,23 @@ export function CompanySettings() {
           <ToggleField
             label="Require board approval for new hires"
             hint="New agent hires stay pending until approved by board."
-            checked={!!selectedCompany.requireBoardApprovalForNewAgents}
-            onChange={(v) => settingsMutation.mutate(v)}
+            checked={!!selectedCompany.requireHireApproval}
+            onChange={(v) => hireApprovalMutation.mutate(v)}
+          />
+        </div>
+      </div>
+
+      {/* Governance */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Governance
+        </div>
+        <div className="rounded-md border border-border px-4 py-3">
+          <ToggleField
+            label="Require plan approval before execution"
+            hint="Agents must submit a plan and get board approval before executing tasks."
+            checked={!!selectedCompany.requirePlanApproval}
+            onChange={(v) => planApprovalMutation.mutate(v)}
           />
         </div>
       </div>

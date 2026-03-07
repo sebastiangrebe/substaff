@@ -5,7 +5,7 @@ import type {
   CompanyPortabilityImportResult,
   CompanyPortabilityPreviewRequest,
   CompanyPortabilityPreviewResult,
-} from "@paperclipai/shared";
+} from "@substaff/shared";
 import { api } from "./client";
 
 export type CompanyStats = Record<string, { agentCount: number; issueCount: number }>;
@@ -21,7 +21,7 @@ export const companiesApi = {
     data: Partial<
       Pick<
         Company,
-        "name" | "description" | "status" | "budgetMonthlyCents" | "requireBoardApprovalForNewAgents" | "brandColor"
+        "name" | "description" | "status" | "budgetMonthlyCents" | "requirePlanApproval" | "requireHireApproval" | "brandColor"
       >
     >,
   ) => api.patch<Company>(`/companies/${companyId}`, data),

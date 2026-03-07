@@ -1,5 +1,5 @@
 import { createDb } from "./client.js";
-import { companies, agents, goals, projects, issues } from "./schema/index.js";
+import { vendors, companies, agents, goals, projects, issues } from "./schema/index.js";
 
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is required");
@@ -8,10 +8,21 @@ const db = createDb(url);
 
 console.log("Seeding database...");
 
+const [vendor] = await db
+  .insert(vendors)
+  .values({
+    name: "Demo Vendor",
+    slug: "demo-vendor",
+    billingEmail: "demo@substaff.dev",
+    plan: "free",
+  })
+  .returning();
+
 const [company] = await db
   .insert(companies)
   .values({
-    name: "Paperclip Demo Co",
+    vendorId: vendor!.id,
+    name: "Substaff Demo Co",
     description: "A demo autonomous company",
     status: "active",
     budgetMonthlyCents: 50000,

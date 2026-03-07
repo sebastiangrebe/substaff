@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from "@/lib/router";
 import { useCompany } from "../context/CompanyContext";
 import { toCompanyRelativePath } from "../lib/company-routes";
 
-const STORAGE_KEY = "paperclip.companyPaths";
-const GLOBAL_SEGMENTS = new Set(["auth", "invite", "board-claim", "docs"]);
+const STORAGE_KEY = "substaff.companyPaths";
+const GLOBAL_SEGMENTS = new Set(["auth", "invite", "docs"]);
 
 function getCompanyPaths(): Record<string, string> {
   try {

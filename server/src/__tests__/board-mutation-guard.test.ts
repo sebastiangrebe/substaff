@@ -3,12 +3,12 @@ import express from "express";
 import request from "supertest";
 import { boardMutationGuard } from "../middleware/board-mutation-guard.js";
 
-function createApp(actorType: "board" | "agent", boardSource: "session" | "local_implicit" = "session") {
+function createApp(actorType: "board" | "agent") {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
     req.actor = actorType === "board"
-      ? { type: "board", userId: "board", source: boardSource }
+      ? { type: "board", userId: "board", source: "session" }
       : { type: "agent", agentId: "agent-1" };
     next();
   });
@@ -34,12 +34,6 @@ describe("boardMutationGuard", () => {
     const res = await request(app).post("/mutate").send({ ok: true });
     expect(res.status).toBe(403);
     expect(res.body).toEqual({ error: "Board mutation requires trusted browser origin" });
-  });
-
-  it("allows local implicit board mutations without origin", async () => {
-    const app = createApp("board", "local_implicit");
-    const res = await request(app).post("/mutate").send({ ok: true });
-    expect(res.status).toBe(204);
   });
 
   it("allows board mutations from trusted origin", async () => {

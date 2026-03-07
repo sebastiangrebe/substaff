@@ -1,11 +1,11 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
 import {
   companyMemberships,
-  instanceUserRoles,
+  vendorMemberships,
   principalPermissionGrants,
-} from "@paperclipai/db";
-import type { PermissionKey, PrincipalType } from "@paperclipai/shared";
+} from "@substaff/db";
+import type { PermissionKey, PrincipalType } from "@substaff/shared";
 
 type MembershipRow = typeof companyMemberships.$inferSelect;
 type GrantInput = {
@@ -17,9 +17,9 @@ export function accessService(db: Db) {
   async function isInstanceAdmin(userId: string | null | undefined): Promise<boolean> {
     if (!userId) return false;
     const row = await db
-      .select({ id: instanceUserRoles.id })
-      .from(instanceUserRoles)
-      .where(and(eq(instanceUserRoles.userId, userId), eq(instanceUserRoles.role, "instance_admin")))
+      .select({ id: vendorMemberships.id })
+      .from(vendorMemberships)
+      .where(and(eq(vendorMemberships.userId, userId), eq(vendorMemberships.role, "owner")))
       .then((rows) => rows[0] ?? null);
     return Boolean(row);
   }
@@ -123,31 +123,6 @@ export function accessService(db: Db) {
     });
 
     return member;
-  }
-
-  async function promoteInstanceAdmin(userId: string) {
-    const existing = await db
-      .select()
-      .from(instanceUserRoles)
-      .where(and(eq(instanceUserRoles.userId, userId), eq(instanceUserRoles.role, "instance_admin")))
-      .then((rows) => rows[0] ?? null);
-    if (existing) return existing;
-    return db
-      .insert(instanceUserRoles)
-      .values({
-        userId,
-        role: "instance_admin",
-      })
-      .returning()
-      .then((rows) => rows[0]);
-  }
-
-  async function demoteInstanceAdmin(userId: string) {
-    return db
-      .delete(instanceUserRoles)
-      .where(and(eq(instanceUserRoles.userId, userId), eq(instanceUserRoles.role, "instance_admin")))
-      .returning()
-      .then((rows) => rows[0] ?? null);
   }
 
   async function listUserCompanyAccess(userId: string) {
@@ -259,8 +234,6 @@ export function accessService(db: Db) {
     ensureMembership,
     listMembers,
     setMemberPermissions,
-    promoteInstanceAdmin,
-    demoteInstanceAdmin,
     listUserCompanyAccess,
     setUserCompanyAccess,
     setPrincipalGrants,

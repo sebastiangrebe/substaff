@@ -72,6 +72,13 @@ export interface AdapterInvocationMeta {
   context?: Record<string, unknown>;
 }
 
+export interface WorkspaceSyncHooks {
+  /** Download workspace files into the given sandbox/local directory */
+  pullFiles(targetDir: string): Promise<string[]>;
+  /** Upload modified files from the sandbox/local directory back to storage */
+  pushFiles(sourceDir: string, files: string[]): Promise<void>;
+}
+
 export interface AdapterExecutionContext {
   runId: string;
   agent: AdapterAgent;
@@ -81,6 +88,9 @@ export interface AdapterExecutionContext {
   onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;
   onMeta?: (meta: AdapterInvocationMeta) => Promise<void>;
   authToken?: string;
+  workspaceSync?: WorkspaceSyncHooks;
+  /** Resolved LLM API key (from key manager). Adapters should prefer this over process.env. */
+  llmApiKey?: string;
 }
 
 export interface AdapterModel {
@@ -112,10 +122,7 @@ export interface AdapterEnvironmentTestContext {
   adapterType: string;
   config: Record<string, unknown>;
   deployment?: {
-    mode?: "local_trusted" | "authenticated";
-    exposure?: "private" | "public";
-    bindHost?: string | null;
-    allowedHostnames?: string[];
+    mode?: "authenticated";
   };
 }
 

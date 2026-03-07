@@ -13,3 +13,7 @@ export { activityApi } from "./activity";
 export { dashboardApi } from "./dashboard";
 export { heartbeatsApi } from "./heartbeats";
 export { sidebarBadgesApi } from "./sidebarBadges";
+export { plansApi } from "./plans";
+export { orgChartApi } from "./orgChart";
+export { templatesApi } from "./templates";
+export { filesApi } from "./files";

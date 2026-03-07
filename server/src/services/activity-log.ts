@@ -1,5 +1,5 @@
-import type { Db } from "@paperclipai/db";
-import { activityLog } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
+import { activityLog } from "@substaff/db";
 import { publishLiveEvent } from "./live-events.js";
 import { sanitizeRecord } from "../redaction.js";
 

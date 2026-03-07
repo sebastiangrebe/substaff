@@ -2,13 +2,13 @@ import express, { Router, type Request as ExpressRequest } from "express";
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { Db } from "@paperclipai/db";
-import type { DeploymentExposure, DeploymentMode } from "@paperclipai/shared";
+import type { Db } from "@substaff/db";
+import type { DeploymentMode } from "@substaff/shared";
 import type { StorageService } from "./storage/types.js";
 import { httpLogger, errorHandler } from "./middleware/index.js";
 import { actorMiddleware } from "./middleware/auth.js";
+import { rlsContextMiddleware } from "./middleware/rls-context.js";
 import { boardMutationGuard } from "./middleware/board-mutation-guard.js";
-import { privateHostnameGuard, resolvePrivateHostnameAllowSet } from "./middleware/private-hostname-guard.js";
 import { healthRoutes } from "./routes/health.js";
 import { companyRoutes } from "./routes/companies.js";
 import { agentRoutes } from "./routes/agents.js";
@@ -24,6 +24,13 @@ import { sidebarBadgeRoutes } from "./routes/sidebar-badges.js";
 import { llmRoutes } from "./routes/llms.js";
 import { assetRoutes } from "./routes/assets.js";
 import { accessRoutes } from "./routes/access.js";
+import { vendorRoutes } from "./routes/vendors.js";
+import { billingRoutes } from "./routes/billing.js";
+import { planRoutes } from "./routes/plans.js";
+import { templateRoutes } from "./routes/templates.js";
+import { fileRoutes } from "./routes/files.js";
+import { knowledgeRoutes } from "./routes/knowledge.js";
+import { projectStateRoutes } from "./routes/project-state.js";
 import type { BetterAuthSessionResult } from "./auth/better-auth.js";
 
 type UiMode = "none" | "static" | "vite-dev";
@@ -34,9 +41,6 @@ export async function createApp(
     uiMode: UiMode;
     storageService: StorageService;
     deploymentMode: DeploymentMode;
-    deploymentExposure: DeploymentExposure;
-    allowedHostnames: string[];
-    bindHost: string;
     authReady: boolean;
     companyDeletionEnabled: boolean;
     betterAuthHandler?: express.RequestHandler;
@@ -47,25 +51,12 @@ export async function createApp(
 
   app.use(express.json());
   app.use(httpLogger);
-  const privateHostnameGateEnabled =
-    opts.deploymentMode === "authenticated" && opts.deploymentExposure === "private";
-  const privateHostnameAllowSet = resolvePrivateHostnameAllowSet({
-    allowedHostnames: opts.allowedHostnames,
-    bindHost: opts.bindHost,
-  });
-  app.use(
-    privateHostnameGuard({
-      enabled: privateHostnameGateEnabled,
-      allowedHostnames: opts.allowedHostnames,
-      bindHost: opts.bindHost,
-    }),
-  );
   app.use(
     actorMiddleware(db, {
-      deploymentMode: opts.deploymentMode,
       resolveSession: opts.resolveSession,
     }),
   );
+  app.use(rlsContextMiddleware(db));
   app.get("/api/auth/get-session", (req, res) => {
     if (req.actor.type !== "board" || !req.actor.userId) {
       res.status(401).json({ error: "Unauthorized" });
@@ -73,13 +64,13 @@ export async function createApp(
     }
     res.json({
       session: {
-        id: `paperclip:${req.actor.source}:${req.actor.userId}`,
+        id: `substaff:${req.actor.source}:${req.actor.userId}`,
         userId: req.actor.userId,
       },
       user: {
         id: req.actor.userId,
         email: null,
-        name: req.actor.source === "local_implicit" ? "Local Board" : null,
+        name: null,
       },
     });
   });
@@ -95,7 +86,6 @@ export async function createApp(
     "/health",
     healthRoutes(db, {
       deploymentMode: opts.deploymentMode,
-      deploymentExposure: opts.deploymentExposure,
       authReady: opts.authReady,
       companyDeletionEnabled: opts.companyDeletionEnabled,
     }),
@@ -115,11 +105,15 @@ export async function createApp(
   api.use(
     accessRoutes(db, {
       deploymentMode: opts.deploymentMode,
-      deploymentExposure: opts.deploymentExposure,
-      bindHost: opts.bindHost,
-      allowedHostnames: opts.allowedHostnames,
     }),
   );
+  api.use(vendorRoutes(db));
+  api.use(billingRoutes(db));
+  api.use(planRoutes(db));
+  api.use(templateRoutes(db));
+  api.use(fileRoutes(opts.storageService));
+  api.use(knowledgeRoutes(db));
+  api.use("/companies", projectStateRoutes(db));
   app.use("/api", api);
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -136,7 +130,7 @@ export async function createApp(
         res.sendFile(path.join(uiDist, "index.html"));
       });
     } else {
-      console.warn("[paperclip] UI dist not found; running in API-only mode");
+      console.warn("[substaff] UI dist not found; running in API-only mode");
     }
   }
 
@@ -148,7 +142,7 @@ export async function createApp(
       appType: "spa",
       server: {
         middlewareMode: true,
-        allowedHosts: privateHostnameGateEnabled ? Array.from(privateHostnameAllowSet) : undefined,
+        allowedHosts: true,
       },
     });
 

@@ -41,7 +41,7 @@ import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./Ma
 import { AgentIcon } from "./AgentIconPicker";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
 
-const DRAFT_KEY = "paperclip:issue-draft";
+const DRAFT_KEY = "substaff:issue-draft";
 const DEBOUNCE_MS = 800;
 
 /** Return black or white hex based on background luminance (WCAG perceptual weights). */
@@ -67,31 +67,14 @@ interface IssueDraft {
   assigneeUseProjectWorkspace: boolean;
 }
 
-const ISSUE_OVERRIDE_ADAPTER_TYPES = new Set(["claude_local", "codex_local", "opencode_local"]);
+const ISSUE_OVERRIDE_ADAPTER_TYPES = new Set(["e2b_sandbox"]);
 
-const ISSUE_THINKING_EFFORT_OPTIONS = {
-  claude_local: [
-    { value: "", label: "Default" },
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
-  ],
-  codex_local: [
-    { value: "", label: "Default" },
-    { value: "minimal", label: "Minimal" },
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
-  ],
-  opencode_local: [
-    { value: "", label: "Default" },
-    { value: "minimal", label: "Minimal" },
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
-    { value: "max", label: "Max" },
-  ],
-} as const;
+const ISSUE_THINKING_EFFORT_OPTIONS = [
+  { value: "", label: "Default" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+] as const;
 
 function buildAssigneeAdapterOverrides(input: {
   adapterType: string | null | undefined;
@@ -263,10 +246,10 @@ export function NewIssueDialog() {
       closeNewIssue();
       pushToast({
         dedupeKey: `activity:issue.created:${issue.id}`,
-        title: `${issue.identifier ?? "Issue"} created`,
+        title: `${issue.identifier ?? "Task"} created`,
         body: issue.title,
         tone: "success",
-        action: { label: `View ${issue.identifier ?? "issue"}`, href: `/issues/${issue.identifier ?? issue.id}` },
+        action: { label: `View ${issue.identifier ?? "task"}`, href: `/issues/${issue.identifier ?? issue.id}` },
       });
     },
   });
@@ -358,12 +341,7 @@ export function NewIssueDialog() {
       return;
     }
 
-    const validThinkingValues =
-      assigneeAdapterType === "codex_local"
-        ? ISSUE_THINKING_EFFORT_OPTIONS.codex_local
-        : assigneeAdapterType === "opencode_local"
-          ? ISSUE_THINKING_EFFORT_OPTIONS.opencode_local
-        : ISSUE_THINKING_EFFORT_OPTIONS.claude_local;
+    const validThinkingValues = ISSUE_THINKING_EFFORT_OPTIONS;
     if (!validThinkingValues.some((option) => option.value === assigneeThinkingEffort)) {
       setAssigneeThinkingEffort("");
     }
@@ -458,20 +436,8 @@ export function NewIssueDialog() {
   const currentPriority = priorities.find((p) => p.value === priority);
   const currentAssignee = (agents ?? []).find((a) => a.id === assigneeId);
   const currentProject = orderedProjects.find((project) => project.id === projectId);
-  const assigneeOptionsTitle =
-    assigneeAdapterType === "claude_local"
-      ? "Claude options"
-      : assigneeAdapterType === "codex_local"
-        ? "Codex options"
-        : assigneeAdapterType === "opencode_local"
-          ? "OpenCode options"
-        : "Agent options";
-  const thinkingEffortOptions =
-    assigneeAdapterType === "codex_local"
-      ? ISSUE_THINKING_EFFORT_OPTIONS.codex_local
-      : assigneeAdapterType === "opencode_local"
-        ? ISSUE_THINKING_EFFORT_OPTIONS.opencode_local
-      : ISSUE_THINKING_EFFORT_OPTIONS.claude_local;
+  const assigneeOptionsTitle = "Agent options";
+  const thinkingEffortOptions = ISSUE_THINKING_EFFORT_OPTIONS;
   const assigneeOptions = useMemo<InlineEntityOption[]>(
     () =>
       (agents ?? [])
@@ -577,7 +543,7 @@ export function NewIssueDialog() {
               </PopoverContent>
             </Popover>
             <span className="text-muted-foreground/60">&rsaquo;</span>
-            <span>New issue</span>
+            <span>New task</span>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -746,25 +712,6 @@ export function NewIssueDialog() {
                     ))}
                   </div>
                 </div>
-                {assigneeAdapterType === "claude_local" && (
-                  <div className="flex items-center justify-between rounded-md border border-border px-2 py-1.5">
-                    <div className="text-xs text-muted-foreground">Enable Chrome (--chrome)</div>
-                    <button
-                      className={cn(
-                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                        assigneeChrome ? "bg-green-600" : "bg-muted"
-                      )}
-                      onClick={() => setAssigneeChrome((value) => !value)}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
-                          assigneeChrome ? "translate-x-4.5" : "translate-x-0.5"
-                        )}
-                      />
-                    </button>
-                  </div>
-                )}
                 <div className="flex items-center justify-between rounded-md border border-border px-2 py-1.5">
                   <div className="text-xs text-muted-foreground">Use project workspace</div>
                   <button

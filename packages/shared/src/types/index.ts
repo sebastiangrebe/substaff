@@ -1,5 +1,13 @@
 export type { Company } from "./company.js";
 export type {
+  Vendor,
+  VendorMembership,
+  VendorUsage,
+  TaskPlan,
+  OrgTemplate,
+  IntegrationConnection,
+} from "./vendor.js";
+export type {
   Agent,
   AgentPermissions,
   AgentKeyCreated,
@@ -52,6 +60,13 @@ export type {
   JoinRequest,
   InstanceUserRoleGrant,
 } from "./access.js";
+export type {
+  LlmProvider,
+  ResolvedLlmKey,
+  VendorLlmConfig,
+  SetVendorLlmKeyInput,
+} from "./llm-key.js";
+export { LLM_PROVIDERS } from "./llm-key.js";
 export type {
   CompanyPortabilityInclude,
   CompanyPortabilitySecretRequirement,

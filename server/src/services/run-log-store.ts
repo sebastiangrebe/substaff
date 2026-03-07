@@ -76,7 +76,7 @@ function createLocalFileRunLogStore(basePath: string): RunLogStore {
       stream.on("end", () => resolve());
     });
 
-    const content = Buffer.concat(chunks).toString("utf8");
+    const content = Buffer.concat(chunks as Uint8Array[]).toString("utf8");
     const nextOffset = end + 1 < stat.size ? end + 1 : undefined;
     return { content, nextOffset };
   }
@@ -85,7 +85,7 @@ function createLocalFileRunLogStore(basePath: string): RunLogStore {
     return new Promise<string>((resolve, reject) => {
       const hash = createHash("sha256");
       const stream = createReadStream(filePath);
-      stream.on("data", (chunk) => hash.update(chunk));
+      stream.on("data", (chunk: string | Buffer) => hash.update(typeof chunk === "string" ? chunk : new Uint8Array(chunk)));
       stream.on("error", reject);
       stream.on("end", () => resolve(hash.digest("hex")));
     });

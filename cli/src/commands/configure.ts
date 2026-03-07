@@ -1,23 +1,19 @@
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { readConfig, writeConfig, configExists, resolveConfigPath } from "../config/store.js";
-import type { PaperclipConfig } from "../config/schema.js";
-import { ensureLocalSecretsKeyFile } from "../config/secrets-key.js";
+import type { SubstaffConfig } from "../config/schema.js";
 import { promptDatabase } from "../prompts/database.js";
 import { promptLlm } from "../prompts/llm.js";
 import { promptLogging } from "../prompts/logging.js";
-import { defaultSecretsConfig, promptSecrets } from "../prompts/secrets.js";
 import { defaultStorageConfig, promptStorage } from "../prompts/storage.js";
 import { promptServer } from "../prompts/server.js";
 import {
-  resolveDefaultBackupDir,
-  resolveDefaultEmbeddedPostgresDir,
   resolveDefaultLogsDir,
-  resolvePaperclipInstanceId,
+  resolveSubstaffInstanceId,
 } from "../config/home.js";
-import { printPaperclipCliBanner } from "../utils/banner.js";
+import { printSubstaffCliBanner } from "../utils/banner.js";
 
-type Section = "llm" | "database" | "logging" | "server" | "storage" | "secrets";
+type Section = "llm" | "database" | "logging" | "server" | "storage";
 
 const SECTION_LABELS: Record<Section, string> = {
   llm: "LLM Provider",
@@ -25,11 +21,10 @@ const SECTION_LABELS: Record<Section, string> = {
   logging: "Logging",
   server: "Server",
   storage: "Storage",
-  secrets: "Secrets",
 };
 
-function defaultConfig(): PaperclipConfig {
-  const instanceId = resolvePaperclipInstanceId();
+function defaultConfig(): SubstaffConfig {
+  const instanceId = resolveSubstaffInstanceId();
   return {
     $meta: {
       version: 1,
@@ -37,33 +32,25 @@ function defaultConfig(): PaperclipConfig {
       source: "configure",
     },
     database: {
-      mode: "embedded-postgres",
-      embeddedPostgresDataDir: resolveDefaultEmbeddedPostgresDir(instanceId),
-      embeddedPostgresPort: 54329,
-      backup: {
-        enabled: true,
-        intervalMinutes: 60,
-        retentionDays: 30,
-        dir: resolveDefaultBackupDir(instanceId),
-      },
+      connectionString: "",
     },
     logging: {
       mode: "file",
       logDir: resolveDefaultLogsDir(instanceId),
     },
     server: {
-      deploymentMode: "local_trusted",
-      exposure: "private",
-      host: "127.0.0.1",
+      deploymentMode: "authenticated",
+      host: "0.0.0.0",
       port: 3100,
-      allowedHostnames: [],
       serveUi: true,
     },
-    auth: {
-      baseUrlMode: "auto",
-    },
+    auth: {},
     storage: defaultStorageConfig(),
-    secrets: defaultSecretsConfig(),
+    redis: { url: "redis://localhost:6379" },
+    e2b: { defaultTemplate: "base" },
+    stripe: {},
+    qdrant: {},
+    voyage: { indexingModel: "voyage-4-large", retrievalModel: "voyage-4-lite" },
   };
 }
 
@@ -71,17 +58,17 @@ export async function configure(opts: {
   config?: string;
   section?: string;
 }): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclip configure ")));
+  printSubstaffCliBanner();
+  p.intro(pc.bgCyan(pc.black(" substaff configure ")));
   const configPath = resolveConfigPath(opts.config);
 
   if (!configExists(opts.config)) {
-    p.log.error("No config file found. Run `paperclipai onboard` first.");
+    p.log.error("No config file found. Run `substaff onboard` first.");
     p.outro("");
     return;
   }
 
-  let config: PaperclipConfig;
+  let config: SubstaffConfig;
   try {
     config = readConfig(opts.config) ?? defaultConfig();
   } catch (err) {
@@ -152,25 +139,10 @@ export async function configure(opts: {
       case "storage":
         config.storage = await promptStorage(config.storage);
         break;
-      case "secrets":
-        config.secrets = await promptSecrets(config.secrets);
-        {
-          const keyResult = ensureLocalSecretsKeyFile(config, configPath);
-          if (keyResult.status === "created") {
-            p.log.success(`Created local secrets key file at ${pc.dim(keyResult.path)}`);
-          } else if (keyResult.status === "existing") {
-            p.log.message(pc.dim(`Using existing local secrets key file at ${keyResult.path}`));
-          } else if (keyResult.status === "skipped_provider") {
-            p.log.message(pc.dim("Skipping local key file management for non-local provider"));
-          } else {
-            p.log.message(pc.dim("Skipping local key file management because PAPERCLIP_SECRETS_MASTER_KEY is set"));
-          }
-        }
-        break;
     }
 
-    config.$meta.updatedAt = new Date().toISOString();
-    config.$meta.source = "configure";
+    config.$meta!.updatedAt = new Date().toISOString();
+    config.$meta!.source = "configure";
 
     writeConfig(config, opts.config);
     p.log.success(`${SECTION_LABELS[section]} configuration updated.`);

@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, timestamp, integer, index } from "drizzle-orm/pg-core";
+import { vendors } from "./vendors.js";
 import { companies } from "./companies.js";
 import { agents } from "./agents.js";
 import { issues } from "./issues.js";
@@ -9,6 +10,9 @@ export const costEvents = pgTable(
   "cost_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    vendorId: uuid("vendor_id")
+      .notNull()
+      .references(() => vendors.id),
     companyId: uuid("company_id").notNull().references(() => companies.id),
     agentId: uuid("agent_id").notNull().references(() => agents.id),
     issueId: uuid("issue_id").references(() => issues.id),
@@ -30,5 +34,6 @@ export const costEvents = pgTable(
       table.agentId,
       table.occurredAt,
     ),
+    vendorOccurredIdx: index("cost_events_vendor_occurred_idx").on(table.vendorId, table.occurredAt),
   }),
 );

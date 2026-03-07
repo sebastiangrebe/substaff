@@ -1,22 +1,16 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AGENT_ADAPTER_TYPES } from "@paperclipai/shared";
+import { AGENT_ADAPTER_TYPES } from "@substaff/shared";
 import type {
   Agent,
   AdapterEnvironmentTestResult,
   CompanySecret,
   EnvBinding,
-} from "@paperclipai/shared";
+} from "@substaff/shared";
 import type { AdapterModel } from "../api/agents";
 import { agentsApi } from "../api/agents";
 import { secretsApi } from "../api/secrets";
 import { assetsApi } from "../api/assets";
-import {
-  DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
-  DEFAULT_CODEX_LOCAL_MODEL,
-} from "@paperclipai/adapter-codex-local";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
 import {
   Popover,
   PopoverContent,
@@ -39,16 +33,15 @@ import {
 } from "./agent-config-primitives";
 import { defaultCreateValues } from "./agent-config-defaults";
 import { getUIAdapter } from "../adapters";
-import { ClaudeLocalAdvancedFields } from "../adapters/claude-local/config-fields";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ChoosePathButton } from "./PathInstructionsModal";
 
 /* ---- Create mode values ---- */
 
-// Canonical type lives in @paperclipai/adapter-utils; re-exported here
+// Canonical type lives in @substaff/adapter-utils; re-exported here
 // so existing imports from this file keep working.
-export type { CreateConfigValues } from "@paperclipai/adapter-utils";
-import type { CreateConfigValues } from "@paperclipai/adapter-utils";
+export type { CreateConfigValues } from "@substaff/adapter-utils";
+import type { CreateConfigValues } from "@substaff/adapter-utils";
 
 /* ---- Props ---- */
 
@@ -272,10 +265,8 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     ? props.values.adapterType
     : overlay.adapterType ?? props.agent.adapterType;
   const isLocal =
-    adapterType === "claude_local" ||
-    adapterType === "codex_local" ||
-    adapterType === "opencode_local" ||
-    adapterType === "cursor";
+    adapterType === "e2b_sandbox" ||
+    adapterType === "process";
   const uiAdapter = useMemo(() => getUIAdapter(adapterType), [adapterType]);
 
   // Fetch adapter models for the effective adapter type
@@ -334,38 +325,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     ? val!.model
     : eff("adapterConfig", "model", String(config.model ?? ""));
 
-  const thinkingEffortKey =
-    adapterType === "codex_local"
-      ? "modelReasoningEffort"
-      : adapterType === "cursor"
-        ? "mode"
-      : adapterType === "opencode_local"
-        ? "variant"
-        : "effort";
-  const thinkingEffortOptions =
-    adapterType === "codex_local"
-      ? codexThinkingEffortOptions
-      : adapterType === "cursor"
-        ? cursorModeOptions
-      : adapterType === "opencode_local"
-        ? opencodeVariantOptions
-        : claudeThinkingEffortOptions;
+  const thinkingEffortKey = "effort";
+  const thinkingEffortOptions = claudeThinkingEffortOptions;
   const currentThinkingEffort = isCreate
     ? val!.thinkingEffort
-    : adapterType === "codex_local"
-      ? eff(
-          "adapterConfig",
-          "modelReasoningEffort",
-          String(config.modelReasoningEffort ?? config.reasoningEffort ?? ""),
-        )
-      : adapterType === "cursor"
-        ? eff("adapterConfig", "mode", String(config.mode ?? ""))
-      : adapterType === "opencode_local"
-        ? eff("adapterConfig", "variant", String(config.variant ?? ""))
-      : eff("adapterConfig", "effort", String(config.effort ?? ""));
-  const codexSearchEnabled = adapterType === "codex_local"
-    ? (isCreate ? Boolean(val!.search) : eff("adapterConfig", "search", Boolean(config.search)))
-    : false;
+    : eff("adapterConfig", "effort", String(config.effort ?? ""));
 
   return (
     <div className={cn("relative", cards && "space-y-6")}>
@@ -476,41 +440,16 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                   // Reset all adapter-specific fields to defaults when switching adapter type
                   const { adapterType: _at, ...defaults } = defaultCreateValues;
                   const nextValues: CreateConfigValues = { ...defaults, adapterType: t };
-                  if (t === "codex_local") {
-                    nextValues.model = DEFAULT_CODEX_LOCAL_MODEL;
-                    nextValues.dangerouslyBypassSandbox =
-                      DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX;
-                  } else if (t === "cursor") {
-                    nextValues.model = DEFAULT_CURSOR_LOCAL_MODEL;
-                  } else if (t === "opencode_local") {
-                    nextValues.model = DEFAULT_OPENCODE_LOCAL_MODEL;
-                  }
                   set!(nextValues);
                 } else {
-                  // Clear all adapter config and explicitly blank out model + effort/mode keys
+                  // Clear all adapter config and explicitly blank out model + effort keys
                   // so the old adapter's values don't bleed through via eff()
                   setOverlay((prev) => ({
                     ...prev,
                     adapterType: t,
                     adapterConfig: {
-                      model:
-                        t === "codex_local"
-                          ? DEFAULT_CODEX_LOCAL_MODEL
-                          : t === "cursor"
-                            ? DEFAULT_CURSOR_LOCAL_MODEL
-                          : t === "opencode_local"
-                            ? DEFAULT_OPENCODE_LOCAL_MODEL
-                            : "",
+                      model: "",
                       effort: "",
-                      modelReasoningEffort: "",
-                      variant: "",
-                      mode: "",
-                      ...(t === "codex_local"
-                        ? {
-                            dangerouslyBypassApprovalsAndSandbox:
-                              DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
-                          }
-                        : {}),
                     },
                   }));
                 }
@@ -600,15 +539,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                   }
                   immediate
                   className={inputClass}
-                  placeholder={
-                    adapterType === "codex_local"
-                      ? "codex"
-                      : adapterType === "cursor"
-                        ? "agent"
-                      : adapterType === "opencode_local"
-                        ? "opencode"
-                        : "claude"
-                  }
+                  placeholder="e.g. node, python"
                 />
               </Field>
 
@@ -635,13 +566,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 open={thinkingEffortOpen}
                 onOpenChange={setThinkingEffortOpen}
               />
-              {adapterType === "codex_local" &&
-                codexSearchEnabled &&
-                currentThinkingEffort === "minimal" && (
-                  <p className="text-xs text-amber-400">
-                    Codex may reject `minimal` thinking when search is enabled.
-                  </p>
-                )}
               <Field label="Bootstrap prompt (first run)" hint={help.bootstrapPrompt}>
                 <MarkdownEditor
                   value={
@@ -669,10 +593,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                   }}
                 />
               </Field>
-              {adapterType === "claude_local" && (
-                <ClaudeLocalAdvancedFields {...adapterFieldProps} />
-              )}
-
               <Field label="Extra args (comma-separated)" hint={help.extraArgs}>
                 <DraftInput
                   value={
@@ -876,7 +796,7 @@ function AdapterEnvironmentResult({ result }: { result: AdapterEnvironmentTestRe
 
 /* ---- Internal sub-components ---- */
 
-const ENABLED_ADAPTER_TYPES = new Set(["claude_local", "codex_local", "opencode_local", "cursor"]);
+const ENABLED_ADAPTER_TYPES = new Set(["e2b_sandbox"]);
 
 /** Display list includes all real adapter types plus UI-only coming-soon entries. */
 const ADAPTER_DISPLAY_LIST: { value: string; label: string; comingSoon: boolean }[] = [
@@ -1172,7 +1092,7 @@ function EnvVarEditor({
       })}
       {sealError && <p className="text-[11px] text-destructive">{sealError}</p>}
       <p className="text-[11px] text-muted-foreground/60">
-        PAPERCLIP_* variables are injected automatically at runtime.
+        SUBSTAFF_* variables are injected automatically at runtime.
       </p>
     </div>
   );

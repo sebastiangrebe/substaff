@@ -16,4 +16,5 @@ export { accessService } from "./access.js";
 export { companyPortabilityService } from "./company-portability.js";
 export { logActivity, type LogActivityInput } from "./activity-log.js";
 export { publishLiveEvent, subscribeCompanyLiveEvents } from "./live-events.js";
+export { llmKeyManagerService } from "./llm-key-manager.js";
 export { createStorageServiceFromConfig, getStorageService } from "../storage/index.js";

@@ -1,10 +1,10 @@
 # Running OpenClaw in Docker (Local Development)
 
-How to get OpenClaw running in a Docker container for local development and testing the Paperclip OpenClaw adapter integration.
+How to get OpenClaw running in a Docker container for local development and testing the Substaff OpenClaw adapter integration.
 
 ## Automated Join Smoke Test (Recommended First)
 
-Paperclip includes an end-to-end join smoke harness:
+Substaff includes an end-to-end join smoke harness:
 
 ```bash
 pnpm smoke:openclaw-join
@@ -56,12 +56,12 @@ Environment knobs:
 
 ### Authenticated mode
 
-If your Paperclip deployment is `authenticated`, provide auth context:
+If your Substaff deployment is `authenticated`, provide auth context:
 
 ```bash
-PAPERCLIP_AUTH_HEADER="Bearer <token>" pnpm smoke:openclaw-join
+SUBSTAFF_AUTH_HEADER="Bearer <token>" pnpm smoke:openclaw-join
 # or
-PAPERCLIP_COOKIE="your_session_cookie=..." pnpm smoke:openclaw-join
+SUBSTAFF_COOKIE="your_session_cookie=..." pnpm smoke:openclaw-join
 ```
 
 ### Network topology tips
@@ -71,7 +71,7 @@ PAPERCLIP_COOKIE="your_session_cookie=..." pnpm smoke:openclaw-join
 - Authenticated/private mode: ensure hostnames are in the allowed list when required:
 
 ```bash
-pnpm paperclipai allowed-hostname <host>
+pnpm substaff allowed-hostname <host>
 ```
 
 ## Prerequisites

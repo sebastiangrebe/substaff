@@ -3,27 +3,27 @@ import type { Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@paperclipai/adapter-utils";
+import type { AdapterExecutionContext, AdapterExecutionResult } from "@substaff/adapter-utils";
 import {
   asString,
   asNumber,
   asStringArray,
   parseObject,
-  buildPaperclipEnv,
+  buildSubstaffEnv,
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
   ensurePathInEnv,
   renderTemplate,
   runChildProcess,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@substaff/adapter-utils/server-utils";
 import { DEFAULT_CURSOR_LOCAL_MODEL } from "../index.js";
 import { parseCursorJsonl, isCursorUnknownSessionError } from "./parse.js";
 import { normalizeCursorStreamLine } from "../shared/stream.js";
 import { hasCursorTrustBypassArg } from "../shared/trust.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const PAPERCLIP_SKILLS_CANDIDATES = [
+const SUBSTAFF_SKILLS_CANDIDATES = [
   path.resolve(__moduleDir, "../../skills"),
   path.resolve(__moduleDir, "../../../../../skills"),
 ];
@@ -64,14 +64,14 @@ function normalizeMode(rawMode: string): "plan" | "ask" | null {
   return null;
 }
 
-function renderPaperclipEnvNote(env: Record<string, string>): string {
-  const paperclipKeys = Object.keys(env)
-    .filter((key) => key.startsWith("PAPERCLIP_"))
+function renderSubstaffEnvNote(env: Record<string, string>): string {
+  const substaffKeys = Object.keys(env)
+    .filter((key) => key.startsWith("SUBSTAFF_"))
     .sort();
-  if (paperclipKeys.length === 0) return "";
+  if (substaffKeys.length === 0) return "";
   return [
-    "Paperclip runtime note:",
-    `The following PAPERCLIP_* environment variables are available in this run: ${paperclipKeys.join(", ")}`,
+    "Substaff runtime note:",
+    `The following SUBSTAFF_* environment variables are available in this run: ${substaffKeys.join(", ")}`,
     "Do not assume these variables are missing without checking your shell environment.",
     "",
     "",
@@ -82,8 +82,8 @@ function cursorSkillsHome(): string {
   return path.join(os.homedir(), ".cursor", "skills");
 }
 
-async function resolvePaperclipSkillsDir(): Promise<string | null> {
-  for (const candidate of PAPERCLIP_SKILLS_CANDIDATES) {
+async function resolveSubstaffSkillsDir(): Promise<string | null> {
+  for (const candidate of SUBSTAFF_SKILLS_CANDIDATES) {
     const isDir = await fs.stat(candidate).then((s) => s.isDirectory()).catch(() => false);
     if (isDir) return candidate;
   }
@@ -100,7 +100,7 @@ export async function ensureCursorSkillsInjected(
   onLog: AdapterExecutionContext["onLog"],
   options: EnsureCursorSkillsInjectedOptions = {},
 ) {
-  const skillsDir = options.skillsDir ?? await resolvePaperclipSkillsDir();
+  const skillsDir = options.skillsDir ?? await resolveSubstaffSkillsDir();
   if (!skillsDir) return;
 
   const skillsHome = options.skillsHome ?? cursorSkillsHome();
@@ -109,7 +109,7 @@ export async function ensureCursorSkillsInjected(
   } catch (err) {
     await onLog(
       "stderr",
-      `[paperclip] Failed to prepare Cursor skills directory ${skillsHome}: ${err instanceof Error ? err.message : String(err)}\n`,
+      `[substaff] Failed to prepare Cursor skills directory ${skillsHome}: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     return;
   }
@@ -120,7 +120,7 @@ export async function ensureCursorSkillsInjected(
   } catch (err) {
     await onLog(
       "stderr",
-      `[paperclip] Failed to read Paperclip skills from ${skillsDir}: ${err instanceof Error ? err.message : String(err)}\n`,
+      `[substaff] Failed to read Substaff skills from ${skillsDir}: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     return;
   }
@@ -137,12 +137,12 @@ export async function ensureCursorSkillsInjected(
       await linkSkill(source, target);
       await onLog(
         "stderr",
-        `[paperclip] Injected Cursor skill "${entry.name}" into ${skillsHome}\n`,
+        `[substaff] Injected Cursor skill "${entry.name}" into ${skillsHome}\n`,
       );
     } catch (err) {
       await onLog(
         "stderr",
-        `[paperclip] Failed to inject Cursor skill "${entry.name}" into ${skillsHome}: ${err instanceof Error ? err.message : String(err)}\n`,
+        `[substaff] Failed to inject Cursor skill "${entry.name}" into ${skillsHome}: ${err instanceof Error ? err.message : String(err)}\n`,
       );
     }
   }
@@ -153,20 +153,20 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   const promptTemplate = asString(
     config.promptTemplate,
-    "You are agent {{agent.id}} ({{agent.name}}). Continue your Paperclip work.",
+    "You are agent {{agent.id}} ({{agent.name}}). Continue your Substaff work.",
   );
   const command = asString(config.command, "agent");
   const model = asString(config.model, DEFAULT_CURSOR_LOCAL_MODEL).trim();
   const mode = normalizeMode(asString(config.mode, ""));
 
-  const workspaceContext = parseObject(context.paperclipWorkspace);
+  const workspaceContext = parseObject(context.substaffWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
   const workspaceSource = asString(workspaceContext.source, "");
   const workspaceId = asString(workspaceContext.workspaceId, "");
   const workspaceRepoUrl = asString(workspaceContext.repoUrl, "");
   const workspaceRepoRef = asString(workspaceContext.repoRef, "");
-  const workspaceHints = Array.isArray(context.paperclipWorkspaces)
-    ? context.paperclipWorkspaces.filter(
+  const workspaceHints = Array.isArray(context.substaffWorkspaces)
+    ? context.substaffWorkspaces.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
@@ -179,9 +179,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
   const envConfig = parseObject(config.env);
   const hasExplicitApiKey =
-    typeof envConfig.PAPERCLIP_API_KEY === "string" && envConfig.PAPERCLIP_API_KEY.trim().length > 0;
-  const env: Record<string, string> = { ...buildPaperclipEnv(agent) };
-  env.PAPERCLIP_RUN_ID = runId;
+    typeof envConfig.SUBSTAFF_API_KEY === "string" && envConfig.SUBSTAFF_API_KEY.trim().length > 0;
+  const env: Record<string, string> = { ...buildSubstaffEnv(agent) };
+  env.SUBSTAFF_RUN_ID = runId;
   const wakeTaskId =
     (typeof context.taskId === "string" && context.taskId.trim().length > 0 && context.taskId.trim()) ||
     (typeof context.issueId === "string" && context.issueId.trim().length > 0 && context.issueId.trim()) ||
@@ -206,46 +206,46 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     ? context.issueIds.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     : [];
   if (wakeTaskId) {
-    env.PAPERCLIP_TASK_ID = wakeTaskId;
+    env.SUBSTAFF_TASK_ID = wakeTaskId;
   }
   if (wakeReason) {
-    env.PAPERCLIP_WAKE_REASON = wakeReason;
+    env.SUBSTAFF_WAKE_REASON = wakeReason;
   }
   if (wakeCommentId) {
-    env.PAPERCLIP_WAKE_COMMENT_ID = wakeCommentId;
+    env.SUBSTAFF_WAKE_COMMENT_ID = wakeCommentId;
   }
   if (approvalId) {
-    env.PAPERCLIP_APPROVAL_ID = approvalId;
+    env.SUBSTAFF_APPROVAL_ID = approvalId;
   }
   if (approvalStatus) {
-    env.PAPERCLIP_APPROVAL_STATUS = approvalStatus;
+    env.SUBSTAFF_APPROVAL_STATUS = approvalStatus;
   }
   if (linkedIssueIds.length > 0) {
-    env.PAPERCLIP_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
+    env.SUBSTAFF_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
   }
   if (effectiveWorkspaceCwd) {
-    env.PAPERCLIP_WORKSPACE_CWD = effectiveWorkspaceCwd;
+    env.SUBSTAFF_WORKSPACE_CWD = effectiveWorkspaceCwd;
   }
   if (workspaceSource) {
-    env.PAPERCLIP_WORKSPACE_SOURCE = workspaceSource;
+    env.SUBSTAFF_WORKSPACE_SOURCE = workspaceSource;
   }
   if (workspaceId) {
-    env.PAPERCLIP_WORKSPACE_ID = workspaceId;
+    env.SUBSTAFF_WORKSPACE_ID = workspaceId;
   }
   if (workspaceRepoUrl) {
-    env.PAPERCLIP_WORKSPACE_REPO_URL = workspaceRepoUrl;
+    env.SUBSTAFF_WORKSPACE_REPO_URL = workspaceRepoUrl;
   }
   if (workspaceRepoRef) {
-    env.PAPERCLIP_WORKSPACE_REPO_REF = workspaceRepoRef;
+    env.SUBSTAFF_WORKSPACE_REPO_REF = workspaceRepoRef;
   }
   if (workspaceHints.length > 0) {
-    env.PAPERCLIP_WORKSPACES_JSON = JSON.stringify(workspaceHints);
+    env.SUBSTAFF_WORKSPACES_JSON = JSON.stringify(workspaceHints);
   }
   for (const [k, v] of Object.entries(envConfig)) {
     if (typeof v === "string") env[k] = v;
   }
   if (!hasExplicitApiKey && authToken) {
-    env.PAPERCLIP_API_KEY = authToken;
+    env.SUBSTAFF_API_KEY = authToken;
   }
   const billingType = resolveCursorBillingType(env);
   const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
@@ -270,7 +270,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   if (runtimeSessionId && !canResumeSession) {
     await onLog(
       "stderr",
-      `[paperclip] Cursor session "${runtimeSessionId}" was saved for cwd "${runtimeSessionCwd}" and will not be resumed in "${cwd}".\n`,
+      `[substaff] Cursor session "${runtimeSessionId}" was saved for cwd "${runtimeSessionCwd}" and will not be resumed in "${cwd}".\n`,
     );
   }
 
@@ -286,13 +286,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         `Resolve any relative file references from ${instructionsDir}.\n\n`;
       await onLog(
         "stderr",
-        `[paperclip] Loaded agent instructions file: ${instructionsFilePath}\n`,
+        `[substaff] Loaded agent instructions file: ${instructionsFilePath}\n`,
       );
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       await onLog(
         "stderr",
-        `[paperclip] Warning: could not read agent instructions file "${instructionsFilePath}": ${reason}\n`,
+        `[substaff] Warning: could not read agent instructions file "${instructionsFilePath}": ${reason}\n`,
       );
     }
   }
@@ -325,8 +325,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     run: { id: runId, source: "on_demand" },
     context,
   });
-  const paperclipEnvNote = renderPaperclipEnvNote(env);
-  const prompt = `${instructionsPrefix}${paperclipEnvNote}${renderedPrompt}`;
+  const substaffEnvNote = renderSubstaffEnvNote(env);
+  const prompt = `${instructionsPrefix}${substaffEnvNote}${renderedPrompt}`;
 
   const buildArgs = (resumeSessionId: string | null) => {
     const args = ["-p", "--output-format", "stream-json", "--workspace", cwd];
@@ -475,7 +475,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   ) {
     await onLog(
       "stderr",
-      `[paperclip] Cursor resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
+      `[substaff] Cursor resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
     );
     const retry = await runAttempt(null);
     return toResult(retry, true);

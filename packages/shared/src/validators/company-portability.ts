@@ -19,7 +19,8 @@ export const portabilityCompanyManifestEntrySchema = z.object({
   name: z.string().min(1),
   description: z.string().nullable(),
   brandColor: z.string().nullable(),
-  requireBoardApprovalForNewAgents: z.boolean(),
+  requirePlanApproval: z.boolean(),
+  requireHireApproval: z.boolean().optional().default(false),
 });
 
 export const portabilityAgentManifestEntrySchema = z.object({

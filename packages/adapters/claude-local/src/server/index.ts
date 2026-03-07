@@ -1,12 +1,14 @@
-export { execute, runClaudeLogin } from "./execute.js";
+export { execute, runClaudeLogin, buildClaudeRuntimeConfig } from "./execute.js";
+export type { ClaudeExecutionInput, ClaudeRuntimeConfig } from "./execute.js";
 export { testEnvironment } from "./test.js";
 export {
   parseClaudeStreamJson,
   describeClaudeFailure,
+  detectClaudeLoginRequired,
   isClaudeMaxTurnsResult,
   isClaudeUnknownSessionError,
 } from "./parse.js";
-import type { AdapterSessionCodec } from "@paperclipai/adapter-utils";
+import type { AdapterSessionCodec } from "@substaff/adapter-utils";
 
 function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;

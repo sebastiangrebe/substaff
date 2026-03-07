@@ -5,9 +5,7 @@ import { formatDatabaseBackupResult, runDatabaseBackup } from "./backup-lib.js";
 
 type PartialConfig = {
   database?: {
-    mode?: "embedded-postgres" | "postgres";
     connectionString?: string;
-    embeddedPostgresPort?: number;
     backup?: {
       dir?: string;
       retentionDays?: number;
@@ -21,22 +19,22 @@ function expandHomePrefix(value: string): string {
   return value;
 }
 
-function resolvePaperclipHomeDir(): string {
-  const envHome = process.env.PAPERCLIP_HOME?.trim();
+function resolveSubstaffHomeDir(): string {
+  const envHome = process.env.SUBSTAFF_HOME?.trim();
   if (envHome) return path.resolve(expandHomePrefix(envHome));
-  return path.resolve(os.homedir(), ".paperclip");
+  return path.resolve(os.homedir(), ".substaff");
 }
 
-function resolvePaperclipInstanceId(): string {
-  const raw = process.env.PAPERCLIP_INSTANCE_ID?.trim() || "default";
+function resolveSubstaffInstanceId(): string {
+  const raw = process.env.SUBSTAFF_INSTANCE_ID?.trim() || "default";
   if (!/^[a-zA-Z0-9_-]+$/.test(raw)) {
-    throw new Error(`Invalid PAPERCLIP_INSTANCE_ID '${raw}'.`);
+    throw new Error(`Invalid SUBSTAFF_INSTANCE_ID '${raw}'.`);
   }
   return raw;
 }
 
 function resolveDefaultConfigPath(): string {
-  return path.resolve(resolvePaperclipHomeDir(), "instances", resolvePaperclipInstanceId(), "config.json");
+  return path.resolve(resolveSubstaffHomeDir(), "instances", resolveSubstaffInstanceId(), "config.json");
 }
 
 function readConfig(configPath: string): PartialConfig | null {
@@ -55,25 +53,20 @@ function asPositiveInt(value: unknown): number | null {
   return rounded > 0 ? rounded : null;
 }
 
-function resolveEmbeddedPort(config: PartialConfig | null): number {
-  return asPositiveInt(config?.database?.embeddedPostgresPort) ?? 54329;
-}
-
 function resolveConnectionString(config: PartialConfig | null): string {
   const envUrl = process.env.DATABASE_URL?.trim();
   if (envUrl) return envUrl;
 
-  if (config?.database?.mode === "postgres" && typeof config.database.connectionString === "string") {
+  if (typeof config?.database?.connectionString === "string") {
     const trimmed = config.database.connectionString.trim();
     if (trimmed) return trimmed;
   }
 
-  const port = resolveEmbeddedPort(config);
-  return `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`;
+  throw new Error("No database connection string found. Set DATABASE_URL or configure database.connectionString.");
 }
 
 function resolveDefaultBackupDir(): string {
-  return path.resolve(resolvePaperclipHomeDir(), "instances", resolvePaperclipInstanceId(), "data", "backups");
+  return path.resolve(resolveSubstaffHomeDir(), "instances", resolveSubstaffInstanceId(), "data", "backups");
 }
 
 function resolveBackupDir(config: PartialConfig | null): string {
@@ -104,7 +97,7 @@ async function main() {
       connectionString,
       backupDir,
       retentionDays,
-      filenamePrefix: "paperclip",
+      filenamePrefix: "substaff",
     });
 
     console.log(`Backup saved: ${formatDatabaseBackupResult(result)}`);

@@ -33,8 +33,10 @@ interface DialogContextValue {
   closeNewAgent: () => void;
   onboardingOpen: boolean;
   onboardingOptions: OnboardingOptions;
+  onboardingRequired: boolean;
   openOnboarding: (options?: OnboardingOptions) => void;
   closeOnboarding: () => void;
+  setOnboardingRequired: (required: boolean) => void;
 }
 
 const DialogContext = createContext<DialogContextValue | null>(null);
@@ -48,6 +50,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   const [newAgentOpen, setNewAgentOpen] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingOptions, setOnboardingOptions] = useState<OnboardingOptions>({});
+  const [onboardingRequired, setOnboardingRequired] = useState(false);
 
   const openNewIssue = useCallback((defaults: NewIssueDefaults = {}) => {
     setNewIssueDefaults(defaults);
@@ -91,9 +94,11 @@ export function DialogProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closeOnboarding = useCallback(() => {
+    // Prevent closing if onboarding hasn't been completed
+    if (onboardingRequired) return;
     setOnboardingOpen(false);
     setOnboardingOptions({});
-  }, []);
+  }, [onboardingRequired]);
 
   return (
     <DialogContext.Provider
@@ -114,8 +119,10 @@ export function DialogProvider({ children }: { children: ReactNode }) {
         closeNewAgent,
         onboardingOpen,
         onboardingOptions,
+        onboardingRequired,
         openOnboarding,
         closeOnboarding,
+        setOnboardingRequired,
       }}
     >
       {children}

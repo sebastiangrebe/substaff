@@ -1,25 +1,90 @@
+# Local development — full stack with hot reload.
+# Run: docker compose up -d
+# Server and UI hot-reload via volume mounts (code changes apply instantly).
+
 services:
   db:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: paperclip
-      POSTGRES_PASSWORD: paperclip
-      POSTGRES_DB: paperclip
+      POSTGRES_USER: substaff
+      POSTGRES_PASSWORD: substaff
+      POSTGRES_DB: substaff
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  # Creates the default bucket on first start
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 2;
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb local/substaff --ignore-existing;
+      exit 0;
+      "
+
   server:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     ports:
       - "3100:3100"
+      - "5173:5173"
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgres://paperclip:paperclip@db:5432/paperclip
-      PORT: "3100"
-      SERVE_UI: "true"
+      DATABASE_URL: postgres://substaff:substaff@db:5432/substaff
+      REDIS_URL: redis://redis:6379
+      SUBSTAFF_STORAGE_S3_ENDPOINT: http://minio:9000
+      SUBSTAFF_STORAGE_S3_FORCE_PATH_STYLE: "true"
+      SUBSTAFF_MIGRATION_AUTO_APPLY: "true"
+      SUBSTAFF_UI_DEV_MIDDLEWARE: "true"
+      HOST: "0.0.0.0"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/server/node_modules
+      - /app/ui/node_modules
+      - /app/packages/shared/node_modules
+      - /app/packages/db/node_modules
+      - /app/packages/adapter-utils/node_modules
+      - /app/packages/adapters/claude-local/node_modules
+      - /app/packages/adapters/codex-local/node_modules
+      - /app/packages/adapters/cursor-local/node_modules
+      - /app/packages/adapters/e2b-sandbox/node_modules
+      - /app/packages/adapters/openclaw/node_modules
+      - /app/packages/adapters/opencode-local/node_modules
+      - /app/packages/storage/node_modules
+      - /app/cli/node_modules
     depends_on:
       - db
+      - redis
+      - minio-init
 
 volumes:
   pgdata:
+  redisdata:
+  miniodata:

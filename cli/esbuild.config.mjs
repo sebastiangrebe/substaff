@@ -1,7 +1,7 @@
 /**
- * esbuild configuration for building the paperclipai CLI for npm.
+ * esbuild configuration for building the substaff CLI for npm.
  *
- * Bundles all workspace packages (@paperclipai/*) into a single file.
+ * Bundles all workspace packages (@substaff/*) into a single file.
  * External npm packages remain as regular dependencies.
  */
 
@@ -19,15 +19,13 @@ const workspacePaths = [
   "packages/db",
   "packages/shared",
   "packages/adapter-utils",
-  "packages/adapters/claude-local",
-  "packages/adapters/codex-local",
-  "packages/adapters/openclaw",
+  "packages/adapters/e2b-sandbox",
 ];
 
 // Workspace packages that should NOT be bundled — they'll be published
-// to npm and resolved at runtime (e.g. @paperclipai/server uses dynamic import).
+// to npm and resolved at runtime (e.g. @substaff/server uses dynamic import).
 const externalWorkspacePackages = new Set([
-  "@paperclipai/server",
+  "@substaff/server",
 ]);
 
 // Collect all external (non-workspace) npm package names
@@ -37,7 +35,7 @@ for (const p of workspacePaths) {
   for (const name of Object.keys(pkg.dependencies || {})) {
     if (externalWorkspacePackages.has(name)) {
       externals.add(name);
-    } else if (!name.startsWith("@paperclipai/")) {
+    } else if (!name.startsWith("@substaff/")) {
       externals.add(name);
     }
   }

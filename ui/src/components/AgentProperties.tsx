@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@/lib/router";
-import type { Agent, AgentRuntimeState } from "@paperclipai/shared";
+import type { Agent, AgentRuntimeState } from "@substaff/shared";
 import { agentsApi } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -15,11 +15,7 @@ interface AgentPropertiesProps {
 }
 
 const adapterLabels: Record<string, string> = {
-  claude_local: "Claude (local)",
-  codex_local: "Codex (local)",
-  opencode_local: "OpenCode (local)",
-  openclaw: "OpenClaw",
-  cursor: "Cursor (local)",
+  e2b_sandbox: "E2B Sandbox",
   process: "Process",
   http: "HTTP",
 };

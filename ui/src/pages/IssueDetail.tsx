@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
+import { plansApi } from "../api/plans";
 import { activityApi } from "../api/activity";
 import { heartbeatsApi } from "../api/heartbeats";
 import { agentsApi } from "../api/agents";
@@ -32,9 +33,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity as ActivityIcon,
+  Check,
   ChevronDown,
   ChevronRight,
   EyeOff,
+  FileText,
   Hexagon,
   ListTree,
   MessageSquare,
@@ -42,9 +45,10 @@ import {
   Paperclip,
   SlidersHorizontal,
   Trash2,
+  X,
 } from "lucide-react";
-import type { ActivityEvent } from "@paperclipai/shared";
-import type { Agent, IssueAttachment } from "@paperclipai/shared";
+import type { ActivityEvent, TaskPlan } from "@substaff/shared";
+import type { Agent, IssueAttachment } from "@substaff/shared";
 
 type CommentReassignment = {
   assigneeAgentId: string | null;
@@ -52,14 +56,14 @@ type CommentReassignment = {
 };
 
 const ACTION_LABELS: Record<string, string> = {
-  "issue.created": "created the issue",
-  "issue.updated": "updated the issue",
-  "issue.checked_out": "checked out the issue",
-  "issue.released": "released the issue",
+  "issue.created": "created the task",
+  "issue.updated": "updated the task",
+  "issue.checked_out": "checked out the task",
+  "issue.released": "released the task",
   "issue.comment_added": "added a comment",
   "issue.attachment_added": "added an attachment",
   "issue.attachment_removed": "removed an attachment",
-  "issue.deleted": "deleted the issue",
+  "issue.deleted": "deleted the task",
   "agent.created": "created an agent",
   "agent.updated": "updated the agent",
   "agent.paused": "paused the agent",
@@ -210,6 +214,12 @@ export function IssueDetail() {
     queryFn: () => heartbeatsApi.activeRunForIssue(issueId!),
     enabled: !!issueId,
     refetchInterval: 3000,
+  });
+
+  const { data: plans } = useQuery({
+    queryKey: queryKeys.issues.plans(issueId!),
+    queryFn: () => plansApi.list(selectedCompanyId!, issueId!),
+    enabled: !!issueId && !!selectedCompanyId,
   });
 
   const hasLiveRuns = (liveRuns ?? []).length > 0 || !!activeRun;
@@ -390,7 +400,7 @@ export function IssueDetail() {
     mutationFn: (data: Record<string, unknown>) => issuesApi.update(issueId!, data),
     onSuccess: (updated) => {
       invalidateIssue();
-      const issueRef = updated.identifier ?? `Issue ${updated.id.slice(0, 8)}`;
+      const issueRef = updated.identifier ?? `Task ${updated.id.slice(0, 8)}`;
       pushToast({
         dedupeKey: `activity:issue.updated:${updated.id}`,
         title: `${issueRef} updated`,
@@ -407,7 +417,7 @@ export function IssueDetail() {
     onSuccess: (comment) => {
       invalidateIssue();
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.comments(issueId!) });
-      const issueRef = issue?.identifier ?? (issueId ? `Issue ${issueId.slice(0, 8)}` : "Issue");
+      const issueRef = issue?.identifier ?? (issueId ? `Task ${issueId.slice(0, 8)}` : "Task");
       pushToast({
         dedupeKey: `activity:issue.comment_added:${issueId}:${comment.id}`,
         title: `Comment posted on ${issueRef}`,
@@ -437,7 +447,7 @@ export function IssueDetail() {
     onSuccess: (updated) => {
       invalidateIssue();
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.comments(issueId!) });
-      const issueRef = updated.identifier ?? (issueId ? `Issue ${issueId.slice(0, 8)}` : "Issue");
+      const issueRef = updated.identifier ?? (issueId ? `Task ${issueId.slice(0, 8)}` : "Task");
       pushToast({
         dedupeKey: `activity:issue.reassigned:${updated.id}`,
         title: `${issueRef} reassigned`,
@@ -475,10 +485,32 @@ export function IssueDetail() {
     },
   });
 
+  const [rejectingPlanId, setRejectingPlanId] = useState<string | null>(null);
+  const [rejectComments, setRejectComments] = useState("");
+
+  const approvePlan = useMutation({
+    mutationFn: (planId: string) => plansApi.approve(selectedCompanyId!, planId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.plans(issueId!) });
+      pushToast({ title: "Plan approved", tone: "success" });
+    },
+  });
+
+  const rejectPlan = useMutation({
+    mutationFn: ({ planId, comments }: { planId: string; comments?: string }) =>
+      plansApi.reject(selectedCompanyId!, planId, comments),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.plans(issueId!) });
+      setRejectingPlanId(null);
+      setRejectComments("");
+      pushToast({ title: "Plan rejected", tone: "success" });
+    },
+  });
+
   useEffect(() => {
     setBreadcrumbs([
-      { label: "Issues", href: "/issues" },
-      { label: issue?.title ?? issueId ?? "Issue" },
+      { label: "Tasks", href: "/issues" },
+      { label: issue?.title ?? issueId ?? "Task" },
     ]);
   }, [setBreadcrumbs, issue, issueId]);
 
@@ -758,6 +790,10 @@ export function IssueDetail() {
             <ListTree className="h-3.5 w-3.5" />
             Sub-issues
           </TabsTrigger>
+          <TabsTrigger value="plans" className="gap-1.5">
+            <FileText className="h-3.5 w-3.5" />
+            Plans{plans && plans.length > 0 ? ` (${plans.length})` : ""}
+          </TabsTrigger>
           <TabsTrigger value="activity" className="gap-1.5">
             <ActivityIcon className="h-3.5 w-3.5" />
             Activity
@@ -770,7 +806,7 @@ export function IssueDetail() {
             linkedRuns={timelineRuns}
             issueStatus={issue.status}
             agentMap={agentMap}
-            draftKey={`paperclip:issue-comment-draft:${issue.id}`}
+            draftKey={`substaff:issue-comment-draft:${issue.id}`}
             enableReassign
             reassignOptions={commentReassignOptions}
             currentAssigneeValue={currentAssigneeValue}
@@ -819,6 +855,110 @@ export function IssueDetail() {
                       : <span className="text-muted-foreground font-mono">{child.assigneeAgentId.slice(0, 8)}</span>;
                   })()}
                 </Link>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="plans">
+          {!plans || plans.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No plans submitted yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {plans.map((plan) => (
+                <div
+                  key={plan.id}
+                  className="rounded-lg border border-border p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-mono text-muted-foreground">v{plan.version}</span>
+                      {plan.agentId && (() => {
+                        const agent = agentMap.get(plan.agentId);
+                        return agent
+                          ? <Identity name={agent.name} size="sm" />
+                          : <span className="text-muted-foreground font-mono">{plan.agentId.slice(0, 8)}</span>;
+                      })()}
+                      <span className="text-muted-foreground">{relativeTime(plan.createdAt)}</span>
+                    </div>
+                    <StatusBadge status={plan.status} />
+                  </div>
+
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-sm whitespace-pre-wrap break-words">
+                    {plan.planMarkdown}
+                  </div>
+
+                  {Array.isArray(plan.reviewerComments) && (plan.reviewerComments as Array<{ comment: string; at: string }>).length > 0 && (
+                    <div className="rounded border border-border bg-accent/10 p-2 space-y-1">
+                      <p className="text-xs font-medium text-muted-foreground">Reviewer comments</p>
+                      {(plan.reviewerComments as Array<{ comment: string; at: string }>).map((rc, i) => (
+                        <p key={i} className="text-xs text-muted-foreground">{rc.comment}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {plan.status === "pending_review" && session && (
+                    <div className="flex items-center gap-2 pt-1">
+                      {rejectingPlanId === plan.id ? (
+                        <div className="flex-1 space-y-2">
+                          <textarea
+                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                            placeholder="Rejection comments (optional)"
+                            rows={2}
+                            value={rejectComments}
+                            onChange={(e) => setRejectComments(e.target.value)}
+                          />
+                          <div className="flex gap-2">
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={rejectPlan.isPending}
+                              onClick={() =>
+                                rejectPlan.mutate({
+                                  planId: plan.id,
+                                  comments: rejectComments || undefined,
+                                })
+                              }
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" />
+                              {rejectPlan.isPending ? "Rejecting..." : "Confirm Reject"}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setRejectingPlanId(null);
+                                setRejectComments("");
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            disabled={approvePlan.isPending}
+                            onClick={() => approvePlan.mutate(plan.id)}
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" />
+                            {approvePlan.isPending ? "Approving..." : "Approve"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setRejectingPlanId(plan.id)}
+                          >
+                            <X className="h-3.5 w-3.5 mr-1" />
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

@@ -1,18 +1,19 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
 import {
   agents,
   agentRuntimeState,
   agentTaskSessions,
   agentWakeupRequests,
+  companies,
   heartbeatRunEvents,
   heartbeatRuns,
   costEvents,
   issues,
   projectWorkspaces,
-} from "@paperclipai/db";
+} from "@substaff/db";
 import { conflict, notFound } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { publishLiveEvent } from "./live-events.js";
@@ -22,14 +23,19 @@ import type { AdapterExecutionResult, AdapterInvocationMeta, AdapterSessionCodec
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
 import { parseObject, asBoolean, asNumber, appendWithCap, MAX_EXCERPT_BYTES } from "../adapters/utils.js";
 import { secretService } from "./secrets.js";
+import { llmKeyManagerService } from "./llm-key-manager.js";
+import { stripeService } from "./stripe.js";
+import { setRlsAllTenantsContext } from "@substaff/db";
+import { isVectorSearchEnabled, getQdrantClient, createEmbeddingService, createRagService, indexRunArtifacts } from "../vector/index.js";
+import { loadConfig } from "../config.js";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_MAX = 10;
-const DEFERRED_WAKE_CONTEXT_KEY = "_paperclipWakeContext";
+const DEFERRED_WAKE_CONTEXT_KEY = "_substaffWakeContext";
 const startLocksByAgent = new Map<string, Promise<void>>();
-const REPO_ONLY_CWD_SENTINEL = "/__paperclip_repo_only__";
+const REPO_ONLY_CWD_SENTINEL = "/__substaff_repo_only__";
 
 function appendExcerpt(prev: string, chunk: string) {
   return appendWithCap(prev, chunk, MAX_EXCERPT_BYTES);
@@ -406,6 +412,7 @@ function resolveNextSessionState(input: {
 export function heartbeatService(db: Db) {
   const runLogStore = getRunLogStore();
   const secretsSvc = secretService(db);
+  const llmKeys = llmKeyManagerService(db);
 
   async function getAgent(agentId: string) {
     return db
@@ -516,6 +523,8 @@ export function heartbeatService(db: Db) {
       repoRef: readNonEmptyString(workspace.repoRef),
     }));
 
+    const isSandboxAdapter = agent.adapterType === "e2b_sandbox";
+
     if (projectWorkspaceRows.length > 0) {
       const missingProjectCwds: string[] = [];
       let hasConfiguredProjectCwd = false;
@@ -525,10 +534,12 @@ export function heartbeatService(db: Db) {
           continue;
         }
         hasConfiguredProjectCwd = true;
-        const projectCwdExists = await fs
-          .stat(projectCwd)
-          .then((stats) => stats.isDirectory())
-          .catch(() => false);
+        const projectCwdExists = isSandboxAdapter
+          ? true
+          : await fs
+              .stat(projectCwd)
+              .then((stats) => stats.isDirectory())
+              .catch(() => false);
         if (projectCwdExists) {
           return {
             cwd: projectCwd,
@@ -574,10 +585,14 @@ export function heartbeatService(db: Db) {
 
     const sessionCwd = readNonEmptyString(previousSessionParams?.cwd);
     if (sessionCwd) {
-      const sessionCwdExists = await fs
-        .stat(sessionCwd)
-        .then((stats) => stats.isDirectory())
-        .catch(() => false);
+      // For sandbox-based adapters (e2b), the saved cwd is inside the sandbox
+      // filesystem and won't exist on the host. Skip the local fs check.
+      const sessionCwdExists = isSandboxAdapter
+        ? true
+        : await fs
+            .stat(sessionCwd)
+            .then((stats) => stats.isDirectory())
+            .catch(() => false);
       if (sessionCwdExists) {
         return {
           cwd: sessionCwd,
@@ -977,7 +992,13 @@ export function heartbeatService(db: Db) {
       .where(eq(agentRuntimeState.agentId, agent.id));
 
     if (additionalCostCents > 0 || hasTokenUsage) {
+      const [company] = await db
+        .select({ vendorId: companies.vendorId })
+        .from(companies)
+        .where(eq(companies.id, agent.companyId))
+        .limit(1);
       await db.insert(costEvents).values({
+        vendorId: company?.vendorId ?? agent.companyId,
         companyId: agent.companyId,
         agentId: agent.id,
         provider: result.provider ?? "unknown",
@@ -1068,16 +1089,30 @@ export function heartbeatService(db: Db) {
     const taskKey = deriveTaskKey(context, null);
     const sessionCodec = getAdapterSessionCodec(agent.adapterType);
     const issueId = readNonEmptyString(context.issueId);
-    const issueAssigneeConfig = issueId
+    const issueForRun = issueId
       ? await db
           .select({
             assigneeAgentId: issues.assigneeAgentId,
             assigneeAdapterOverrides: issues.assigneeAdapterOverrides,
+            title: issues.title,
+            description: issues.description,
+            identifier: issues.identifier,
+            status: issues.status,
+            priority: issues.priority,
           })
           .from(issues)
           .where(and(eq(issues.id, issueId), eq(issues.companyId, agent.companyId)))
           .then((rows) => rows[0] ?? null)
       : null;
+    // Enrich context with issue details so adapters/prompt templates can use them
+    if (issueForRun) {
+      if (!readNonEmptyString(context.issueTitle)) context.issueTitle = issueForRun.title;
+      if (!readNonEmptyString(context.issueDescription) && issueForRun.description) context.issueDescription = issueForRun.description;
+      if (!readNonEmptyString(context.issueIdentifier)) context.issueIdentifier = issueForRun.identifier;
+      if (!readNonEmptyString(context.issueStatus)) context.issueStatus = issueForRun.status;
+      if (!readNonEmptyString(context.issuePriority) && issueForRun.priority) context.issuePriority = issueForRun.priority;
+    }
+    const issueAssigneeConfig = issueForRun;
     const issueAssigneeOverrides =
       issueAssigneeConfig && issueAssigneeConfig.assigneeAgentId === agent.id
         ? parseIssueAssigneeAdapterOverrides(
@@ -1116,7 +1151,7 @@ export function heartbeatService(db: Db) {
           ]
         : []),
     ];
-    context.paperclipWorkspace = {
+    context.substaffWorkspace = {
       cwd: resolvedWorkspace.cwd,
       source: resolvedWorkspace.source,
       projectId: resolvedWorkspace.projectId,
@@ -1124,7 +1159,7 @@ export function heartbeatService(db: Db) {
       repoUrl: resolvedWorkspace.repoUrl,
       repoRef: resolvedWorkspace.repoRef,
     };
-    context.paperclipWorkspaces = resolvedWorkspace.workspaceHints;
+    context.substaffWorkspaces = resolvedWorkspace.workspaceHints;
     if (resolvedWorkspace.projectId && !readNonEmptyString(context.projectId)) {
       context.projectId = resolvedWorkspace.projectId;
     }
@@ -1233,7 +1268,7 @@ export function heartbeatService(db: Db) {
         });
       };
       for (const warning of runtimeWorkspaceWarnings) {
-        await onLog("stderr", `[paperclip] ${warning}\n`);
+        await onLog("stderr", `[substaff] ${warning}\n`);
       }
 
       const config = parseObject(agent.adapterConfig);
@@ -1255,8 +1290,13 @@ export function heartbeatService(db: Db) {
       };
 
       const adapter = getServerAdapter(agent.adapterType);
+      const [companyForJwt] = await db
+        .select({ vendorId: companies.vendorId })
+        .from(companies)
+        .where(eq(companies.id, agent.companyId))
+        .limit(1);
       const authToken = adapter.supportsLocalAgentJwt
-        ? createLocalAgentJwt(agent.id, agent.companyId, agent.adapterType, run.id)
+        ? createLocalAgentJwt(agent.id, agent.companyId, agent.adapterType, run.id, companyForJwt?.vendorId)
         : null;
       if (adapter.supportsLocalAgentJwt && !authToken) {
         logger.warn(
@@ -1266,9 +1306,62 @@ export function heartbeatService(db: Db) {
             runId: run.id,
             adapterType: agent.adapterType,
           },
-          "local agent jwt secret missing or invalid; running without injected PAPERCLIP_API_KEY",
+          "local agent jwt secret missing or invalid; running without injected SUBSTAFF_API_KEY",
         );
       }
+      // RAG: inject relevant knowledge from vector DB before execution
+      if (isVectorSearchEnabled()) {
+        try {
+          const config = loadConfig();
+          if (config.voyageApiKey) {
+            const qdrant = getQdrantClient();
+            if (qdrant) {
+              const embeddingService = createEmbeddingService({
+                apiKey: config.voyageApiKey,
+                indexingModel: config.voyageIndexingModel,
+                retrievalModel: config.voyageRetrievalModel,
+              });
+              const ragService = createRagService({ qdrant, embeddingService });
+              const queryParts = [
+                readNonEmptyString(context.issueTitle),
+                readNonEmptyString(context.issueDescription),
+                readNonEmptyString(context.wakeReason),
+                taskKey,
+              ].filter(Boolean);
+              if (queryParts.length > 0) {
+                const ragResults = await ragService.queryRelevantContext(
+                  queryParts.join(" — "),
+                  {
+                    companyId: agent.companyId,
+                    projectId: readNonEmptyString(context.projectId) ?? undefined,
+                    topK: 10,
+                  },
+                );
+                if (ragResults.length > 0) {
+                  context.relevantKnowledge = ragResults.map((r) => ({
+                    filePath: r.filePath,
+                    type: r.artifactType,
+                    preview: r.contentPreview,
+                    relevanceScore: r.score,
+                  }));
+                }
+              }
+            }
+          }
+        } catch (err) {
+          logger.warn({ err, runId }, "RAG context retrieval failed, continuing without");
+        }
+      }
+
+      // Resolve LLM API key via key manager (company-owned → managed fallback)
+      let llmApiKey: string | undefined;
+      try {
+        const resolved = await llmKeys.resolveKey(agent.companyId, "anthropic");
+        llmApiKey = resolved.key;
+      } catch (err) {
+        logger.warn({ err, companyId: agent.companyId, runId }, "Could not resolve LLM API key via key manager");
+      }
+
       const adapterResult = await adapter.execute({
         runId: run.id,
         agent,
@@ -1278,6 +1371,7 @@ export function heartbeatService(db: Db) {
         onLog,
         onMeta: onAdapterMeta,
         authToken: authToken ?? undefined,
+        llmApiKey,
       });
       const nextSessionState = resolveNextSessionState({
         codec: sessionCodec,
@@ -1366,6 +1460,19 @@ export function heartbeatService(db: Db) {
           },
         });
         await releaseIssueExecutionAndPromote(finalizedRun);
+
+        // Index artifacts into vector DB after successful execution
+        if (outcome === "succeeded" && isVectorSearchEnabled()) {
+          void indexRunArtifacts(db, {
+            companyId: agent.companyId,
+            agentId: agent.id,
+            runId: run.id,
+            projectId: readNonEmptyString(context.projectId),
+            issueId: readNonEmptyString(context.issueId),
+          }).catch((err) => {
+            logger.error({ err, runId: run.id }, "Vector indexing failed");
+          });
+        }
       }
 
       if (finalizedRun) {
@@ -1640,6 +1747,21 @@ export function heartbeatService(db: Db) {
       agent.status === "pending_approval"
     ) {
       throw conflict("Agent is not invokable in its current state", { status: agent.status });
+    }
+
+    // Pre-flight vendor budget check
+    const [companyForBudget] = await db
+      .select({ vendorId: companies.vendorId })
+      .from(companies)
+      .where(eq(companies.id, agent.companyId));
+    if (companyForBudget?.vendorId) {
+      const budget = await stripeService(db).checkBudget(companyForBudget.vendorId);
+      if (!budget.allowed) {
+        throw conflict("Vendor budget exhausted", {
+          usedTokens: budget.usedTokens,
+          limit: budget.limit,
+        });
+      }
     }
 
     const policy = parseHeartbeatPolicy(agent);
@@ -2201,6 +2323,7 @@ export function heartbeatService(db: Db) {
     reapOrphanedRuns,
 
     tickTimers: async (now = new Date()) => {
+      await setRlsAllTenantsContext(db);
       const allAgents = await db.select().from(agents);
       let checked = 0;
       let enqueued = 0;

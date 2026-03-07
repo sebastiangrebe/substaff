@@ -3,12 +3,12 @@ title: CLI Overview
 summary: CLI installation and setup
 ---
 
-The Paperclip CLI handles instance setup, diagnostics, and control-plane operations.
+The Substaff CLI handles instance setup, diagnostics, and control-plane operations.
 
 ## Usage
 
 ```sh
-pnpm paperclipai --help
+pnpm substaff --help
 ```
 
 ## Global Options
@@ -17,7 +17,7 @@ All commands support:
 
 | Flag | Description |
 |------|-------------|
-| `--data-dir <path>` | Local Paperclip data root (isolates from `~/.paperclip`) |
+| `--data-dir <path>` | Local Substaff data root (isolates from `~/.substaff`) |
 | `--api-base <url>` | API base URL |
 | `--api-key <token>` | API authentication token |
 | `--context <path>` | Context file path |
@@ -29,7 +29,7 @@ Company-scoped commands also accept `--company-id <id>`.
 For clean local instances, pass `--data-dir` on the command you run:
 
 ```sh
-pnpm paperclipai run --data-dir ./tmp/paperclip-dev
+pnpm substaff run --data-dir ./tmp/substaff-dev
 ```
 
 ## Context Profiles
@@ -38,26 +38,26 @@ Store defaults to avoid repeating flags:
 
 ```sh
 # Set defaults
-pnpm paperclipai context set --api-base http://localhost:3100 --company-id <id>
+pnpm substaff context set --api-base http://localhost:3100 --company-id <id>
 
 # View current context
-pnpm paperclipai context show
+pnpm substaff context show
 
 # List profiles
-pnpm paperclipai context list
+pnpm substaff context list
 
 # Switch profile
-pnpm paperclipai context use default
+pnpm substaff context use default
 ```
 
 To avoid storing secrets in context, use an env var:
 
 ```sh
-pnpm paperclipai context set --api-key-env-var-name PAPERCLIP_API_KEY
-export PAPERCLIP_API_KEY=...
+pnpm substaff context set --api-key-env-var-name SUBSTAFF_API_KEY
+export SUBSTAFF_API_KEY=...
 ```
 
-Context is stored at `~/.paperclip/context.json`.
+Context is stored at `~/.substaff/context.json`.
 
 ## Command Categories
 

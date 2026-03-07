@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
 import type {
   CompanyPortabilityAgentManifestEntry,
   CompanyPortabilityCollisionStrategy,
@@ -13,8 +13,8 @@ import type {
   CompanyPortabilityPreview,
   CompanyPortabilityPreviewAgentPlan,
   CompanyPortabilityPreviewResult,
-} from "@paperclipai/shared";
-import { normalizeAgentUrlKey, portabilityManifestSchema } from "@paperclipai/shared";
+} from "@substaff/shared";
+import { normalizeAgentUrlKey, portabilityManifestSchema } from "@substaff/shared";
 import { notFound, unprocessable } from "../errors.js";
 import { accessService } from "./access.js";
 import { agentService } from "./agents.js";
@@ -66,24 +66,15 @@ const RUNTIME_DEFAULT_RULES: Array<{ path: string[]; value: unknown }> = [
 ];
 
 const ADAPTER_DEFAULT_RULES_BY_TYPE: Record<string, Array<{ path: string[]; value: unknown }>> = {
-  codex_local: [
+  e2b_sandbox: [
     { path: ["timeoutSec"], value: 0 },
     { path: ["graceSec"], value: 15 },
   ],
-  opencode_local: [
+  process: [
     { path: ["timeoutSec"], value: 0 },
     { path: ["graceSec"], value: 15 },
   ],
-  cursor: [
-    { path: ["timeoutSec"], value: 0 },
-    { path: ["graceSec"], value: 15 },
-  ],
-  claude_local: [
-    { path: ["timeoutSec"], value: 0 },
-    { path: ["graceSec"], value: 15 },
-    { path: ["maxTurnsPerRun"], value: 80 },
-  ],
-  openclaw: [
+  http: [
     { path: ["method"], value: "POST" },
     { path: ["timeoutSec"], value: 30 },
   ],
@@ -429,7 +420,7 @@ async function readAgentInstructions(agent: AgentLike): Promise<{ body: string; 
   const config = agent.adapterConfig as Record<string, unknown>;
   const instructionsFilePath = asString(config.instructionsFilePath);
   if (instructionsFilePath) {
-    const workspaceCwd = asString(process.env.PAPERCLIP_WORKSPACE_CWD);
+    const workspaceCwd = asString(process.env.SUBSTAFF_WORKSPACE_CWD);
     const candidates = new Set<string>();
     if (path.isAbsolute(instructionsFilePath)) {
       candidates.add(instructionsFilePath);
@@ -505,7 +496,7 @@ export function companyPortabilityService(db: Db) {
 
     const parsed = parseGitHubTreeUrl(source.url);
     let ref = parsed.ref;
-    const manifestRelativePath = [parsed.basePath, "paperclip.manifest.json"].filter(Boolean).join("/");
+    const manifestRelativePath = [parsed.basePath, "substaff.manifest.json"].filter(Boolean).join("/");
     let manifest: CompanyPortabilityManifest | null = null;
     const warnings: string[] = [];
     try {
@@ -593,7 +584,8 @@ export function companyPortabilityService(db: Db) {
           name: company.name,
           description: company.description ?? null,
           brandColor: company.brandColor ?? null,
-          requireBoardApprovalForNewAgents: company.requireBoardApprovalForNewAgents,
+          requirePlanApproval: company.requirePlanApproval,
+          requireHireApproval: company.requireHireApproval,
         },
         renderCompanyAgentsSection(companyAgentSummaries),
       );
@@ -602,7 +594,8 @@ export function companyPortabilityService(db: Db) {
         name: company.name,
         description: company.description ?? null,
         brandColor: company.brandColor ?? null,
-        requireBoardApprovalForNewAgents: company.requireBoardApprovalForNewAgents,
+        requirePlanApproval: company.requirePlanApproval,
+        requireHireApproval: company.requireHireApproval,
       };
     }
 
@@ -826,6 +819,7 @@ export function companyPortabilityService(db: Db) {
   async function importBundle(
     input: CompanyPortabilityImport,
     actorUserId: string | null | undefined,
+    vendorId: string,
   ): Promise<CompanyPortabilityImportResult> {
     const plan = await buildPreview(input);
     if (plan.preview.errors.length > 0) {
@@ -846,11 +840,15 @@ export function companyPortabilityService(db: Db) {
         sourceManifest.source?.companyName ??
         "Imported Company";
       const created = await companies.create({
+        vendorId,
         name: companyName,
         description: include.company ? (sourceManifest.company?.description ?? null) : null,
         brandColor: include.company ? (sourceManifest.company?.brandColor ?? null) : null,
-        requireBoardApprovalForNewAgents: include.company
-          ? (sourceManifest.company?.requireBoardApprovalForNewAgents ?? true)
+        requirePlanApproval: include.company
+          ? (sourceManifest.company?.requirePlanApproval ?? true)
+          : true,
+        requireHireApproval: include.company
+          ? (sourceManifest.company?.requireHireApproval ?? true)
           : true,
       });
       await access.ensureMembership(created.id, "user", actorUserId ?? "board", "owner", "active");
@@ -864,7 +862,8 @@ export function companyPortabilityService(db: Db) {
           name: sourceManifest.company.name,
           description: sourceManifest.company.description,
           brandColor: sourceManifest.company.brandColor,
-          requireBoardApprovalForNewAgents: sourceManifest.company.requireBoardApprovalForNewAgents,
+          requirePlanApproval: sourceManifest.company.requirePlanApproval,
+          requireHireApproval: sourceManifest.company.requireHireApproval ?? false,
         });
         targetCompany = updated ?? targetCompany;
         companyAction = "updated";

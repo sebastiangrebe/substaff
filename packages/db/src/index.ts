@@ -17,3 +17,4 @@ export {
   type RunDatabaseBackupResult,
 } from "./backup-lib.js";
 export * from "./schema/index.js";
+export { setRlsContext, setRlsAllTenantsContext } from "./rls.js";

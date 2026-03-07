@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { paperclipConfigSchema, type PaperclipConfig } from "./schema.js";
+import { substaffConfigSchema, type SubstaffConfig } from "./schema.js";
 import {
   resolveDefaultConfigPath,
-  resolvePaperclipInstanceId,
+  resolveSubstaffInstanceId,
 } from "./home.js";
 
 const DEFAULT_CONFIG_BASENAME = "config.json";
@@ -13,7 +13,7 @@ function findConfigFileFromAncestors(startDir: string): string | null {
   let currentDir = absoluteStartDir;
 
   while (true) {
-    const candidate = path.resolve(currentDir, ".paperclip", DEFAULT_CONFIG_BASENAME);
+    const candidate = path.resolve(currentDir, ".substaff", DEFAULT_CONFIG_BASENAME);
     if (fs.existsSync(candidate)) {
       return candidate;
     }
@@ -28,8 +28,8 @@ function findConfigFileFromAncestors(startDir: string): string | null {
 
 export function resolveConfigPath(overridePath?: string): string {
   if (overridePath) return path.resolve(overridePath);
-  if (process.env.PAPERCLIP_CONFIG) return path.resolve(process.env.PAPERCLIP_CONFIG);
-  return findConfigFileFromAncestors(process.cwd()) ?? resolveDefaultConfigPath(resolvePaperclipInstanceId());
+  if (process.env.SUBSTAFF_CONFIG) return path.resolve(process.env.SUBSTAFF_CONFIG);
+  return findConfigFileFromAncestors(process.cwd()) ?? resolveDefaultConfigPath(resolveSubstaffInstanceId());
 }
 
 function parseJson(filePath: string): unknown {
@@ -41,31 +41,8 @@ function parseJson(filePath: string): unknown {
 }
 
 function migrateLegacyConfig(raw: unknown): unknown {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return raw;
-  const config = { ...(raw as Record<string, unknown>) };
-  const databaseRaw = config.database;
-  if (typeof databaseRaw !== "object" || databaseRaw === null || Array.isArray(databaseRaw)) {
-    return config;
-  }
-
-  const database = { ...(databaseRaw as Record<string, unknown>) };
-  if (database.mode === "pglite") {
-    database.mode = "embedded-postgres";
-
-    if (typeof database.embeddedPostgresDataDir !== "string" && typeof database.pgliteDataDir === "string") {
-      database.embeddedPostgresDataDir = database.pgliteDataDir;
-    }
-    if (
-      typeof database.embeddedPostgresPort !== "number" &&
-      typeof database.pglitePort === "number" &&
-      Number.isFinite(database.pglitePort)
-    ) {
-      database.embeddedPostgresPort = database.pglitePort;
-    }
-  }
-
-  config.database = database;
-  return config;
+  // No-op passthrough — legacy migration paths (pglite, embedded-postgres) are no longer relevant.
+  return raw;
 }
 
 function formatValidationError(err: unknown): string {
@@ -83,12 +60,12 @@ function formatValidationError(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export function readConfig(configPath?: string): PaperclipConfig | null {
+export function readConfig(configPath?: string): SubstaffConfig | null {
   const filePath = resolveConfigPath(configPath);
   if (!fs.existsSync(filePath)) return null;
   const raw = parseJson(filePath);
   const migrated = migrateLegacyConfig(raw);
-  const parsed = paperclipConfigSchema.safeParse(migrated);
+  const parsed = substaffConfigSchema.safeParse(migrated);
   if (!parsed.success) {
     throw new Error(`Invalid config at ${filePath}: ${formatValidationError(parsed.error)}`);
   }
@@ -96,7 +73,7 @@ export function readConfig(configPath?: string): PaperclipConfig | null {
 }
 
 export function writeConfig(
-  config: PaperclipConfig,
+  config: SubstaffConfig,
   configPath?: string,
 ): void {
   const filePath = resolveConfigPath(configPath);

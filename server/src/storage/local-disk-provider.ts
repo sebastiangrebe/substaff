@@ -1,6 +1,6 @@
 import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
-import type { StorageProvider, GetObjectResult, HeadObjectResult } from "./types.js";
+import type { StorageProvider, GetObjectResult, HeadObjectResult, ListObjectsResult } from "./types.js";
 import { notFound, badRequest } from "../errors.js";
 
 function normalizeObjectKey(objectKey: string): string {
@@ -39,7 +39,7 @@ export function createLocalDiskStorageProvider(baseDir: string): StorageProvider
   const root = path.resolve(baseDir);
 
   return {
-    id: "local_disk",
+    id: "s3" as const, // dead code — local_disk provider is no longer used
 
     async putObject(input) {
       const targetPath = resolveWithin(root, input.objectKey);
@@ -47,7 +47,7 @@ export function createLocalDiskStorageProvider(baseDir: string): StorageProvider
       await fs.mkdir(dir, { recursive: true });
 
       const tempPath = `${targetPath}.tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      await fs.writeFile(tempPath, input.body);
+      await fs.writeFile(tempPath, new Uint8Array(input.body));
       await fs.rename(tempPath, targetPath);
     },
 
@@ -84,6 +84,35 @@ export function createLocalDiskStorageProvider(baseDir: string): StorageProvider
       } catch {
         // idempotent delete
       }
+    },
+
+    async listObjects(input): Promise<ListObjectsResult> {
+      const dirPath = resolveWithin(root, input.prefix || ".");
+      const objects: ListObjectsResult["objects"] = [];
+      const commonPrefixes: string[] = [];
+
+      try {
+        const entries = await fs.readdir(dirPath, { withFileTypes: true });
+        for (const entry of entries) {
+          const entryKey = input.prefix
+            ? `${input.prefix}${entry.name}`
+            : entry.name;
+          if (entry.isDirectory()) {
+            commonPrefixes.push(`${entryKey}/`);
+          } else if (entry.isFile()) {
+            const stat = await fs.stat(path.join(dirPath, entry.name));
+            objects.push({
+              key: entryKey,
+              size: stat.size,
+              lastModified: stat.mtime,
+            });
+          }
+        }
+      } catch {
+        // directory doesn't exist — return empty results
+      }
+
+      return { objects, commonPrefixes };
     },
   };
 }

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { createDb, instanceUserRoles, invites } from "@paperclipai/db";
+import { createDb, instanceUserRoles, invites } from "@substaff/db";
 import { readConfig, resolveConfigPath } from "../config/store.js";
 
 function hashToken(token: string) {
@@ -14,14 +14,10 @@ function createInviteToken() {
 }
 
 function resolveDbUrl(configPath?: string) {
-  const config = readConfig(configPath);
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  if (config?.database.mode === "postgres" && config.database.connectionString) {
+  const config = readConfig(configPath);
+  if (config?.database.connectionString) {
     return config.database.connectionString;
-  }
-  if (config?.database.mode === "embedded-postgres") {
-    const port = config.database.embeddedPostgresPort ?? 54329;
-    return `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`;
   }
   return null;
 }
@@ -29,7 +25,7 @@ function resolveDbUrl(configPath?: string) {
 function resolveBaseUrl(configPath?: string, explicitBaseUrl?: string) {
   if (explicitBaseUrl) return explicitBaseUrl.replace(/\/+$/, "");
   const config = readConfig(configPath);
-  if (config?.auth.baseUrlMode === "explicit" && config.auth.publicBaseUrl) {
+  if (config?.auth.publicBaseUrl) {
     return config.auth.publicBaseUrl.replace(/\/+$/, "");
   }
   const host = config?.server.host ?? "localhost";
@@ -47,12 +43,12 @@ export async function bootstrapCeoInvite(opts: {
   const configPath = resolveConfigPath(opts.config);
   const config = readConfig(configPath);
   if (!config) {
-    p.log.error(`No config found at ${configPath}. Run ${pc.cyan("paperclip onboard")} first.`);
+    p.log.error(`No config found at ${configPath}. Run ${pc.cyan("substaff onboard")} first.`);
     return;
   }
 
   if (config.server.deploymentMode !== "authenticated") {
-    p.log.info("Deployment mode is local_trusted. Bootstrap CEO invite is only required for authenticated mode.");
+    p.log.info("Bootstrap CEO invite is only required for authenticated mode.");
     return;
   }
 
@@ -111,6 +107,6 @@ export async function bootstrapCeoInvite(opts: {
     p.log.message(`Expires: ${pc.dim(created.expiresAt.toISOString())}`);
   } catch (err) {
     p.log.error(`Could not create bootstrap invite: ${err instanceof Error ? err.message : String(err)}`);
-    p.log.info("If using embedded-postgres, start the Paperclip server and run this command again.");
+    p.log.info("Ensure the database is running and the connection string is correct, then try again.");
   }
 }

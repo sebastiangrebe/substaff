@@ -8,6 +8,7 @@ interface JwtHeader {
 export interface LocalAgentJwtClaims {
   sub: string;
   company_id: string;
+  vendor_id?: string;
   adapter_type: string;
   run_id: string;
   iat: number;
@@ -26,14 +27,14 @@ function parseNumber(value: string | undefined, fallback: number) {
 }
 
 function jwtConfig() {
-  const secret = process.env.PAPERCLIP_AGENT_JWT_SECRET;
+  const secret = process.env.SUBSTAFF_AGENT_JWT_SECRET;
   if (!secret) return null;
 
   return {
     secret,
-    ttlSeconds: parseNumber(process.env.PAPERCLIP_AGENT_JWT_TTL_SECONDS, 60 * 60 * 48),
-    issuer: process.env.PAPERCLIP_AGENT_JWT_ISSUER ?? "paperclip",
-    audience: process.env.PAPERCLIP_AGENT_JWT_AUDIENCE ?? "paperclip-api",
+    ttlSeconds: parseNumber(process.env.SUBSTAFF_AGENT_JWT_TTL_SECONDS, 60 * 60 * 48),
+    issuer: process.env.SUBSTAFF_AGENT_JWT_ISSUER ?? "substaff",
+    audience: process.env.SUBSTAFF_AGENT_JWT_AUDIENCE ?? "substaff-api",
   };
 }
 
@@ -62,10 +63,10 @@ function safeCompare(a: string, b: string) {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
   if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
+  return timingSafeEqual(new Uint8Array(left), new Uint8Array(right));
 }
 
-export function createLocalAgentJwt(agentId: string, companyId: string, adapterType: string, runId: string) {
+export function createLocalAgentJwt(agentId: string, companyId: string, adapterType: string, runId: string, vendorId?: string) {
   const config = jwtConfig();
   if (!config) return null;
 
@@ -73,6 +74,7 @@ export function createLocalAgentJwt(agentId: string, companyId: string, adapterT
   const claims: LocalAgentJwtClaims = {
     sub: agentId,
     company_id: companyId,
+    ...(vendorId && { vendor_id: vendorId }),
     adapter_type: adapterType,
     run_id: runId,
     iat: now,

@@ -12,7 +12,7 @@ interface LocalEncryptedMaterial extends StoredSecretVersionMaterial {
 }
 
 function resolveMasterKeyFilePath() {
-  const fromEnv = process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE;
+  const fromEnv = process.env.SUBSTAFF_SECRETS_MASTER_KEY_FILE;
   if (fromEnv && fromEnv.trim().length > 0) return path.resolve(fromEnv.trim());
   return path.resolve(process.cwd(), "data/secrets/master.key");
 }
@@ -39,12 +39,12 @@ function decodeMasterKey(raw: string): Buffer | null {
 }
 
 function loadOrCreateMasterKey(): Buffer {
-  const envKeyRaw = process.env.PAPERCLIP_SECRETS_MASTER_KEY;
+  const envKeyRaw = process.env.SUBSTAFF_SECRETS_MASTER_KEY;
   if (envKeyRaw && envKeyRaw.trim().length > 0) {
     const fromEnv = decodeMasterKey(envKeyRaw);
     if (!fromEnv) {
       throw badRequest(
-        "Invalid PAPERCLIP_SECRETS_MASTER_KEY (expected 32-byte base64, 64-char hex, or raw 32-char string)",
+        "Invalid SUBSTAFF_SECRETS_MASTER_KEY (expected 32-byte base64, 64-char hex, or raw 32-char string)",
       );
     }
     return fromEnv;
@@ -76,7 +76,7 @@ function sha256Hex(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function encryptValue(masterKey: Buffer, value: string): LocalEncryptedMaterial {
+function encryptValue(masterKey: Uint8Array, value: string): LocalEncryptedMaterial {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", masterKey, iv);
   const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
@@ -89,13 +89,13 @@ function encryptValue(masterKey: Buffer, value: string): LocalEncryptedMaterial 
   };
 }
 
-function decryptValue(masterKey: Buffer, material: LocalEncryptedMaterial): string {
+function decryptValue(masterKey: Uint8Array, material: LocalEncryptedMaterial): string {
   const iv = Buffer.from(material.iv, "base64");
   const tag = Buffer.from(material.tag, "base64");
   const ciphertext = Buffer.from(material.ciphertext, "base64");
-  const decipher = createDecipheriv("aes-256-gcm", masterKey, iv);
-  decipher.setAuthTag(tag);
-  const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  const decipher = createDecipheriv("aes-256-gcm", masterKey, new Uint8Array(iv));
+  decipher.setAuthTag(new Uint8Array(tag));
+  const plain = Buffer.concat([decipher.update(new Uint8Array(ciphertext)), decipher.final()]);
   return plain.toString("utf8");
 }
 

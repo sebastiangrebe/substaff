@@ -1,6 +1,6 @@
 # CLI Reference
 
-Paperclip CLI now supports both:
+Substaff CLI now supports both:
 
 - instance setup/diagnostics (`onboard`, `doctor`, `configure`, `env`, `allowed-hostname`)
 - control-plane client operations (issues, approvals, agents, activity, dashboard)
@@ -10,19 +10,19 @@ Paperclip CLI now supports both:
 Use repo script in development:
 
 ```sh
-pnpm paperclipai --help
+pnpm substaff --help
 ```
 
 First-time local bootstrap + run:
 
 ```sh
-pnpm paperclipai run
+pnpm substaff run
 ```
 
 Choose local instance:
 
 ```sh
-pnpm paperclipai run --instance dev
+pnpm substaff run --instance dev
 ```
 
 ## Deployment Modes
@@ -31,16 +31,16 @@ Mode taxonomy and design intent are documented in `doc/DEPLOYMENT-MODES.md`.
 
 Current CLI behavior:
 
-- `paperclipai onboard` and `paperclipai configure --section server` set deployment mode in config
-- runtime can override mode with `PAPERCLIP_DEPLOYMENT_MODE`
-- `paperclipai run` and `paperclipai doctor` do not yet expose a direct `--mode` flag
+- `substaff onboard` and `substaff configure --section server` set deployment mode in config
+- runtime can override mode with `SUBSTAFF_DEPLOYMENT_MODE`
+- `substaff run` and `substaff doctor` do not yet expose a direct `--mode` flag
 
 Target behavior (planned) is documented in `doc/DEPLOYMENT-MODES.md` section 5.
 
 Allow an authenticated/private hostname (for example custom Tailscale DNS):
 
 ```sh
-pnpm paperclipai allowed-hostname dotta-macbook-pro
+pnpm substaff allowed-hostname dotta-macbook-pro
 ```
 
 All client commands support:
@@ -54,93 +54,93 @@ All client commands support:
 
 Company-scoped commands also support `--company-id <id>`.
 
-Use `--data-dir` on any CLI command to isolate all default local state (config/context/db/logs/storage/secrets) away from `~/.paperclip`:
+Use `--data-dir` on any CLI command to isolate all default local state (config/context/db/logs/storage/secrets) away from `~/.substaff`:
 
 ```sh
-pnpm paperclipai run --data-dir ./tmp/paperclip-dev
-pnpm paperclipai issue list --data-dir ./tmp/paperclip-dev
+pnpm substaff run --data-dir ./tmp/substaff-dev
+pnpm substaff issue list --data-dir ./tmp/substaff-dev
 ```
 
 ## Context Profiles
 
-Store local defaults in `~/.paperclip/context.json`:
+Store local defaults in `~/.substaff/context.json`:
 
 ```sh
-pnpm paperclipai context set --api-base http://localhost:3100 --company-id <company-id>
-pnpm paperclipai context show
-pnpm paperclipai context list
-pnpm paperclipai context use default
+pnpm substaff context set --api-base http://localhost:3100 --company-id <company-id>
+pnpm substaff context show
+pnpm substaff context list
+pnpm substaff context use default
 ```
 
 To avoid storing secrets in context, set `apiKeyEnvVarName` and keep the key in env:
 
 ```sh
-pnpm paperclipai context set --api-key-env-var-name PAPERCLIP_API_KEY
-export PAPERCLIP_API_KEY=...
+pnpm substaff context set --api-key-env-var-name SUBSTAFF_API_KEY
+export SUBSTAFF_API_KEY=...
 ```
 
 ## Company Commands
 
 ```sh
-pnpm paperclipai company list
-pnpm paperclipai company get <company-id>
-pnpm paperclipai company delete <company-id-or-prefix> --yes --confirm <same-id-or-prefix>
+pnpm substaff company list
+pnpm substaff company get <company-id>
+pnpm substaff company delete <company-id-or-prefix> --yes --confirm <same-id-or-prefix>
 ```
 
 Examples:
 
 ```sh
-pnpm paperclipai company delete PAP --yes --confirm PAP
-pnpm paperclipai company delete 5cbe79ee-acb3-4597-896e-7662742593cd --yes --confirm 5cbe79ee-acb3-4597-896e-7662742593cd
+pnpm substaff company delete PAP --yes --confirm PAP
+pnpm substaff company delete 5cbe79ee-acb3-4597-896e-7662742593cd --yes --confirm 5cbe79ee-acb3-4597-896e-7662742593cd
 ```
 
 Notes:
 
-- Deletion is server-gated by `PAPERCLIP_ENABLE_COMPANY_DELETION`.
-- With agent authentication, company deletion is company-scoped. Use the current company ID/prefix (for example via `--company-id` or `PAPERCLIP_COMPANY_ID`), not another company.
+- Deletion is server-gated by `SUBSTAFF_ENABLE_COMPANY_DELETION`.
+- With agent authentication, company deletion is company-scoped. Use the current company ID/prefix (for example via `--company-id` or `SUBSTAFF_COMPANY_ID`), not another company.
 
 ## Issue Commands
 
 ```sh
-pnpm paperclipai issue list --company-id <company-id> [--status todo,in_progress] [--assignee-agent-id <agent-id>] [--match text]
-pnpm paperclipai issue get <issue-id-or-identifier>
-pnpm paperclipai issue create --company-id <company-id> --title "..." [--description "..."] [--status todo] [--priority high]
-pnpm paperclipai issue update <issue-id> [--status in_progress] [--comment "..."]
-pnpm paperclipai issue comment <issue-id> --body "..." [--reopen]
-pnpm paperclipai issue checkout <issue-id> --agent-id <agent-id> [--expected-statuses todo,backlog,blocked]
-pnpm paperclipai issue release <issue-id>
+pnpm substaff issue list --company-id <company-id> [--status todo,in_progress] [--assignee-agent-id <agent-id>] [--match text]
+pnpm substaff issue get <issue-id-or-identifier>
+pnpm substaff issue create --company-id <company-id> --title "..." [--description "..."] [--status todo] [--priority high]
+pnpm substaff issue update <issue-id> [--status in_progress] [--comment "..."]
+pnpm substaff issue comment <issue-id> --body "..." [--reopen]
+pnpm substaff issue checkout <issue-id> --agent-id <agent-id> [--expected-statuses todo,backlog,blocked]
+pnpm substaff issue release <issue-id>
 ```
 
 ## Agent Commands
 
 ```sh
-pnpm paperclipai agent list --company-id <company-id>
-pnpm paperclipai agent get <agent-id>
+pnpm substaff agent list --company-id <company-id>
+pnpm substaff agent get <agent-id>
 ```
 
 ## Approval Commands
 
 ```sh
-pnpm paperclipai approval list --company-id <company-id> [--status pending]
-pnpm paperclipai approval get <approval-id>
-pnpm paperclipai approval create --company-id <company-id> --type hire_agent --payload '{"name":"..."}' [--issue-ids <id1,id2>]
-pnpm paperclipai approval approve <approval-id> [--decision-note "..."]
-pnpm paperclipai approval reject <approval-id> [--decision-note "..."]
-pnpm paperclipai approval request-revision <approval-id> [--decision-note "..."]
-pnpm paperclipai approval resubmit <approval-id> [--payload '{"...":"..."}']
-pnpm paperclipai approval comment <approval-id> --body "..."
+pnpm substaff approval list --company-id <company-id> [--status pending]
+pnpm substaff approval get <approval-id>
+pnpm substaff approval create --company-id <company-id> --type hire_agent --payload '{"name":"..."}' [--issue-ids <id1,id2>]
+pnpm substaff approval approve <approval-id> [--decision-note "..."]
+pnpm substaff approval reject <approval-id> [--decision-note "..."]
+pnpm substaff approval request-revision <approval-id> [--decision-note "..."]
+pnpm substaff approval resubmit <approval-id> [--payload '{"...":"..."}']
+pnpm substaff approval comment <approval-id> --body "..."
 ```
 
 ## Activity Commands
 
 ```sh
-pnpm paperclipai activity list --company-id <company-id> [--agent-id <agent-id>] [--entity-type issue] [--entity-id <id>]
+pnpm substaff activity list --company-id <company-id> [--agent-id <agent-id>] [--entity-type issue] [--entity-id <id>]
 ```
 
 ## Dashboard Commands
 
 ```sh
-pnpm paperclipai dashboard get --company-id <company-id>
+pnpm substaff dashboard get --company-id <company-id>
 ```
 
 ## Heartbeat Command
@@ -148,23 +148,23 @@ pnpm paperclipai dashboard get --company-id <company-id>
 `heartbeat run` now also supports context/api-key options and uses the shared client stack:
 
 ```sh
-pnpm paperclipai heartbeat run --agent-id <agent-id> [--api-base http://localhost:3100] [--api-key <token>]
+pnpm substaff heartbeat run --agent-id <agent-id> [--api-base http://localhost:3100] [--api-key <token>]
 ```
 
 ## Local Storage Defaults
 
-Default local instance root is `~/.paperclip/instances/default`:
+Default local instance root is `~/.substaff/instances/default`:
 
-- config: `~/.paperclip/instances/default/config.json`
-- embedded db: `~/.paperclip/instances/default/db`
-- logs: `~/.paperclip/instances/default/logs`
-- storage: `~/.paperclip/instances/default/data/storage`
-- secrets key: `~/.paperclip/instances/default/secrets/master.key`
+- config: `~/.substaff/instances/default/config.json`
+- embedded db: `~/.substaff/instances/default/db`
+- logs: `~/.substaff/instances/default/logs`
+- storage: `~/.substaff/instances/default/data/storage`
+- secrets key: `~/.substaff/instances/default/secrets/master.key`
 
 Override base home or instance with env vars:
 
 ```sh
-PAPERCLIP_HOME=/custom/home PAPERCLIP_INSTANCE_ID=dev pnpm paperclipai run
+SUBSTAFF_HOME=/custom/home SUBSTAFF_INSTANCE_ID=dev pnpm substaff run
 ```
 
 ## Storage Configuration
@@ -172,7 +172,7 @@ PAPERCLIP_HOME=/custom/home PAPERCLIP_INSTANCE_ID=dev pnpm paperclipai run
 Configure storage provider and settings:
 
 ```sh
-pnpm paperclipai configure --section storage
+pnpm substaff configure --section storage
 ```
 
 Supported providers:

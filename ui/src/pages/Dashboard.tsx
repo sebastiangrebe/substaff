@@ -23,7 +23,7 @@ import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard } from "lucide
 import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
 import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
 import { PageSkeleton } from "../components/PageSkeleton";
-import type { Agent, Issue } from "@paperclipai/shared";
+import type { Agent, Issue } from "@substaff/shared";
 
 function getRecentIssues(issues: Issue[]): Issue[] {
   return [...issues]
@@ -167,7 +167,7 @@ export function Dashboard() {
       return (
         <EmptyState
           icon={LayoutDashboard}
-          message="Welcome to Paperclip. Set up your first company and agent to get started."
+          message="Welcome to Substaff. Set up your first company and agent to get started."
           action="Get Started"
           onAction={openOnboarding}
         />
@@ -265,10 +265,10 @@ export function Dashboard() {
             <ChartCard title="Run Activity" subtitle="Last 14 days">
               <RunActivityChart runs={runs ?? []} />
             </ChartCard>
-            <ChartCard title="Issues by Priority" subtitle="Last 14 days">
+            <ChartCard title="Tasks by Priority" subtitle="Last 14 days">
               <PriorityChart issues={issues ?? []} />
             </ChartCard>
-            <ChartCard title="Issues by Status" subtitle="Last 14 days">
+            <ChartCard title="Tasks by Status" subtitle="Last 14 days">
               <IssueStatusChart issues={issues ?? []} />
             </ChartCard>
             <ChartCard title="Success Rate" subtitle="Last 14 days">

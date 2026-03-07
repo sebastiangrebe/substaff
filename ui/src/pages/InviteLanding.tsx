@@ -6,26 +6,19 @@ import { authApi } from "../api/auth";
 import { healthApi } from "../api/health";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { AGENT_ADAPTER_TYPES } from "@paperclipai/shared";
-import type { AgentAdapterType, JoinRequest } from "@paperclipai/shared";
+import { AGENT_ADAPTER_TYPES } from "@substaff/shared";
+import type { AgentAdapterType, JoinRequest } from "@substaff/shared";
 
 type JoinType = "human" | "agent";
-const joinAdapterOptions: AgentAdapterType[] = [
-  "openclaw",
-  ...AGENT_ADAPTER_TYPES.filter((type): type is Exclude<AgentAdapterType, "openclaw"> => type !== "openclaw"),
-];
+const joinAdapterOptions: AgentAdapterType[] = [...AGENT_ADAPTER_TYPES];
 
 const adapterLabels: Record<string, string> = {
-  claude_local: "Claude (local)",
-  codex_local: "Codex (local)",
-  opencode_local: "OpenCode (local)",
-  openclaw: "OpenClaw",
-  cursor: "Cursor (local)",
+  e2b_sandbox: "E2B Sandbox",
   process: "Process",
   http: "HTTP",
 };
 
-const ENABLED_INVITE_ADAPTERS = new Set(["claude_local", "codex_local", "opencode_local", "cursor"]);
+const ENABLED_INVITE_ADAPTERS = new Set<string>(AGENT_ADAPTER_TYPES);
 
 function dateTime(value: string) {
   return new Date(value).toLocaleString();
@@ -46,7 +39,7 @@ export function InviteLandingPage() {
   const token = (params.token ?? "").trim();
   const [joinType, setJoinType] = useState<JoinType>("human");
   const [agentName, setAgentName] = useState("");
-  const [adapterType, setAdapterType] = useState<AgentAdapterType>("claude_local");
+  const [adapterType, setAdapterType] = useState<AgentAdapterType>("e2b_sandbox");
   const [capabilities, setCapabilities] = useState("");
   const [result, setResult] = useState<{ kind: "bootstrap" | "join"; payload: unknown } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -192,7 +185,7 @@ export function InviteLandingPage() {
           )}
           {(onboardingSkillUrl || onboardingSkillPath || onboardingInstallPath) && (
             <div className="mt-3 space-y-1 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Paperclip skill bootstrap</p>
+              <p className="font-medium text-foreground">Substaff skill bootstrap</p>
               {onboardingSkillUrl && <p className="font-mono break-all">GET {onboardingSkillUrl}</p>}
               {!onboardingSkillUrl && onboardingSkillPath && <p className="font-mono break-all">GET {onboardingSkillPath}</p>}
               {onboardingInstallPath && <p className="font-mono break-all">Install to {onboardingInstallPath}</p>}
@@ -227,7 +220,7 @@ export function InviteLandingPage() {
     <div className="mx-auto max-w-xl py-10">
       <div className="rounded-lg border border-border bg-card p-6">
         <h1 className="text-xl font-semibold">
-          {invite.inviteType === "bootstrap_ceo" ? "Bootstrap your Paperclip instance" : "Join this Paperclip company"}
+          {invite.inviteType === "bootstrap_ceo" ? "Bootstrap your Substaff instance" : "Join this Substaff company"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">Invite expires {dateTime(invite.expiresAt)}.</p>
 

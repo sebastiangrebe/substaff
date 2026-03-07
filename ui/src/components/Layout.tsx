@@ -22,13 +22,14 @@ import { useTheme } from "../context/ThemeContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useCompanyPageMemory } from "../hooks/useCompanyPageMemory";
 import { healthApi } from "../api/health";
+import { agentsApi } from "../api/agents";
 import { queryKeys } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
 
 export function Layout() {
   const { sidebarOpen, setSidebarOpen, toggleSidebar, isMobile } = useSidebar();
-  const { openNewIssue, openOnboarding } = useDialog();
+  const { openNewIssue, openOnboarding, onboardingOpen, setOnboardingRequired } = useDialog();
   const { togglePanelVisible } = usePanel();
   const { companies, loading: companiesLoading, selectedCompanyId, setSelectedCompanyId } = useCompany();
   const { theme, toggleTheme } = useTheme();
@@ -45,14 +46,35 @@ export function Layout() {
     retry: false,
   });
 
+  // Query agents for the selected company to check onboarding completeness
+  const { data: agents, isLoading: agentsLoading } = useQuery({
+    queryKey: selectedCompanyId ? queryKeys.agents.list(selectedCompanyId) : ["agents", "__none__"],
+    queryFn: () => selectedCompanyId ? agentsApi.list(selectedCompanyId) : Promise.resolve([]),
+    enabled: !companiesLoading && companies.length > 0 && !!selectedCompanyId,
+    retry: false,
+  });
+
+  // Force onboarding if setup is incomplete (no company or no agents)
   useEffect(() => {
-    if (companiesLoading || onboardingTriggered.current) return;
-    if (health?.deploymentMode === "authenticated") return;
-    if (companies.length === 0) {
+    if (companiesLoading || agentsLoading) return;
+    if (onboardingTriggered.current && onboardingOpen) return;
+
+    const hasCompany = companies.length > 0;
+    const hasAgent = (agents ?? []).length > 0;
+
+    if (!hasCompany) {
       onboardingTriggered.current = true;
-      openOnboarding();
+      setOnboardingRequired(true);
+      openOnboarding({ initialStep: 1 });
+    } else if (!hasAgent) {
+      onboardingTriggered.current = true;
+      setOnboardingRequired(true);
+      openOnboarding({ initialStep: 2, companyId: selectedCompanyId ?? undefined });
+    } else {
+      setOnboardingRequired(false);
+      onboardingTriggered.current = false;
     }
-  }, [companies, companiesLoading, openOnboarding, health?.deploymentMode]);
+  }, [companies, companiesLoading, agents, agentsLoading, openOnboarding, onboardingOpen, selectedCompanyId, setOnboardingRequired]);
 
   useEffect(() => {
     if (!companyPrefix || companiesLoading || companies.length === 0) return;

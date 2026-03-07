@@ -1,9 +1,16 @@
 import fs from "node:fs";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { SubstaffConfig } from "../config/schema.js";
 import type { CheckResult } from "./index.js";
 import { resolveRuntimeLikePath } from "./path-resolver.js";
 
-export function logCheck(config: PaperclipConfig, configPath?: string): CheckResult {
+export function logCheck(config: SubstaffConfig, configPath?: string): CheckResult {
+  if (!config.logging?.logDir) {
+    return {
+      name: "Log directory",
+      status: "pass",
+      message: "No log directory configured (using defaults)",
+    };
+  }
   const logDir = resolveRuntimeLikePath(config.logging.logDir, configPath);
   const reportedDir = logDir;
 

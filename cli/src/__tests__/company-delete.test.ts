@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { Company } from "@paperclipai/shared";
+import type { Company } from "@substaff/shared";
 import { assertDeleteConfirmation, resolveCompanyForDeletion } from "../commands/client/company.js";
 
 function makeCompany(overrides: Partial<Company>): Company {
   return {
     id: "11111111-1111-1111-1111-111111111111",
+    vendorId: "vendor-1",
     name: "Alpha",
     description: null,
     status: "active",
@@ -12,7 +13,9 @@ function makeCompany(overrides: Partial<Company>): Company {
     issueCounter: 1,
     budgetMonthlyCents: 0,
     spentMonthlyCents: 0,
-    requireBoardApprovalForNewAgents: false,
+    requirePlanApproval: true,
+    requireHireApproval: true,
+    orgChartData: null,
     brandColor: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -29,7 +32,7 @@ describe("resolveCompanyForDeletion", () => {
     }),
     makeCompany({
       id: "22222222-2222-2222-2222-222222222222",
-      name: "Paperclip",
+      name: "Substaff",
       issuePrefix: "PAP",
     }),
   ];

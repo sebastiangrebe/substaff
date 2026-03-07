@@ -1,5 +1,5 @@
-import { eq, count } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import { eq, count, inArray } from "drizzle-orm";
+import type { Db } from "@substaff/db";
 import {
   companies,
   agents,
@@ -22,7 +22,7 @@ import {
   invites,
   principalPermissionGrants,
   companyMemberships,
-} from "@paperclipai/db";
+} from "@substaff/db";
 
 export function companyService(db: Db) {
   const ISSUE_PREFIX_FALLBACK = "CMP";
@@ -71,6 +71,11 @@ export function companyService(db: Db) {
 
   return {
     list: () => db.select().from(companies),
+
+    listByVendor: (vendorIds: string[]) =>
+      vendorIds.length === 0
+        ? Promise.resolve([])
+        : db.select().from(companies).where(inArray(companies.vendorId, vendorIds)),
 
     getById: (id: string) =>
       db

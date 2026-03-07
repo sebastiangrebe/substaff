@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Request, RequestHandler } from "express";
-import { and, eq, isNull } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agentApiKeys, agents, companyMemberships, instanceUserRoles } from "@paperclipai/db";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import type { Db } from "@substaff/db";
+import { agentApiKeys, agents, companyMemberships, vendorMemberships, companies } from "@substaff/db";
 import { verifyLocalAgentJwt } from "../agent-auth-jwt.js";
-import type { DeploymentMode } from "@paperclipai/shared";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
 import { logger } from "./logger.js";
 
@@ -13,22 +12,18 @@ function hashToken(token: string) {
 }
 
 interface ActorMiddlewareOptions {
-  deploymentMode: DeploymentMode;
   resolveSession?: (req: Request) => Promise<BetterAuthSessionResult | null>;
 }
 
 export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHandler {
   return async (req, _res, next) => {
-    req.actor =
-      opts.deploymentMode === "local_trusted"
-        ? { type: "board", userId: "local-board", isInstanceAdmin: true, source: "local_implicit" }
-        : { type: "none", source: "none" };
+    req.actor = { type: "none", source: "none" };
 
-    const runIdHeader = req.header("x-paperclip-run-id");
+    const runIdHeader = req.header("x-substaff-run-id");
 
     const authHeader = req.header("authorization");
     if (!authHeader?.toLowerCase().startsWith("bearer ")) {
-      if (opts.deploymentMode === "authenticated" && opts.resolveSession) {
+      if (opts.resolveSession) {
         let session: BetterAuthSessionResult | null = null;
         try {
           session = await opts.resolveSession(req);
@@ -40,12 +35,14 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
         }
         if (session?.user?.id) {
           const userId = session.user.id;
-          const [roleRow, memberships] = await Promise.all([
+          const [vendorMembershipRows, membershipRows] = await Promise.all([
             db
-              .select({ id: instanceUserRoles.id })
-              .from(instanceUserRoles)
-              .where(and(eq(instanceUserRoles.userId, userId), eq(instanceUserRoles.role, "instance_admin")))
-              .then((rows) => rows[0] ?? null),
+              .select({
+                vendorId: vendorMemberships.vendorId,
+                role: vendorMemberships.role,
+              })
+              .from(vendorMemberships)
+              .where(eq(vendorMemberships.userId, userId)),
             db
               .select({ companyId: companyMemberships.companyId })
               .from(companyMemberships)
@@ -57,11 +54,31 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
                 ),
               ),
           ]);
+
+          const vendorIds = vendorMembershipRows.map((row) => row.vendorId);
+          const isVendorOwner = vendorMembershipRows.some((row) => row.role === "owner");
+
+          // For vendor owners, include ALL companies under their vendors
+          // so RLS policies grant access to all vendor resources
+          let companyIds = membershipRows.map((row) => row.companyId);
+          if (isVendorOwner && vendorIds.length > 0) {
+            const vendorCompanies = await db
+              .select({ id: companies.id })
+              .from(companies)
+              .where(inArray(companies.vendorId, vendorIds));
+            const allCompanyIds = new Set([
+              ...companyIds,
+              ...vendorCompanies.map((c) => c.id),
+            ]);
+            companyIds = [...allCompanyIds];
+          }
+
           req.actor = {
             type: "board",
             userId,
-            companyIds: memberships.map((row) => row.companyId),
-            isInstanceAdmin: Boolean(roleRow),
+            vendorIds,
+            companyIds,
+            isInstanceAdmin: isVendorOwner,
             runId: runIdHeader ?? undefined,
             source: "session",
           };
@@ -110,10 +127,22 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
         return;
       }
 
+      // Use vendor_id from JWT claims if available, otherwise resolve from company
+      let vendorId = claims.vendor_id;
+      if (!vendorId) {
+        const company = await db
+          .select({ vendorId: companies.vendorId })
+          .from(companies)
+          .where(eq(companies.id, claims.company_id))
+          .then((rows) => rows[0] ?? null);
+        vendorId = company?.vendorId;
+      }
+
       req.actor = {
         type: "agent",
         agentId: claims.sub,
         companyId: claims.company_id,
+        vendorId,
         keyId: undefined,
         runId: runIdHeader || claims.run_id || undefined,
         source: "agent_jwt",
@@ -138,10 +167,18 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
       return;
     }
 
+    // Resolve vendorId from company
+    const company = await db
+      .select({ vendorId: companies.vendorId })
+      .from(companies)
+      .where(eq(companies.id, key.companyId))
+      .then((rows) => rows[0] ?? null);
+
     req.actor = {
       type: "agent",
       agentId: key.agentId,
       companyId: key.companyId,
+      vendorId: company?.vendorId,
       keyId: key.id,
       runId: runIdHeader || undefined,
       source: "agent_key",

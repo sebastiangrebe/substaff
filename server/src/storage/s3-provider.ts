@@ -3,10 +3,11 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
 } from "@aws-sdk/client-s3";
 import { Readable } from "node:stream";
-import type { StorageProvider, GetObjectResult, HeadObjectResult } from "./types.js";
+import type { StorageProvider, GetObjectResult, HeadObjectResult, ListObjectsResult } from "./types.js";
 import { notFound, unprocessable } from "../errors.js";
 
 interface S3ProviderConfig {
@@ -148,6 +149,45 @@ export function createS3StorageProvider(config: S3ProviderConfig): StorageProvid
           Key: key,
         }),
       );
+    },
+
+    async listObjects(input): Promise<ListObjectsResult> {
+      const fullPrefix = buildKey(prefix, input.prefix);
+      const delimiter = input.delimiter ?? "/";
+      const objects: ListObjectsResult["objects"] = [];
+      const commonPrefixSet = new Set<string>();
+      let continuationToken: string | undefined;
+
+      do {
+        const response = await client.send(
+          new ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: fullPrefix,
+            Delimiter: delimiter,
+            ContinuationToken: continuationToken,
+          }),
+        );
+
+        for (const obj of response.Contents ?? []) {
+          if (obj.Key) {
+            objects.push({
+              key: prefix ? obj.Key.slice(prefix.length + 1) : obj.Key,
+              size: obj.Size ?? 0,
+              lastModified: obj.LastModified ?? null,
+            });
+          }
+        }
+
+        for (const cp of response.CommonPrefixes ?? []) {
+          if (cp.Prefix) {
+            commonPrefixSet.add(prefix ? cp.Prefix.slice(prefix.length + 1) : cp.Prefix);
+          }
+        }
+
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+
+      return { objects, commonPrefixes: [...commonPrefixSet] };
     },
   };
 }

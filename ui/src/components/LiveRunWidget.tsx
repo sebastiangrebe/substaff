@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { Link } from "@/lib/router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LiveEvent } from "@paperclipai/shared";
+import type { LiveEvent } from "@substaff/shared";
 import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
 import { getUIAdapter } from "../adapters";
 import type { TranscriptEntry } from "../adapters";
@@ -278,7 +278,7 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
     setFeed((prev) => {
       const deduped: FeedItem[] = [];
       for (const item of items) {
-        const key = `feed:${item.runId}:${item.ts}:${item.tone}:${item.text}`;
+        const key = `feed:${item.runId}:${item.tone}:${item.text}`;
         if (seenKeysRef.current.has(key)) continue;
         seenKeysRef.current.add(key);
         deduped.push(item);

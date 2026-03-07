@@ -1,7 +1,7 @@
 import { Router } from "express";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { issues, joinRequests } from "@paperclipai/db";
+import { issues, joinRequests } from "@substaff/db";
 import { sidebarBadgeService } from "../services/sidebar-badges.js";
 import { accessService } from "../services/access.js";
 import { assertCompanyAccess } from "./authz.js";
@@ -19,7 +19,6 @@ export function sidebarBadgeRoutes(db: Db) {
     let canApproveJoins = false;
     if (req.actor.type === "board") {
       canApproveJoins =
-        req.actor.source === "local_implicit" ||
         Boolean(req.actor.isInstanceAdmin) ||
         (await access.canUser(companyId, req.actor.userId, "joins:approve"));
     } else if (req.actor.type === "agent" && req.actor.agentId) {

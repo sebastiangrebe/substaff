@@ -1,4 +1,4 @@
-# @paperclipai/shared
+# @substaff/shared
 
 ## 0.2.7
 

@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import type { IncomingMessage, Server as HttpServer } from "node:http";
 import type { Duplex } from "node:stream";
 import { and, eq, isNull } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { agentApiKeys, companyMemberships, instanceUserRoles } from "@paperclipai/db";
-import type { DeploymentMode } from "@paperclipai/shared";
+import type { Db } from "@substaff/db";
+import { agentApiKeys, companyMemberships, instanceUserRoles } from "@substaff/db";
+import type { DeploymentMode } from "@substaff/shared";
 import { WebSocket, WebSocketServer } from "ws";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
 import { logger } from "../middleware/logger.js";
@@ -17,7 +17,7 @@ interface UpgradeContext {
 }
 
 interface IncomingMessageWithContext extends IncomingMessage {
-  paperclipUpgradeContext?: UpgradeContext;
+  substaffUpgradeContext?: UpgradeContext;
 }
 
 function hashToken(token: string) {
@@ -76,17 +76,9 @@ async function authorizeUpgrade(
   const authToken = parseBearerToken(req.headers.authorization);
   const token = authToken ?? (queryToken.length > 0 ? queryToken : null);
 
-  // Browser board context has no bearer token in local_trusted and authenticated modes.
+  // Browser board context has no bearer token in authenticated mode.
   if (!token) {
-    if (opts.deploymentMode === "local_trusted") {
-      return {
-        companyId,
-        actorType: "board",
-        actorId: "board",
-      };
-    }
-
-    if (opts.deploymentMode !== "authenticated" || !opts.resolveSessionFromHeaders) {
+    if (!opts.resolveSessionFromHeaders) {
       return null;
     }
 
@@ -169,7 +161,7 @@ export function setupLiveEventsWebSocketServer(
   }, 30000);
 
   wss.on("connection", (socket, req) => {
-    const context = (req as IncomingMessageWithContext).paperclipUpgradeContext;
+    const context = (req as IncomingMessageWithContext).substaffUpgradeContext;
     if (!context) {
       socket.close(1008, "missing context");
       return;
@@ -227,7 +219,7 @@ export function setupLiveEventsWebSocketServer(
         }
 
         const reqWithContext = req as IncomingMessageWithContext;
-        reqWithContext.paperclipUpgradeContext = context;
+        reqWithContext.substaffUpgradeContext = context;
 
         wss.handleUpgrade(req, socket, head, (ws) => {
           wss.emit("connection", ws, reqWithContext);

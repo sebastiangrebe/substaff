@@ -226,8 +226,8 @@
 }
 
 /* MDXEditor theme integration */
-.paperclip-mdxeditor-scope,
-.paperclip-mdxeditor {
+.substaff-mdxeditor-scope,
+.substaff-mdxeditor {
   --baseBase: var(--background);
   --baseBg: transparent;
   --baseBgSubtle: color-mix(in oklab, var(--accent) 35%, transparent);
@@ -258,62 +258,62 @@
   color: var(--foreground);
 }
 
-.paperclip-mdxeditor-scope [class*="_iconButton_"],
-.paperclip-mdxeditor [class*="_iconButton_"] {
+.substaff-mdxeditor-scope [class*="_iconButton_"],
+.substaff-mdxeditor [class*="_iconButton_"] {
   color: var(--baseText);
 }
 
-.paperclip-mdxeditor-scope [class*="_iconButton_"]:hover,
-.paperclip-mdxeditor [class*="_iconButton_"]:hover {
+.substaff-mdxeditor-scope [class*="_iconButton_"]:hover,
+.substaff-mdxeditor [class*="_iconButton_"]:hover {
   color: var(--baseTextContrast);
 }
 
-.paperclip-mdxeditor .mdxeditor-root-contenteditable {
+.substaff-mdxeditor .mdxeditor-root-contenteditable {
   min-height: 2.5rem;
   padding: 0;
   line-height: 1.5;
 }
 
-.paperclip-mdxeditor [class*="_contentEditable_"] {
+.substaff-mdxeditor [class*="_contentEditable_"] {
   padding: 0.375rem 0.625rem !important;
 }
 
-.paperclip-mdxeditor--borderless [class*="_contentEditable_"] {
+.substaff-mdxeditor--borderless [class*="_contentEditable_"] {
   padding: 0 !important;
 }
 
-.paperclip-mdxeditor [class*="_placeholder_"] {
+.substaff-mdxeditor [class*="_placeholder_"] {
   font-family: inherit;
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--muted-foreground);
 }
 
-.paperclip-mdxeditor-content {
+.substaff-mdxeditor-content {
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
   color: inherit;
 }
 
-.paperclip-mdxeditor-content > *:first-child {
+.substaff-mdxeditor-content > *:first-child {
   margin-top: 0;
 }
 
-.paperclip-mdxeditor-content > *:last-child {
+.substaff-mdxeditor-content > *:last-child {
   margin-bottom: 0;
 }
 
-.paperclip-mdxeditor-content p {
+.substaff-mdxeditor-content p {
   margin: 0;
   line-height: 1.4;
 }
 
-.paperclip-mdxeditor-content p + p {
+.substaff-mdxeditor-content p + p {
   margin-top: 0.6rem;
 }
 
-.paperclip-mdxeditor-content a.paperclip-project-mention-chip {
+.substaff-mdxeditor-content a.substaff-project-mention-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -329,43 +329,43 @@
   user-select: none;
 }
 
-.paperclip-mdxeditor-content ul,
-.paperclip-mdxeditor-content ol {
+.substaff-mdxeditor-content ul,
+.substaff-mdxeditor-content ol {
   margin: 0.35rem 0;
   padding-left: 1.1rem;
 }
 
-.paperclip-mdxeditor-content ul {
+.substaff-mdxeditor-content ul {
   list-style: disc;
 }
 
-.paperclip-mdxeditor-content ol {
+.substaff-mdxeditor-content ol {
   list-style: decimal;
 }
 
-.paperclip-mdxeditor-content li {
+.substaff-mdxeditor-content li {
   display: list-item;
   margin: 0.15rem 0;
   line-height: 1.4;
 }
 
-.paperclip-mdxeditor-content li::marker {
+.substaff-mdxeditor-content li::marker {
   color: var(--muted-foreground);
 }
 
-.paperclip-mdxeditor-content h1,
-.paperclip-mdxeditor-content h2,
-.paperclip-mdxeditor-content h3 {
+.substaff-mdxeditor-content h1,
+.substaff-mdxeditor-content h2,
+.substaff-mdxeditor-content h3 {
   margin: 0.4rem 0 0.25rem;
   line-height: 1.3;
 }
 
-.paperclip-mdxeditor-content img {
+.substaff-mdxeditor-content img {
   max-height: 18rem;
   border-radius: calc(var(--radius) - 2px);
 }
 
-.paperclip-mdxeditor-content blockquote {
+.substaff-mdxeditor-content blockquote {
   margin: 0.45rem 0;
   padding-left: 0.7rem;
   border-left: 2px solid var(--border);
@@ -373,12 +373,12 @@
   line-height: 1.4;
 }
 
-.paperclip-mdxeditor-content code {
+.substaff-mdxeditor-content code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.84em;
 }
 
-.paperclip-mdxeditor-content pre {
+.substaff-mdxeditor-content pre {
   margin: 0.5rem 0;
   padding: 0.45rem 0.55rem;
   border: 1px solid var(--border);
@@ -416,7 +416,7 @@
 }
 
 /* Project mention chips rendered inside MarkdownBody */
-a.paperclip-project-mention-chip {
+a.substaff-project-mention-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -432,24 +432,24 @@ a.paperclip-project-mention-chip {
 }
 
 /* Keep MDXEditor popups above app dialogs when editor is inside a modal. */
-.paperclip-mdxeditor-scope [class*="_dialogOverlay_"],
-.paperclip-mdxeditor [class*="_dialogOverlay_"] {
+.substaff-mdxeditor-scope [class*="_dialogOverlay_"],
+.substaff-mdxeditor [class*="_dialogOverlay_"] {
   z-index: 80;
 }
 
-.paperclip-mdxeditor-scope [class*="_dialogContent_"],
-.paperclip-mdxeditor-scope [class*="_largeDialogContent_"],
-.paperclip-mdxeditor-scope [class*="_popoverContent_"],
-.paperclip-mdxeditor-scope [class*="_linkDialogPopoverContent_"],
-.paperclip-mdxeditor-scope [class*="_tableColumnEditorPopoverContent_"],
-.paperclip-mdxeditor-scope [class*="_toolbarButtonDropdownContainer_"],
-.paperclip-mdxeditor-scope [class*="_toolbarNodeKindSelectContainer_"],
-.paperclip-mdxeditor [class*="_dialogContent_"],
-.paperclip-mdxeditor [class*="_largeDialogContent_"],
-.paperclip-mdxeditor [class*="_popoverContent_"],
-.paperclip-mdxeditor [class*="_linkDialogPopoverContent_"],
-.paperclip-mdxeditor [class*="_tableColumnEditorPopoverContent_"],
-.paperclip-mdxeditor [class*="_toolbarButtonDropdownContainer_"],
-.paperclip-mdxeditor [class*="_toolbarNodeKindSelectContainer_"] {
+.substaff-mdxeditor-scope [class*="_dialogContent_"],
+.substaff-mdxeditor-scope [class*="_largeDialogContent_"],
+.substaff-mdxeditor-scope [class*="_popoverContent_"],
+.substaff-mdxeditor-scope [class*="_linkDialogPopoverContent_"],
+.substaff-mdxeditor-scope [class*="_tableColumnEditorPopoverContent_"],
+.substaff-mdxeditor-scope [class*="_toolbarButtonDropdownContainer_"],
+.substaff-mdxeditor-scope [class*="_toolbarNodeKindSelectContainer_"],
+.substaff-mdxeditor [class*="_dialogContent_"],
+.substaff-mdxeditor [class*="_largeDialogContent_"],
+.substaff-mdxeditor [class*="_popoverContent_"],
+.substaff-mdxeditor [class*="_linkDialogPopoverContent_"],
+.substaff-mdxeditor [class*="_tableColumnEditorPopoverContent_"],
+.substaff-mdxeditor [class*="_toolbarButtonDropdownContainer_"],
+.substaff-mdxeditor [class*="_toolbarNodeKindSelectContainer_"] {
   z-index: 81 !important;
 }

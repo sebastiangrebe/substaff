@@ -17,10 +17,10 @@
   - `exp`
   - optional `jti` (run token id)
 - New config/env settings:
-  - `PAPERCLIP_AGENT_JWT_SECRET`
-  - `PAPERCLIP_AGENT_JWT_TTL_SECONDS` (default: `172800`)
-  - `PAPERCLIP_AGENT_JWT_ISSUER` (default: `paperclip`)
-  - `PAPERCLIP_AGENT_JWT_AUDIENCE` (default: `paperclip-api`)
+  - `SUBSTAFF_AGENT_JWT_SECRET`
+  - `SUBSTAFF_AGENT_JWT_TTL_SECONDS` (default: `172800`)
+  - `SUBSTAFF_AGENT_JWT_ISSUER` (default: `substaff`)
+  - `SUBSTAFF_AGENT_JWT_AUDIENCE` (default: `substaff-api`)
 
 ## 2) Dual authentication path in `actorMiddleware`
 
@@ -48,24 +48,24 @@
    - `packages/adapters/claude-local/src/server/execute.ts`
    - `packages/adapters/codex-local/src/server/execute.ts`
 
-   inject `PAPERCLIP_API_KEY` from context token.
+   inject `SUBSTAFF_API_KEY` from context token.
 
 - Preserve existing behavior for explicit user-defined env vars in `adapterConfig.env`:
-  - if user already sets `PAPERCLIP_API_KEY`, do not overwrite it.
+  - if user already sets `SUBSTAFF_API_KEY`, do not overwrite it.
 - Continue injecting:
-  - `PAPERCLIP_AGENT_ID`
-  - `PAPERCLIP_COMPANY_ID`
-  - `PAPERCLIP_API_URL`
+  - `SUBSTAFF_AGENT_ID`
+  - `SUBSTAFF_COMPANY_ID`
+  - `SUBSTAFF_API_URL`
 
 ## 5) Documentation updates
 
 - Update operator-facing docs to remove manual key setup expectation for local adapters:
-  - `skills/paperclip/SKILL.md`
+  - `skills/substaff/SKILL.md`
   - `cli/src/commands/heartbeat-run.ts` output/help examples if they mention manual API key setup.
 
 ## 6) P0 acceptance criteria
 
-- Local adapters authenticate without manual `PAPERCLIP_API_KEY` config.
+- Local adapters authenticate without manual `SUBSTAFF_API_KEY` config.
 - Existing static keys (`agent_api_keys`) still work unchanged.
 - Auth remains company-scoped (`req.actor.companyId` used by existing checks).
 - JWT generation and verification errors are logged as non-leaking structured events.

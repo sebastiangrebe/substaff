@@ -11,46 +11,46 @@ function expandHomePrefix(value: string): string {
   return value;
 }
 
-export function resolvePaperclipHomeDir(): string {
-  const envHome = process.env.PAPERCLIP_HOME?.trim();
+export function resolveSubstaffHomeDir(): string {
+  const envHome = process.env.SUBSTAFF_HOME?.trim();
   if (envHome) return path.resolve(expandHomePrefix(envHome));
-  return path.resolve(os.homedir(), ".paperclip");
+  return path.resolve(os.homedir(), ".substaff");
 }
 
-export function resolvePaperclipInstanceId(): string {
-  const raw = process.env.PAPERCLIP_INSTANCE_ID?.trim() || DEFAULT_INSTANCE_ID;
+export function resolveSubstaffInstanceId(): string {
+  const raw = process.env.SUBSTAFF_INSTANCE_ID?.trim() || DEFAULT_INSTANCE_ID;
   if (!INSTANCE_ID_RE.test(raw)) {
-    throw new Error(`Invalid PAPERCLIP_INSTANCE_ID '${raw}'.`);
+    throw new Error(`Invalid SUBSTAFF_INSTANCE_ID '${raw}'.`);
   }
   return raw;
 }
 
-export function resolvePaperclipInstanceRoot(): string {
-  return path.resolve(resolvePaperclipHomeDir(), "instances", resolvePaperclipInstanceId());
+export function resolveSubstaffInstanceRoot(): string {
+  return path.resolve(resolveSubstaffHomeDir(), "instances", resolveSubstaffInstanceId());
 }
 
 export function resolveDefaultConfigPath(): string {
-  return path.resolve(resolvePaperclipInstanceRoot(), "config.json");
+  return path.resolve(resolveSubstaffInstanceRoot(), "config.json");
 }
 
 export function resolveDefaultEmbeddedPostgresDir(): string {
-  return path.resolve(resolvePaperclipInstanceRoot(), "db");
+  return path.resolve(resolveSubstaffInstanceRoot(), "db");
 }
 
 export function resolveDefaultLogsDir(): string {
-  return path.resolve(resolvePaperclipInstanceRoot(), "logs");
+  return path.resolve(resolveSubstaffInstanceRoot(), "logs");
 }
 
 export function resolveDefaultSecretsKeyFilePath(): string {
-  return path.resolve(resolvePaperclipInstanceRoot(), "secrets", "master.key");
+  return path.resolve(resolveSubstaffInstanceRoot(), "secrets", "master.key");
 }
 
 export function resolveDefaultStorageDir(): string {
-  return path.resolve(resolvePaperclipInstanceRoot(), "data", "storage");
+  return path.resolve(resolveSubstaffInstanceRoot(), "data", "storage");
 }
 
 export function resolveDefaultBackupDir(): string {
-  return path.resolve(resolvePaperclipInstanceRoot(), "data", "backups");
+  return path.resolve(resolveSubstaffInstanceRoot(), "data", "backups");
 }
 
 export function resolveDefaultAgentWorkspaceDir(agentId: string): string {
@@ -58,7 +58,7 @@ export function resolveDefaultAgentWorkspaceDir(agentId: string): string {
   if (!PATH_SEGMENT_RE.test(trimmed)) {
     throw new Error(`Invalid agent id for workspace path '${agentId}'.`);
   }
-  return path.resolve(resolvePaperclipInstanceRoot(), "workspaces", trimmed);
+  return path.resolve(resolveSubstaffInstanceRoot(), "workspaces", trimmed);
 }
 
 export function resolveHomeAwarePath(value: string): string {

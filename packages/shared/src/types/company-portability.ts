@@ -15,7 +15,8 @@ export interface CompanyPortabilityCompanyManifestEntry {
   name: string;
   description: string | null;
   brandColor: string | null;
-  requireBoardApprovalForNewAgents: boolean;
+  requirePlanApproval: boolean;
+  requireHireApproval: boolean;
 }
 
 export interface CompanyPortabilityAgentManifestEntry {

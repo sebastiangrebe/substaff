@@ -1,7 +1,7 @@
-import type { CreateConfigValues } from "@paperclipai/adapter-utils";
+import type { CreateConfigValues } from "@substaff/adapter-utils";
 
 export const defaultCreateValues: CreateConfigValues = {
-  adapterType: "claude_local",
+  adapterType: "e2b_sandbox",
   cwd: "",
   instructionsFilePath: "",
   promptTemplate: "",

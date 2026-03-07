@@ -126,16 +126,16 @@ echo "==> Step 4/7: Building all packages..."
 cd "$REPO_ROOT"
 
 # Build packages in dependency order (excluding CLI)
-pnpm --filter @paperclipai/shared build
-pnpm --filter @paperclipai/adapter-utils build
-pnpm --filter @paperclipai/db build
-pnpm --filter @paperclipai/adapter-claude-local build
-pnpm --filter @paperclipai/adapter-codex-local build
-pnpm --filter @paperclipai/adapter-openclaw build
-pnpm --filter @paperclipai/server build
+pnpm --filter @substaff/shared build
+pnpm --filter @substaff/adapter-utils build
+pnpm --filter @substaff/db build
+pnpm --filter @substaff/adapter-claude-local build
+pnpm --filter @substaff/adapter-codex-local build
+pnpm --filter @substaff/adapter-openclaw build
+pnpm --filter @substaff/server build
 
 # Build UI and bundle into server package for static serving
-pnpm --filter @paperclipai/ui build
+pnpm --filter @substaff/ui build
 rm -rf "$REPO_ROOT/server/ui-dist"
 cp -r "$REPO_ROOT/ui/dist" "$REPO_ROOT/server/ui-dist"
 

@@ -8,8 +8,6 @@ let cachedSignature: string | null = null;
 
 function signatureForConfig(config: Config): string {
   return JSON.stringify({
-    provider: config.storageProvider,
-    localDisk: config.storageLocalDiskBaseDir,
     s3Bucket: config.storageS3Bucket,
     s3Region: config.storageS3Region,
     s3Endpoint: config.storageS3Endpoint,

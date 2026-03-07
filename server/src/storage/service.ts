@@ -54,7 +54,7 @@ function ensureCompanyPrefix(companyId: string, objectKey: string): void {
 }
 
 function hashBuffer(input: Buffer): string {
-  return createHash("sha256").update(input).digest("hex");
+  return createHash("sha256").update(new Uint8Array(input)).digest("hex");
 }
 
 function buildObjectKey(companyId: string, namespace: string, originalFilename: string | null): string {
@@ -126,6 +126,14 @@ export function createStorageService(provider: StorageProvider): StorageService 
     async deleteObject(companyId: string, objectKey: string) {
       ensureCompanyPrefix(companyId, objectKey);
       await provider.deleteObject({ objectKey });
+    },
+
+    async listObjects(companyId: string, prefix: string) {
+      const fullPrefix = prefix ? `${companyId}/${prefix}` : `${companyId}/`;
+      if (fullPrefix.includes("..")) {
+        throw badRequest("Invalid prefix");
+      }
+      return provider.listObjects({ prefix: fullPrefix });
     },
   };
 }

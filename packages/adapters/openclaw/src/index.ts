@@ -9,11 +9,11 @@ Adapter: openclaw
 
 Use when:
 - You run an OpenClaw agent remotely and wake it via webhook.
-- You want Paperclip heartbeat/task events delivered over HTTP.
+- You want Substaff heartbeat/task events delivered over HTTP.
 
 Don't use when:
-- You need local CLI execution inside Paperclip (use claude_local/codex_local/opencode_local/process).
-- The OpenClaw endpoint is not reachable from the Paperclip server.
+- You need local CLI execution inside Substaff (use claude_local/codex_local/opencode_local/process).
+- The OpenClaw endpoint is not reachable from the Substaff server.
 
 Core fields:
 - url (string, required): OpenClaw webhook endpoint URL

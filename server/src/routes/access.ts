@@ -5,13 +5,13 @@ import { fileURLToPath } from "node:url";
 import { Router } from "express";
 import type { Request } from "express";
 import { and, eq, isNull, desc } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
 import {
   agentApiKeys,
   authUsers,
   invites,
   joinRequests,
-} from "@paperclipai/db";
+} from "@substaff/db";
 import {
   acceptInviteSchema,
   claimJoinRequestApiKeySchema,
@@ -20,13 +20,12 @@ import {
   updateMemberPermissionsSchema,
   updateUserCompanyAccessSchema,
   PERMISSION_KEYS,
-} from "@paperclipai/shared";
-import type { DeploymentExposure, DeploymentMode } from "@paperclipai/shared";
+} from "@substaff/shared";
+import type { DeploymentMode } from "@substaff/shared";
 import { forbidden, conflict, notFound, unauthorized, badRequest } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { accessService, agentService, logActivity } from "../services/index.js";
 import { assertCompanyAccess } from "./authz.js";
-import { claimBoardOwnership, inspectBoardClaimChallenge } from "../board-claim.js";
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -43,7 +42,7 @@ function createClaimSecret() {
 function tokenHashesMatch(left: string, right: string) {
   const leftBytes = Buffer.from(left, "utf8");
   const rightBytes = Buffer.from(right, "utf8");
-  return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
+  return leftBytes.length === rightBytes.length && timingSafeEqual(new Uint8Array(leftBytes), new Uint8Array(rightBytes));
 }
 
 function requestBaseUrl(req: Request) {
@@ -56,7 +55,7 @@ function requestBaseUrl(req: Request) {
 
 function readSkillMarkdown(skillName: string): string | null {
   const normalized = skillName.trim().toLowerCase();
-  if (normalized !== "paperclip" && normalized !== "paperclip-create-agent") return null;
+  if (normalized !== "substaff" && normalized !== "substaff-create-agent") return null;
   const moduleDir = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
     path.resolve(moduleDir, "../../skills", normalized, "SKILL.md"),  // published: dist/routes/ -> <pkg>/skills/
@@ -107,81 +106,16 @@ function normalizeHostname(value: string | null | undefined): string | null {
   return trimmed.toLowerCase();
 }
 
-function normalizeHeaderMap(input: unknown): Record<string, string> | undefined {
-  if (!isPlainObject(input)) return undefined;
-  const out: Record<string, string> = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (typeof value !== "string") continue;
-    const trimmedKey = key.trim();
-    const trimmedValue = value.trim();
-    if (!trimmedKey || !trimmedValue) continue;
-    out[trimmedKey] = trimmedValue;
-  }
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
 function buildJoinConnectivityDiagnostics(input: {
   deploymentMode: DeploymentMode;
-  deploymentExposure: DeploymentExposure;
-  bindHost: string;
-  allowedHostnames: string[];
-  callbackUrl: URL | null;
 }): JoinDiagnostic[] {
   const diagnostics: JoinDiagnostic[] = [];
-  const bindHost = normalizeHostname(input.bindHost);
-  const callbackHost = input.callbackUrl ? normalizeHostname(input.callbackUrl.hostname) : null;
-  const allowSet = new Set(
-    input.allowedHostnames
-      .map((entry) => normalizeHostname(entry))
-      .filter((entry): entry is string => Boolean(entry)),
-  );
 
   diagnostics.push({
-    code: "openclaw_deployment_context",
+    code: "deployment_context",
     level: "info",
-    message: `Deployment context: mode=${input.deploymentMode}, exposure=${input.deploymentExposure}.`,
+    message: `Deployment context: mode=${input.deploymentMode}.`,
   });
-
-  if (input.deploymentMode === "authenticated" && input.deploymentExposure === "private") {
-    if (!bindHost || isLoopbackHost(bindHost)) {
-      diagnostics.push({
-        code: "openclaw_private_bind_loopback",
-        level: "warn",
-        message: "Paperclip is bound to loopback in authenticated/private mode.",
-        hint: "Bind to a reachable private hostname/IP for remote OpenClaw callbacks.",
-      });
-    }
-    if (bindHost && !isLoopbackHost(bindHost) && !allowSet.has(bindHost)) {
-      diagnostics.push({
-        code: "openclaw_private_bind_not_allowed",
-        level: "warn",
-        message: `Paperclip bind host \"${bindHost}\" is not in allowed hostnames.`,
-        hint: `Run pnpm paperclipai allowed-hostname ${bindHost}`,
-      });
-    }
-    if (callbackHost && !isLoopbackHost(callbackHost) && allowSet.size === 0) {
-      diagnostics.push({
-        code: "openclaw_private_allowed_hostnames_empty",
-        level: "warn",
-        message: "No explicit allowed hostnames are configured for authenticated/private mode.",
-        hint: "Set one with pnpm paperclipai allowed-hostname <host> when OpenClaw runs off-host.",
-      });
-    }
-  }
-
-  if (
-    input.deploymentMode === "authenticated" &&
-    input.deploymentExposure === "public" &&
-    input.callbackUrl &&
-    input.callbackUrl.protocol !== "https:"
-  ) {
-    diagnostics.push({
-      code: "openclaw_public_http_callback",
-      level: "warn",
-      message: "OpenClaw callback URL uses HTTP in authenticated/public mode.",
-      hint: "Prefer HTTPS for public deployments.",
-    });
-  }
 
   return diagnostics;
 }
@@ -190,100 +124,15 @@ function normalizeAgentDefaultsForJoin(input: {
   adapterType: string | null;
   defaultsPayload: unknown;
   deploymentMode: DeploymentMode;
-  deploymentExposure: DeploymentExposure;
-  bindHost: string;
-  allowedHostnames: string[];
 }) {
   const diagnostics: JoinDiagnostic[] = [];
-  if (input.adapterType !== "openclaw") {
-    const normalized = isPlainObject(input.defaultsPayload)
-      ? (input.defaultsPayload as Record<string, unknown>)
-      : null;
-    return { normalized, diagnostics };
-  }
-
-  if (!isPlainObject(input.defaultsPayload)) {
-    diagnostics.push({
-      code: "openclaw_callback_config_missing",
-      level: "warn",
-      message: "No OpenClaw callback config was provided in agentDefaultsPayload.",
-      hint: "Include agentDefaultsPayload.url so Paperclip can invoke the OpenClaw webhook immediately after approval.",
-    });
-    return { normalized: null as Record<string, unknown> | null, diagnostics };
-  }
-
-  const defaults = input.defaultsPayload as Record<string, unknown>;
-  const normalized: Record<string, unknown> = {};
-
-  let callbackUrl: URL | null = null;
-  const rawUrl = typeof defaults.url === "string" ? defaults.url.trim() : "";
-  if (!rawUrl) {
-    diagnostics.push({
-      code: "openclaw_callback_url_missing",
-      level: "warn",
-      message: "OpenClaw callback URL is missing.",
-      hint: "Set agentDefaultsPayload.url to your OpenClaw webhook endpoint.",
-    });
-  } else {
-    try {
-      callbackUrl = new URL(rawUrl);
-      if (callbackUrl.protocol !== "http:" && callbackUrl.protocol !== "https:") {
-        diagnostics.push({
-          code: "openclaw_callback_url_protocol",
-          level: "warn",
-          message: `Unsupported callback protocol: ${callbackUrl.protocol}`,
-          hint: "Use http:// or https://.",
-        });
-      } else {
-        normalized.url = callbackUrl.toString();
-        diagnostics.push({
-          code: "openclaw_callback_url_configured",
-          level: "info",
-          message: `Callback endpoint set to ${callbackUrl.toString()}`,
-        });
-      }
-      if (isLoopbackHost(callbackUrl.hostname)) {
-        diagnostics.push({
-          code: "openclaw_callback_loopback",
-          level: "warn",
-          message: "OpenClaw callback endpoint uses loopback hostname.",
-          hint: "Use a reachable hostname/IP when OpenClaw runs on another machine.",
-        });
-      }
-    } catch {
-      diagnostics.push({
-        code: "openclaw_callback_url_invalid",
-        level: "warn",
-        message: `Invalid callback URL: ${rawUrl}`,
-      });
-    }
-  }
-
-  const rawMethod = typeof defaults.method === "string" ? defaults.method.trim().toUpperCase() : "";
-  normalized.method = rawMethod || "POST";
-
-  if (typeof defaults.timeoutSec === "number" && Number.isFinite(defaults.timeoutSec)) {
-    normalized.timeoutSec = Math.max(1, Math.min(120, Math.floor(defaults.timeoutSec)));
-  }
-
-  const headers = normalizeHeaderMap(defaults.headers);
-  if (headers) normalized.headers = headers;
-
-  if (typeof defaults.webhookAuthHeader === "string" && defaults.webhookAuthHeader.trim()) {
-    normalized.webhookAuthHeader = defaults.webhookAuthHeader.trim();
-  }
-
-  if (isPlainObject(defaults.payloadTemplate)) {
-    normalized.payloadTemplate = defaults.payloadTemplate;
-  }
+  const normalized = isPlainObject(input.defaultsPayload)
+    ? (input.defaultsPayload as Record<string, unknown>)
+    : null;
 
   diagnostics.push(
     ...buildJoinConnectivityDiagnostics({
       deploymentMode: input.deploymentMode,
-      deploymentExposure: input.deploymentExposure,
-      bindHost: input.bindHost,
-      allowedHostnames: input.allowedHostnames,
-      callbackUrl,
     }),
   );
 
@@ -312,9 +161,6 @@ function toInviteSummaryResponse(req: Request, token: string, invite: typeof inv
 function buildOnboardingDiscoveryDiagnostics(input: {
   apiBaseUrl: string;
   deploymentMode: DeploymentMode;
-  deploymentExposure: DeploymentExposure;
-  bindHost: string;
-  allowedHostnames: string[];
 }): JoinDiagnostic[] {
   const diagnostics: JoinDiagnostic[] = [];
   let apiHost: string | null = null;
@@ -326,49 +172,13 @@ function buildOnboardingDiscoveryDiagnostics(input: {
     }
   }
 
-  const bindHost = normalizeHostname(input.bindHost);
-  const allowSet = new Set(
-    input.allowedHostnames
-      .map((entry) => normalizeHostname(entry))
-      .filter((entry): entry is string => Boolean(entry)),
-  );
-
   if (apiHost && isLoopbackHost(apiHost)) {
     diagnostics.push({
-      code: "openclaw_onboarding_api_loopback",
+      code: "onboarding_api_loopback",
       level: "warn",
       message:
-        "Onboarding URL resolves to loopback hostname. Remote OpenClaw agents cannot reach localhost on your Paperclip host.",
+        "Onboarding URL resolves to loopback hostname. Remote agents cannot reach localhost on your Substaff host.",
       hint: "Use a reachable hostname/IP (for example Tailscale hostname, Docker host alias, or public domain).",
-    });
-  }
-
-  if (
-    input.deploymentMode === "authenticated" &&
-    input.deploymentExposure === "private" &&
-    (!bindHost || isLoopbackHost(bindHost))
-  ) {
-    diagnostics.push({
-      code: "openclaw_onboarding_private_loopback_bind",
-      level: "warn",
-      message: "Paperclip is bound to loopback in authenticated/private mode.",
-      hint: "Run with a reachable bind host or use pnpm dev --tailscale-auth for private-network onboarding.",
-    });
-  }
-
-  if (
-    input.deploymentMode === "authenticated" &&
-    input.deploymentExposure === "private" &&
-    apiHost &&
-    !isLoopbackHost(apiHost) &&
-    allowSet.size > 0 &&
-    !allowSet.has(apiHost)
-  ) {
-    diagnostics.push({
-      code: "openclaw_onboarding_private_host_not_allowed",
-      level: "warn",
-      message: `Onboarding host "${apiHost}" is not in allowed hostnames for authenticated/private mode.`,
-      hint: `Run pnpm paperclipai allowed-hostname ${apiHost}`,
     });
   }
 
@@ -381,13 +191,10 @@ function buildInviteOnboardingManifest(
   invite: typeof invites.$inferSelect,
   opts: {
     deploymentMode: DeploymentMode;
-    deploymentExposure: DeploymentExposure;
-    bindHost: string;
-    allowedHostnames: string[];
   },
 ) {
   const baseUrl = requestBaseUrl(req);
-  const skillPath = "/api/skills/paperclip";
+  const skillPath = "/api/skills/substaff";
   const skillUrl = baseUrl ? `${baseUrl}${skillPath}` : skillPath;
   const registrationEndpointPath = `/api/invites/${token}/accept`;
   const registrationEndpointUrl = baseUrl ? `${baseUrl}${registrationEndpointPath}` : registrationEndpointPath;
@@ -396,24 +203,21 @@ function buildInviteOnboardingManifest(
   const discoveryDiagnostics = buildOnboardingDiscoveryDiagnostics({
     apiBaseUrl: baseUrl,
     deploymentMode: opts.deploymentMode,
-    deploymentExposure: opts.deploymentExposure,
-    bindHost: opts.bindHost,
-    allowedHostnames: opts.allowedHostnames,
   });
 
   return {
     invite: toInviteSummaryResponse(req, token, invite),
     onboarding: {
       instructions:
-        "Join as an agent, save your one-time claim secret, wait for board approval, then claim your API key and install the Paperclip skill before starting heartbeat loops.",
-      recommendedAdapterType: "openclaw",
+        "Join as an agent, save your one-time claim secret, wait for board approval, then claim your API key and install the Substaff skill before starting heartbeat loops.",
+      recommendedAdapterType: "e2b_sandbox",
       requiredFields: {
         requestType: "agent",
         agentName: "Display name for this agent",
-        adapterType: "Use 'openclaw' for OpenClaw webhook-based agents",
+        adapterType: "Adapter type (e2b_sandbox, process, or http)",
         capabilities: "Optional capability summary",
         agentDefaultsPayload:
-          "Optional adapter config such as url/method/headers/webhookAuthHeader for OpenClaw callback endpoint",
+          "Optional adapter config",
       },
       registrationEndpoint: {
         method: "POST",
@@ -429,14 +233,8 @@ function buildInviteOnboardingManifest(
       },
       connectivity: {
         deploymentMode: opts.deploymentMode,
-        deploymentExposure: opts.deploymentExposure,
-        bindHost: opts.bindHost,
-        allowedHostnames: opts.allowedHostnames,
         diagnostics: discoveryDiagnostics,
-        guidance:
-          opts.deploymentMode === "authenticated" && opts.deploymentExposure === "private"
-            ? "If OpenClaw runs on another machine, ensure the Paperclip hostname is reachable and allowed via `pnpm paperclipai allowed-hostname <host>`."
-            : "Ensure OpenClaw can reach this Paperclip API base URL for callbacks and claims.",
+        guidance: "Ensure agents can reach this Substaff API base URL for callbacks and claims.",
       },
       textInstructions: {
         path: onboardingTextPath,
@@ -444,10 +242,10 @@ function buildInviteOnboardingManifest(
         contentType: "text/plain",
       },
       skill: {
-        name: "paperclip",
+        name: "substaff",
         path: skillPath,
         url: skillUrl,
-        installPath: "~/.openclaw/skills/paperclip/SKILL.md",
+        installPath: "~/.substaff/skills/substaff/SKILL.md",
       },
     },
   };
@@ -459,9 +257,6 @@ export function buildInviteOnboardingTextDocument(
   invite: typeof invites.$inferSelect,
   opts: {
     deploymentMode: DeploymentMode;
-    deploymentExposure: DeploymentExposure;
-    bindHost: string;
-    allowedHostnames: string[];
   },
 ) {
   const manifest = buildInviteOnboardingManifest(req, token, invite, opts);
@@ -477,7 +272,7 @@ export function buildInviteOnboardingTextDocument(
     : [];
 
   const lines = [
-    "# Paperclip OpenClaw Onboarding",
+    "# Substaff Agent Onboarding",
     "",
     "This document is meant to be readable by both humans and agents.",
     "",
@@ -492,15 +287,10 @@ export function buildInviteOnboardingTextDocument(
     "Body (JSON):",
     "{",
     '  "requestType": "agent",',
-    '  "agentName": "My OpenClaw Agent",',
-    '  "adapterType": "openclaw",',
+    '  "agentName": "My Agent",',
+    '  "adapterType": "e2b_sandbox",',
     '  "capabilities": "Optional summary",',
-    '  "agentDefaultsPayload": {',
-    '    "url": "https://your-openclaw-webhook.example/webhook",',
-    '    "method": "POST",',
-    '    "headers": { "x-openclaw-auth": "replace-me" },',
-    '    "timeoutSec": 30',
-    "  }",
+    '  "agentDefaultsPayload": {}',
     "}",
     "",
     "Expected response includes:",
@@ -509,7 +299,7 @@ export function buildInviteOnboardingTextDocument(
     "- claimApiKeyPath",
     "",
     "## Step 2: Wait for board approval",
-    "The board approves the join request in Paperclip before key claim is allowed.",
+    "The board approves the join request in Substaff before key claim is allowed.",
     "",
     "## Step 3: Claim API key (one-time)",
     `${onboarding.claimEndpointTemplate.method} /api/join-requests/{requestId}/claim-api-key`,
@@ -524,7 +314,7 @@ export function buildInviteOnboardingTextDocument(
     "- claim secrets are single-use",
     "- claim fails before board approval",
     "",
-    "## Step 4: Install Paperclip skill in OpenClaw",
+    "## Step 4: Install Substaff skill",
     `GET ${onboarding.skill.url}`,
     `Install path: ${onboarding.skill.installPath}`,
     "",
@@ -532,7 +322,7 @@ export function buildInviteOnboardingTextDocument(
     `${onboarding.textInstructions.url}`,
     "",
     "## Connectivity guidance",
-    onboarding.connectivity?.guidance ?? "Ensure Paperclip is reachable from your OpenClaw runtime.",
+    onboarding.connectivity?.guidance ?? "Ensure Substaff is reachable from your agent runtime.",
   ];
 
   if (diagnostics.length > 0) {
@@ -568,12 +358,12 @@ function inviteExpired(invite: typeof invites.$inferSelect) {
   return invite.expiresAt.getTime() <= Date.now();
 }
 
-function isLocalImplicit(req: Request) {
-  return req.actor.type === "board" && req.actor.source === "local_implicit";
+function isInstanceAdminBoard(req: Request) {
+  return req.actor.type === "board" && Boolean(req.actor.isInstanceAdmin);
 }
 
 async function resolveActorEmail(db: Db, req: Request): Promise<string | null> {
-  if (isLocalImplicit(req)) return "local@paperclip.local";
+  if (isInstanceAdminBoard(req)) return "local@substaff.local";
   const userId = req.actor.userId;
   if (!userId) return null;
   const user = await db
@@ -618,9 +408,6 @@ export function accessRoutes(
   db: Db,
   opts: {
     deploymentMode: DeploymentMode;
-    deploymentExposure: DeploymentExposure;
-    bindHost: string;
-    allowedHostnames: string[];
   },
 ) {
   const router = Router();
@@ -629,44 +416,10 @@ export function accessRoutes(
 
   async function assertInstanceAdmin(req: Request) {
     if (req.actor.type !== "board") throw unauthorized();
-    if (isLocalImplicit(req)) return;
+    if (isInstanceAdminBoard(req)) return;
     const allowed = await access.isInstanceAdmin(req.actor.userId);
     if (!allowed) throw forbidden("Instance admin required");
   }
-
-  router.get("/board-claim/:token", async (req, res) => {
-    const token = (req.params.token as string).trim();
-    const code = typeof req.query.code === "string" ? req.query.code.trim() : undefined;
-    if (!token) throw notFound("Board claim challenge not found");
-    const challenge = inspectBoardClaimChallenge(token, code);
-    if (challenge.status === "invalid") throw notFound("Board claim challenge not found");
-    res.json(challenge);
-  });
-
-  router.post("/board-claim/:token/claim", async (req, res) => {
-    const token = (req.params.token as string).trim();
-    const code = typeof req.body?.code === "string" ? req.body.code.trim() : undefined;
-    if (!token) throw notFound("Board claim challenge not found");
-    if (!code) throw badRequest("Claim code is required");
-    if (req.actor.type !== "board" || req.actor.source !== "session" || !req.actor.userId) {
-      throw unauthorized("Sign in before claiming board ownership");
-    }
-
-    const claimed = await claimBoardOwnership(db, {
-      token,
-      code,
-      userId: req.actor.userId,
-    });
-
-    if (claimed.status === "invalid") throw notFound("Board claim challenge not found");
-    if (claimed.status === "expired") throw conflict("Board claim challenge expired. Restart server to generate a new one.");
-    if (claimed.status === "claimed") {
-      res.json({ claimed: true, userId: claimed.claimedByUserId ?? req.actor.userId });
-      return;
-    }
-
-    throw conflict("Board claim challenge is no longer available");
-  });
 
   async function assertCompanyPermission(req: Request, companyId: string, permissionKey: any) {
     assertCompanyAccess(req, companyId);
@@ -677,7 +430,7 @@ export function accessRoutes(
       return;
     }
     if (req.actor.type !== "board") throw unauthorized();
-    if (isLocalImplicit(req)) return;
+    if (isInstanceAdminBoard(req)) return;
     const allowed = await access.canUser(companyId, req.actor.userId, permissionKey);
     if (!allowed) throw forbidden("Permission denied");
   }
@@ -685,8 +438,8 @@ export function accessRoutes(
   router.get("/skills/index", (_req, res) => {
     res.json({
       skills: [
-        { name: "paperclip", path: "/api/skills/paperclip" },
-        { name: "paperclip-create-agent", path: "/api/skills/paperclip-create-agent" },
+        { name: "substaff", path: "/api/skills/substaff" },
+        { name: "substaff-create-agent", path: "/api/skills/substaff-create-agent" },
       ],
     });
   });
@@ -800,33 +553,6 @@ export function accessRoutes(
       throw notFound("Invite not found");
     }
 
-    if (invite.inviteType === "bootstrap_ceo") {
-      if (req.body.requestType !== "human") {
-        throw badRequest("Bootstrap invite requires human request type");
-      }
-      if (req.actor.type !== "board" || (!req.actor.userId && !isLocalImplicit(req))) {
-        throw unauthorized("Authenticated user required for bootstrap acceptance");
-      }
-      const userId = req.actor.userId ?? "local-board";
-      const existingAdmin = await access.isInstanceAdmin(userId);
-      if (!existingAdmin) {
-        await access.promoteInstanceAdmin(userId);
-      }
-      const updatedInvite = await db
-        .update(invites)
-        .set({ acceptedAt: new Date(), updatedAt: new Date() })
-        .where(eq(invites.id, invite.id))
-        .returning()
-        .then((rows) => rows[0] ?? invite);
-      res.status(202).json({
-        inviteId: updatedInvite.id,
-        inviteType: updatedInvite.inviteType,
-        bootstrapAccepted: true,
-        userId,
-      });
-      return;
-    }
-
     const requestType = req.body.requestType as "human" | "agent";
     const companyId = invite.companyId;
     if (!companyId) throw conflict("Invite is missing company scope");
@@ -837,7 +563,7 @@ export function accessRoutes(
     if (requestType === "human" && req.actor.type !== "board") {
       throw unauthorized("Human invite acceptance requires authenticated user");
     }
-    if (requestType === "human" && !req.actor.userId && !isLocalImplicit(req)) {
+    if (requestType === "human" && !req.actor.userId && !isInstanceAdminBoard(req)) {
       throw unauthorized("Authenticated user is required");
     }
     if (requestType === "agent" && !req.body.agentName) {
@@ -849,9 +575,6 @@ export function accessRoutes(
         adapterType: req.body.adapterType ?? null,
         defaultsPayload: req.body.agentDefaultsPayload ?? null,
         deploymentMode: opts.deploymentMode,
-        deploymentExposure: opts.deploymentExposure,
-        bindHost: opts.bindHost,
-        allowedHostnames: opts.allowedHostnames,
       })
       : { normalized: null as Record<string, unknown> | null, diagnostics: [] as JoinDiagnostic[] };
 
@@ -1034,7 +757,7 @@ export function accessRoutes(
       .update(joinRequests)
       .set({
         status: "approved",
-        approvedByUserId: req.actor.userId ?? (isLocalImplicit(req) ? "local-board" : null),
+        approvedByUserId: req.actor.userId ?? (isInstanceAdminBoard(req) ? "local-board" : null),
         approvedAt: new Date(),
         createdAgentId,
         updatedAt: new Date(),
@@ -1073,7 +796,7 @@ export function accessRoutes(
       .update(joinRequests)
       .set({
         status: "rejected",
-        rejectedByUserId: req.actor.userId ?? (isLocalImplicit(req) ? "local-board" : null),
+        rejectedByUserId: req.actor.userId ?? (isInstanceAdminBoard(req) ? "local-board" : null),
         rejectedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -1174,21 +897,6 @@ export function accessRoutes(
       res.json(updated);
     },
   );
-
-  router.post("/admin/users/:userId/promote-instance-admin", async (req, res) => {
-    await assertInstanceAdmin(req);
-    const userId = req.params.userId as string;
-    const result = await access.promoteInstanceAdmin(userId);
-    res.status(201).json(result);
-  });
-
-  router.post("/admin/users/:userId/demote-instance-admin", async (req, res) => {
-    await assertInstanceAdmin(req);
-    const userId = req.params.userId as string;
-    const removed = await access.demoteInstanceAdmin(userId);
-    if (!removed) throw notFound("Instance admin role not found");
-    res.json(removed);
-  });
 
   router.get("/admin/users/:userId/company-access", async (req, res) => {
     await assertInstanceAdmin(req);

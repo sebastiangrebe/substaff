@@ -9,8 +9,9 @@ import { agentUrl } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { AgentIcon } from "../components/AgentIconPicker";
-import { Network } from "lucide-react";
-import type { Agent } from "@paperclipai/shared";
+import { OrgChartEditor } from "../components/OrgChartEditor";
+import { Network, PenTool } from "lucide-react";
+import type { Agent } from "@substaff/shared";
 
 // Layout constants
 const CARD_W = 200;
@@ -116,11 +117,7 @@ function collectEdges(nodes: LayoutNode[]): Array<{ parent: LayoutNode; child: L
 // ── Status dot colors (raw hex for SVG) ─────────────────────────────────
 
 const adapterLabels: Record<string, string> = {
-  claude_local: "Claude",
-  codex_local: "Codex",
-  opencode_local: "OpenCode",
-  cursor: "Cursor",
-  openclaw: "OpenClaw",
+  e2b_sandbox: "E2B Sandbox",
   process: "Process",
   http: "HTTP",
 };
@@ -140,18 +137,62 @@ const defaultDotColor = "#a3a3a3";
 export function OrgChart() {
   const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
+  const [mode, setMode] = useState<"view" | "editor">("view");
+
+  useEffect(() => {
+    setBreadcrumbs([{ label: "Org Chart" }]);
+  }, [setBreadcrumbs]);
+
+  if (!selectedCompanyId) {
+    return <EmptyState icon={Network} message="Select a company to view the org chart." />;
+  }
+
+  if (mode === "editor") {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+          <Network className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">Org Chart</span>
+          <div className="flex items-center gap-0.5 ml-4 rounded-md border border-border p-0.5">
+            <button
+              className="px-2.5 py-1 text-xs rounded transition-colors text-muted-foreground hover:text-foreground"
+              onClick={() => setMode("view")}
+            >
+              View
+            </button>
+            <button
+              className="px-2.5 py-1 text-xs rounded transition-colors bg-accent text-foreground font-medium"
+            >
+              Editor
+            </button>
+          </div>
+        </div>
+        <OrgChartEditor companyId={selectedCompanyId} />
+      </div>
+    );
+  }
+
+  return (
+    <OrgChartViewMode
+      companyId={selectedCompanyId}
+      onSwitchToEditor={() => setMode("editor")}
+    />
+  );
+}
+
+function OrgChartViewMode({ companyId, onSwitchToEditor }: { companyId: string; onSwitchToEditor: () => void }) {
   const navigate = useNavigate();
 
   const { data: orgTree, isLoading } = useQuery({
-    queryKey: queryKeys.org(selectedCompanyId!),
-    queryFn: () => agentsApi.org(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.org(companyId),
+    queryFn: () => agentsApi.org(companyId),
+    enabled: !!companyId,
   });
 
   const { data: agents } = useQuery({
-    queryKey: queryKeys.agents.list(selectedCompanyId!),
-    queryFn: () => agentsApi.list(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
+    queryKey: queryKeys.agents.list(companyId),
+    queryFn: () => agentsApi.list(companyId),
+    enabled: !!companyId,
   });
 
   const agentMap = useMemo(() => {
@@ -159,10 +200,6 @@ export function OrgChart() {
     for (const a of agents ?? []) m.set(a.id, a);
     return m;
   }, [agents]);
-
-  useEffect(() => {
-    setBreadcrumbs([{ label: "Org Chart" }]);
-  }, [setBreadcrumbs]);
 
   // Layout computation
   const layout = useMemo(() => layoutForest(orgTree ?? []), [orgTree]);
@@ -253,16 +290,23 @@ export function OrgChart() {
     setZoom(newZoom);
   }, [zoom, pan]);
 
-  if (!selectedCompanyId) {
-    return <EmptyState icon={Network} message="Select a company to view the org chart." />;
-  }
-
   if (isLoading) {
     return <PageSkeleton variant="org-chart" />;
   }
 
   if (orgTree && orgTree.length === 0) {
-    return <EmptyState icon={Network} message="No organizational hierarchy defined." />;
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
+        <EmptyState icon={Network} message="No organizational hierarchy defined." />
+        <button
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent transition-colors"
+          onClick={onSwitchToEditor}
+        >
+          <PenTool className="h-3.5 w-3.5" />
+          Open Org Chart Editor
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -276,6 +320,17 @@ export function OrgChart() {
       onMouseLeave={handleMouseUp}
       onWheel={handleWheel}
     >
+      {/* Editor toggle */}
+      <div className="absolute top-3 left-3 z-10">
+        <button
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors shadow-sm"
+          onClick={onSwitchToEditor}
+        >
+          <PenTool className="h-3.5 w-3.5" />
+          Editor
+        </button>
+      </div>
+
       {/* Zoom controls */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
         <button

@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
-import type { Db } from "@paperclipai/db";
-import { activityLog, agents, companies, costEvents, heartbeatRuns, issues, projects } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
+import { activityLog, agents, companies, costEvents, heartbeatRuns, issues, projects } from "@substaff/db";
 import { notFound, unprocessable } from "../errors.js";
 
 export interface CostDateRange {

@@ -31,19 +31,16 @@ describe("buildInviteOnboardingTextDocument", () => {
     } as const;
 
     const text = buildInviteOnboardingTextDocument(req, "token-123", invite as any, {
-      deploymentMode: "local_trusted",
-      deploymentExposure: "private",
-      bindHost: "127.0.0.1",
-      allowedHostnames: [],
+      deploymentMode: "authenticated",
     });
 
-    expect(text).toContain("Paperclip OpenClaw Onboarding");
+    expect(text).toContain("Substaff Agent Onboarding");
     expect(text).toContain("/api/invites/token-123/accept");
     expect(text).toContain("/api/join-requests/{requestId}/claim-api-key");
     expect(text).toContain("/api/invites/token-123/onboarding.txt");
   });
 
-  it("includes loopback diagnostics for authenticated/private onboarding", () => {
+  it("includes loopback diagnostics for authenticated onboarding", () => {
     const req = buildReq("localhost:3100");
     const invite = {
       id: "invite-2",
@@ -62,9 +59,6 @@ describe("buildInviteOnboardingTextDocument", () => {
 
     const text = buildInviteOnboardingTextDocument(req, "token-456", invite as any, {
       deploymentMode: "authenticated",
-      deploymentExposure: "private",
-      bindHost: "127.0.0.1",
-      allowedHostnames: [],
     });
 
     expect(text).toContain("Connectivity diagnostics");

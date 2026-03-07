@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AdapterExecutionContext, AdapterExecutionResult } from "@paperclipai/adapter-utils";
-import type { RunProcessResult } from "@paperclipai/adapter-utils/server-utils";
+import type { AdapterExecutionContext, AdapterExecutionResult } from "@substaff/adapter-utils";
+import type { RunProcessResult } from "@substaff/adapter-utils/server-utils";
 import {
   asString,
   asNumber,
@@ -11,14 +11,14 @@ import {
   asStringArray,
   parseObject,
   parseJson,
-  buildPaperclipEnv,
+  buildSubstaffEnv,
   redactEnvForLogs,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
   ensurePathInEnv,
   renderTemplate,
   runChildProcess,
-} from "@paperclipai/adapter-utils/server-utils";
+} from "@substaff/adapter-utils/server-utils";
 import {
   parseClaudeStreamJson,
   describeClaudeFailure,
@@ -28,13 +28,13 @@ import {
 } from "./parse.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
-const PAPERCLIP_SKILLS_CANDIDATES = [
+const SUBSTAFF_SKILLS_CANDIDATES = [
   path.resolve(__moduleDir, "../../skills"),         // published: <pkg>/dist/server/ -> <pkg>/skills/
   path.resolve(__moduleDir, "../../../../../skills"), // dev: src/server/ -> repo root/skills/
 ];
 
-async function resolvePaperclipSkillsDir(): Promise<string | null> {
-  for (const candidate of PAPERCLIP_SKILLS_CANDIDATES) {
+async function resolveSubstaffSkillsDir(): Promise<string | null> {
+  for (const candidate of SUBSTAFF_SKILLS_CANDIDATES) {
     const isDir = await fs.stat(candidate).then((s) => s.isDirectory()).catch(() => false);
     if (isDir) return candidate;
   }
@@ -47,10 +47,10 @@ async function resolvePaperclipSkillsDir(): Promise<string | null> {
  * them as proper registered skills.
  */
 async function buildSkillsDir(): Promise<string> {
-  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-skills-"));
+  const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "substaff-skills-"));
   const target = path.join(tmp, ".claude", "skills");
   await fs.mkdir(target, { recursive: true });
-  const skillsDir = await resolvePaperclipSkillsDir();
+  const skillsDir = await resolveSubstaffSkillsDir();
   if (!skillsDir) return tmp;
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
   for (const entry of entries) {
@@ -64,7 +64,7 @@ async function buildSkillsDir(): Promise<string> {
   return tmp;
 }
 
-interface ClaudeExecutionInput {
+export interface ClaudeExecutionInput {
   runId: string;
   agent: AdapterExecutionContext["agent"];
   config: Record<string, unknown>;
@@ -72,7 +72,7 @@ interface ClaudeExecutionInput {
   authToken?: string;
 }
 
-interface ClaudeRuntimeConfig {
+export interface ClaudeRuntimeConfig {
   command: string;
   cwd: string;
   workspaceId: string | null;
@@ -98,6 +98,25 @@ function buildLoginResult(input: {
   };
 }
 
+function buildDefaultPrompt(
+  context: Record<string, unknown>,
+  agent: { id: string; name?: string | null },
+): string {
+  const parts = [
+    `You are agent ${agent.id}${agent.name ? ` (${agent.name})` : ""}. Continue your Substaff work.`,
+  ];
+  const title = typeof context.issueTitle === "string" && context.issueTitle ? context.issueTitle : null;
+  const identifier = typeof context.issueIdentifier === "string" ? context.issueIdentifier : null;
+  const description = typeof context.issueDescription === "string" && context.issueDescription ? context.issueDescription : null;
+  const status = typeof context.issueStatus === "string" && context.issueStatus ? context.issueStatus : null;
+  if (title) {
+    parts.push(`\n\nYour current task${identifier ? ` (${identifier})` : ""}: ${title}`);
+    if (description) parts.push(`\nDescription: ${description}`);
+    if (status) parts.push(`\nStatus: ${status}`);
+  }
+  return parts.join("");
+}
+
 function hasNonEmptyEnvValue(env: Record<string, string>, key: string): boolean {
   const raw = env[key];
   return typeof raw === "string" && raw.trim().length > 0;
@@ -108,18 +127,18 @@ function resolveClaudeBillingType(env: Record<string, string>): "api" | "subscri
   return hasNonEmptyEnvValue(env, "ANTHROPIC_API_KEY") ? "api" : "subscription";
 }
 
-async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<ClaudeRuntimeConfig> {
+export async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<ClaudeRuntimeConfig> {
   const { runId, agent, config, context, authToken } = input;
 
   const command = asString(config.command, "claude");
-  const workspaceContext = parseObject(context.paperclipWorkspace);
+  const workspaceContext = parseObject(context.substaffWorkspace);
   const workspaceCwd = asString(workspaceContext.cwd, "");
   const workspaceSource = asString(workspaceContext.source, "");
   const workspaceId = asString(workspaceContext.workspaceId, "") || null;
   const workspaceRepoUrl = asString(workspaceContext.repoUrl, "") || null;
   const workspaceRepoRef = asString(workspaceContext.repoRef, "") || null;
-  const workspaceHints = Array.isArray(context.paperclipWorkspaces)
-    ? context.paperclipWorkspaces.filter(
+  const workspaceHints = Array.isArray(context.substaffWorkspaces)
+    ? context.substaffWorkspaces.filter(
         (value): value is Record<string, unknown> => typeof value === "object" && value !== null,
       )
     : [];
@@ -131,9 +150,9 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
 
   const envConfig = parseObject(config.env);
   const hasExplicitApiKey =
-    typeof envConfig.PAPERCLIP_API_KEY === "string" && envConfig.PAPERCLIP_API_KEY.trim().length > 0;
-  const env: Record<string, string> = { ...buildPaperclipEnv(agent) };
-  env.PAPERCLIP_RUN_ID = runId;
+    typeof envConfig.SUBSTAFF_API_KEY === "string" && envConfig.SUBSTAFF_API_KEY.trim().length > 0;
+  const env: Record<string, string> = { ...buildSubstaffEnv(agent) };
+  env.SUBSTAFF_RUN_ID = runId;
 
   const wakeTaskId =
     (typeof context.taskId === "string" && context.taskId.trim().length > 0 && context.taskId.trim()) ||
@@ -160,40 +179,40 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     : [];
 
   if (wakeTaskId) {
-    env.PAPERCLIP_TASK_ID = wakeTaskId;
+    env.SUBSTAFF_TASK_ID = wakeTaskId;
   }
   if (wakeReason) {
-    env.PAPERCLIP_WAKE_REASON = wakeReason;
+    env.SUBSTAFF_WAKE_REASON = wakeReason;
   }
   if (wakeCommentId) {
-    env.PAPERCLIP_WAKE_COMMENT_ID = wakeCommentId;
+    env.SUBSTAFF_WAKE_COMMENT_ID = wakeCommentId;
   }
   if (approvalId) {
-    env.PAPERCLIP_APPROVAL_ID = approvalId;
+    env.SUBSTAFF_APPROVAL_ID = approvalId;
   }
   if (approvalStatus) {
-    env.PAPERCLIP_APPROVAL_STATUS = approvalStatus;
+    env.SUBSTAFF_APPROVAL_STATUS = approvalStatus;
   }
   if (linkedIssueIds.length > 0) {
-    env.PAPERCLIP_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
+    env.SUBSTAFF_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
   }
   if (effectiveWorkspaceCwd) {
-    env.PAPERCLIP_WORKSPACE_CWD = effectiveWorkspaceCwd;
+    env.SUBSTAFF_WORKSPACE_CWD = effectiveWorkspaceCwd;
   }
   if (workspaceSource) {
-    env.PAPERCLIP_WORKSPACE_SOURCE = workspaceSource;
+    env.SUBSTAFF_WORKSPACE_SOURCE = workspaceSource;
   }
   if (workspaceId) {
-    env.PAPERCLIP_WORKSPACE_ID = workspaceId;
+    env.SUBSTAFF_WORKSPACE_ID = workspaceId;
   }
   if (workspaceRepoUrl) {
-    env.PAPERCLIP_WORKSPACE_REPO_URL = workspaceRepoUrl;
+    env.SUBSTAFF_WORKSPACE_REPO_URL = workspaceRepoUrl;
   }
   if (workspaceRepoRef) {
-    env.PAPERCLIP_WORKSPACE_REPO_REF = workspaceRepoRef;
+    env.SUBSTAFF_WORKSPACE_REPO_REF = workspaceRepoRef;
   }
   if (workspaceHints.length > 0) {
-    env.PAPERCLIP_WORKSPACES_JSON = JSON.stringify(workspaceHints);
+    env.SUBSTAFF_WORKSPACES_JSON = JSON.stringify(workspaceHints);
   }
 
   for (const [key, value] of Object.entries(envConfig)) {
@@ -201,7 +220,7 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
   }
 
   if (!hasExplicitApiKey && authToken) {
-    env.PAPERCLIP_API_KEY = authToken;
+    env.SUBSTAFF_API_KEY = authToken;
   }
 
   const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
@@ -268,10 +287,8 @@ export async function runClaudeLogin(input: {
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
   const { runId, agent, runtime, config, context, onLog, onMeta, authToken } = ctx;
 
-  const promptTemplate = asString(
-    config.promptTemplate,
-    "You are agent {{agent.id}} ({{agent.name}}). Continue your Paperclip work.",
-  );
+  const defaultPrompt = buildDefaultPrompt(context, agent);
+  const promptTemplate = asString(config.promptTemplate, defaultPrompt);
   const model = asString(config.model, "");
   const effort = asString(config.effort, "");
   const chrome = asBoolean(config.chrome, false);
@@ -328,7 +345,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   if (runtimeSessionId && !canResumeSession) {
     await onLog(
       "stderr",
-      `[paperclip] Claude session "${runtimeSessionId}" was saved for cwd "${runtimeSessionCwd}" and will not be resumed in "${cwd}".\n`,
+      `[substaff] Claude session "${runtimeSessionId}" was saved for cwd "${runtimeSessionCwd}" and will not be resumed in "${cwd}".\n`,
     );
   }
   const prompt = renderTemplate(promptTemplate, {
@@ -511,7 +528,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     ) {
       await onLog(
         "stderr",
-        `[paperclip] Claude resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
+        `[substaff] Claude resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
       );
       const retry = await runAttempt(null);
       return toAdapterResult(retry, { fallbackSessionId: null, clearSessionOnMissingSession: true });

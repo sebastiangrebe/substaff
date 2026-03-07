@@ -29,24 +29,24 @@ if (process.env.npm_config_authenticated_private === "true") {
 
 const env = {
   ...process.env,
-  PAPERCLIP_UI_DEV_MIDDLEWARE: "true",
+  SUBSTAFF_UI_DEV_MIDDLEWARE: "true",
 };
 
 if (tailscaleAuth) {
-  env.PAPERCLIP_DEPLOYMENT_MODE = "authenticated";
-  env.PAPERCLIP_DEPLOYMENT_EXPOSURE = "private";
-  env.PAPERCLIP_AUTH_BASE_URL_MODE = "auto";
+  env.SUBSTAFF_DEPLOYMENT_MODE = "authenticated";
+  env.SUBSTAFF_DEPLOYMENT_EXPOSURE = "private";
+  env.SUBSTAFF_AUTH_BASE_URL_MODE = "auto";
   env.HOST = "0.0.0.0";
-  console.log("[paperclip] dev mode: authenticated/private (tailscale-friendly) on 0.0.0.0");
+  console.log("[substaff] dev mode: authenticated/private (tailscale-friendly) on 0.0.0.0");
 } else {
-  console.log("[paperclip] dev mode: local_trusted (default)");
+  console.log("[substaff] dev mode: local_trusted (default)");
 }
 
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const serverScript = mode === "watch" ? "dev:watch" : "dev";
 const child = spawn(
   pnpmBin,
-  ["--filter", "@paperclipai/server", serverScript, ...forwardedArgs],
+  ["--filter", "@substaff/server", serverScript, ...forwardedArgs],
   { stdio: "inherit", env },
 );
 

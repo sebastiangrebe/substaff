@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
-import type { Db } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
 import {
   addIssueCommentSchema,
   createIssueAttachmentMetadataSchema,
@@ -9,7 +9,7 @@ import {
   createIssueSchema,
   linkIssueApprovalSchema,
   updateIssueSchema,
-} from "@paperclipai/shared";
+} from "@substaff/shared";
 import type { StorageService } from "../storage/types.js";
 import { validate } from "../middleware/validate.js";
 import {
@@ -26,7 +26,7 @@ import { logger } from "../middleware/logger.js";
 import { forbidden, HttpError, unauthorized } from "../errors.js";
 import { assertCompanyAccess, getActorInfo } from "./authz.js";
 
-const MAX_ATTACHMENT_BYTES = Number(process.env.PAPERCLIP_ATTACHMENT_MAX_BYTES) || 10 * 1024 * 1024;
+const MAX_ATTACHMENT_BYTES = Number(process.env.SUBSTAFF_ATTACHMENT_MAX_BYTES) || 10 * 1024 * 1024;
 const ALLOWED_ATTACHMENT_CONTENT_TYPES = new Set([
   "image/png",
   "image/jpeg",
@@ -91,7 +91,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
   async function assertCanAssignTasks(req: Request, companyId: string) {
     assertCompanyAccess(req, companyId);
     if (req.actor.type === "board") {
-      if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
+      if (req.actor.isInstanceAdmin) return;
       const allowed = await access.canUser(companyId, req.actor.userId, "tasks:assign");
       if (!allowed) throw forbidden("Missing permission: tasks:assign");
       return;

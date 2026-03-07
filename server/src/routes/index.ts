@@ -12,3 +12,8 @@ export { dashboardRoutes } from "./dashboard.js";
 export { sidebarBadgeRoutes } from "./sidebar-badges.js";
 export { llmRoutes } from "./llms.js";
 export { accessRoutes } from "./access.js";
+export { projectStateRoutes } from "./project-state.js";
+export { planRoutes } from "./plans.js";
+export { templateRoutes } from "./templates.js";
+export { fileRoutes } from "./files.js";
+export { knowledgeRoutes } from "./knowledge.js";

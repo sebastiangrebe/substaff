@@ -1,4 +1,4 @@
-import type { AgentAdapterType, JoinRequest } from "@paperclipai/shared";
+import type { AgentAdapterType, JoinRequest } from "@substaff/shared";
 import { api } from "./client";
 
 type InviteSummary = {
@@ -40,13 +40,6 @@ type AgentJoinRequestAccepted = JoinRequest & {
 type InviteOnboardingManifest = {
   invite: InviteSummary;
   onboarding: Record<string, unknown>;
-};
-
-type BoardClaimStatus = {
-  status: "available" | "claimed" | "expired";
-  requiresSignIn: boolean;
-  expiresAt: string | null;
-  claimedByUserId: string | null;
 };
 
 export const accessApi = {
@@ -91,9 +84,4 @@ export const accessApi = {
       { claimSecret },
     ),
 
-  getBoardClaimStatus: (token: string, code: string) =>
-    api.get<BoardClaimStatus>(`/board-claim/${token}?code=${encodeURIComponent(code)}`),
-
-  claimBoard: (token: string, code: string) =>
-    api.post<{ claimed: true; userId: string }>(`/board-claim/${token}/claim`, { code }),
 };

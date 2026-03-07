@@ -1,4 +1,4 @@
-import type { StorageProvider as StorageProviderId } from "@paperclipai/shared";
+import type { StorageProvider as StorageProviderId } from "@substaff/shared";
 import type { Readable } from "node:stream";
 
 export interface PutObjectInput {
@@ -28,12 +28,29 @@ export interface HeadObjectResult {
   lastModified?: Date;
 }
 
+export interface ListObjectsInput {
+  prefix: string;
+  delimiter?: string;
+}
+
+export interface ListObjectEntry {
+  key: string;
+  size: number;
+  lastModified: Date | null;
+}
+
+export interface ListObjectsResult {
+  objects: ListObjectEntry[];
+  commonPrefixes: string[];
+}
+
 export interface StorageProvider {
   id: StorageProviderId;
   putObject(input: PutObjectInput): Promise<void>;
   getObject(input: GetObjectInput): Promise<GetObjectResult>;
   headObject(input: GetObjectInput): Promise<HeadObjectResult>;
   deleteObject(input: GetObjectInput): Promise<void>;
+  listObjects(input: ListObjectsInput): Promise<ListObjectsResult>;
 }
 
 export interface PutFileInput {
@@ -59,4 +76,5 @@ export interface StorageService {
   getObject(companyId: string, objectKey: string): Promise<GetObjectResult>;
   headObject(companyId: string, objectKey: string): Promise<HeadObjectResult>;
   deleteObject(companyId: string, objectKey: string): Promise<void>;
+  listObjects(companyId: string, prefix: string): Promise<ListObjectsResult>;
 }

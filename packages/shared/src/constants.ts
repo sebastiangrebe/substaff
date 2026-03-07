@@ -1,14 +1,20 @@
+export const VENDOR_PLANS = ["free", "starter", "pro", "enterprise"] as const;
+export type VendorPlan = (typeof VENDOR_PLANS)[number];
+
+export const VENDOR_MEMBERSHIP_ROLES = ["owner", "admin", "member"] as const;
+export type VendorMembershipRole = (typeof VENDOR_MEMBERSHIP_ROLES)[number];
+
+export const TASK_PLAN_STATUSES = ["draft", "pending_review", "approved", "rejected"] as const;
+export type TaskPlanStatus = (typeof TASK_PLAN_STATUSES)[number];
+
+export const ORG_TEMPLATE_CATEGORIES = ["general", "marketing", "legal", "engineering", "support", "finance", "research"] as const;
+export type OrgTemplateCategory = (typeof ORG_TEMPLATE_CATEGORIES)[number];
+
 export const COMPANY_STATUSES = ["active", "paused", "archived"] as const;
 export type CompanyStatus = (typeof COMPANY_STATUSES)[number];
 
-export const DEPLOYMENT_MODES = ["local_trusted", "authenticated"] as const;
+export const DEPLOYMENT_MODES = ["authenticated"] as const;
 export type DeploymentMode = (typeof DEPLOYMENT_MODES)[number];
-
-export const DEPLOYMENT_EXPOSURES = ["private", "public"] as const;
-export type DeploymentExposure = (typeof DEPLOYMENT_EXPOSURES)[number];
-
-export const AUTH_BASE_URL_MODES = ["auto", "explicit"] as const;
-export type AuthBaseUrlMode = (typeof AUTH_BASE_URL_MODES)[number];
 
 export const AGENT_STATUSES = [
   "active",
@@ -21,7 +27,7 @@ export const AGENT_STATUSES = [
 ] as const;
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
-export const AGENT_ADAPTER_TYPES = ["process", "http", "claude_local", "codex_local", "opencode_local", "cursor", "openclaw"] as const;
+export const AGENT_ADAPTER_TYPES = ["e2b_sandbox", "process", "http"] as const;
 export type AgentAdapterType = (typeof AGENT_ADAPTER_TYPES)[number];
 
 export const AGENT_ROLES = [
@@ -146,7 +152,7 @@ export const SECRET_PROVIDERS = [
 ] as const;
 export type SecretProvider = (typeof SECRET_PROVIDERS)[number];
 
-export const STORAGE_PROVIDERS = ["local_disk", "s3"] as const;
+export const STORAGE_PROVIDERS = ["s3"] as const;
 export type StorageProvider = (typeof STORAGE_PROVIDERS)[number];
 
 export const HEARTBEAT_INVOCATION_SOURCES = [

@@ -9,6 +9,7 @@ import {
   SquarePen,
   Network,
   Settings,
+  FolderOpen,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
@@ -67,13 +68,13 @@ export function Sidebar() {
 
       <nav className="flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col gap-4 px-3 py-2">
         <div className="flex flex-col gap-0.5">
-          {/* New Issue button aligned with nav items */}
+          {/* New Task button aligned with nav items */}
           <button
             onClick={() => openNewIssue()}
             className="flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
           >
             <SquarePen className="h-4 w-4 shrink-0" />
-            <span className="truncate">New Issue</span>
+            <span className="truncate">New Task</span>
           </button>
           <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
           <SidebarNavItem
@@ -87,7 +88,7 @@ export function Sidebar() {
         </div>
 
         <SidebarSection label="Work">
-          <SidebarNavItem to="/issues" label="Issues" icon={CircleDot} />
+          <SidebarNavItem to="/issues" label="Tasks" icon={CircleDot} />
           <SidebarNavItem to="/goals" label="Goals" icon={Target} />
         </SidebarSection>
 
@@ -99,6 +100,7 @@ export function Sidebar() {
           <SidebarNavItem to="/org" label="Org" icon={Network} />
           <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
           <SidebarNavItem to="/activity" label="Activity" icon={History} />
+          <SidebarNavItem to="/files" label="Files" icon={FolderOpen} />
           <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
         </SidebarSection>
       </nav>

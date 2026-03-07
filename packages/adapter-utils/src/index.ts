@@ -6,6 +6,7 @@ export type {
   AdapterExecutionResult,
   AdapterInvocationMeta,
   AdapterExecutionContext,
+  WorkspaceSyncHooks,
   AdapterEnvironmentCheckLevel,
   AdapterEnvironmentCheck,
   AdapterEnvironmentTestStatus,

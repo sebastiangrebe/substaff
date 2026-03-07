@@ -1,8 +1,7 @@
 import { Router, type Request } from "express";
-import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { Db } from "@paperclipai/db";
-import { agents as agentsTable, companies, heartbeatRuns } from "@paperclipai/db";
+import type { Db } from "@substaff/db";
+import { agents as agentsTable, companies, heartbeatRuns } from "@substaff/db";
 import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
 import {
   createAgentKeySchema,
@@ -15,7 +14,7 @@ import {
   updateAgentInstructionsPathSchema,
   wakeAgentSchema,
   updateAgentSchema,
-} from "@paperclipai/shared";
+} from "@substaff/shared";
 import { validate } from "../middleware/validate.js";
 import {
   agentService,
@@ -31,20 +30,10 @@ import { conflict, forbidden, unprocessable } from "../errors.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 import { findServerAdapter, listAdapterModels } from "../adapters/index.js";
 import { redactEventPayload } from "../redaction.js";
-import { runClaudeLogin } from "@paperclipai/adapter-claude-local/server";
-import {
-  DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX,
-  DEFAULT_CODEX_LOCAL_MODEL,
-} from "@paperclipai/adapter-codex-local";
-import { DEFAULT_CURSOR_LOCAL_MODEL } from "@paperclipai/adapter-cursor-local";
-import { DEFAULT_OPENCODE_LOCAL_MODEL } from "@paperclipai/adapter-opencode-local";
 
 export function agentRoutes(db: Db) {
   const DEFAULT_INSTRUCTIONS_PATH_KEYS: Record<string, string> = {
-    claude_local: "instructionsFilePath",
-    codex_local: "instructionsFilePath",
-    opencode_local: "instructionsFilePath",
-    cursor: "instructionsFilePath",
+    e2b_sandbox: "instructionsFilePath",
   };
   const KNOWN_INSTRUCTIONS_PATH_KEYS = new Set(["instructionsFilePath", "agentsMdPath"]);
 
@@ -55,7 +44,7 @@ export function agentRoutes(db: Db) {
   const heartbeat = heartbeatService(db);
   const issueApprovalsSvc = issueApprovalService(db);
   const secretsSvc = secretService(db);
-  const strictSecretsMode = process.env.PAPERCLIP_SECRETS_STRICT_MODE === "true";
+  const strictSecretsMode = process.env.SUBSTAFF_SECRETS_STRICT_MODE === "true";
 
   function canCreateAgents(agent: { role: string; permissions: Record<string, unknown> | null | undefined }) {
     if (!agent.permissions || typeof agent.permissions !== "object") return false;
@@ -65,7 +54,7 @@ export function agentRoutes(db: Db) {
   async function assertCanCreateAgentsForCompany(req: Request, companyId: string) {
     assertCompanyAccess(req, companyId);
     if (req.actor.type === "board") {
-      if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return null;
+      if (req.actor.isInstanceAdmin) return null;
       const allowed = await access.canUser(companyId, req.actor.userId, "agents:create");
       if (!allowed) {
         throw forbidden("Missing permission: agents:create");
@@ -91,7 +80,7 @@ export function agentRoutes(db: Db) {
   async function actorCanReadConfigurationsForCompany(req: Request, companyId: string) {
     assertCompanyAccess(req, companyId);
     if (req.actor.type === "board") {
-      if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return true;
+      if (req.actor.isInstanceAdmin) return true;
       return access.canUser(companyId, req.actor.userId, "agents:create");
     }
     if (!req.actor.agentId) return false;
@@ -179,29 +168,10 @@ export function agentRoutes(db: Db) {
   }
 
   function applyCreateDefaultsByAdapterType(
-    adapterType: string | null | undefined,
+    _adapterType: string | null | undefined,
     adapterConfig: Record<string, unknown>,
   ): Record<string, unknown> {
-    const next = { ...adapterConfig };
-    if (adapterType === "codex_local") {
-      if (!asNonEmptyString(next.model)) {
-        next.model = DEFAULT_CODEX_LOCAL_MODEL;
-      }
-      const hasBypassFlag =
-        typeof next.dangerouslyBypassApprovalsAndSandbox === "boolean" ||
-        typeof next.dangerouslyBypassSandbox === "boolean";
-      if (!hasBypassFlag) {
-        next.dangerouslyBypassApprovalsAndSandbox = DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX;
-      }
-      return next;
-    }
-    if (adapterType === "opencode_local" && !asNonEmptyString(next.model)) {
-      next.model = DEFAULT_OPENCODE_LOCAL_MODEL;
-    }
-    if (adapterType === "cursor" && !asNonEmptyString(next.model)) {
-      next.model = DEFAULT_CURSOR_LOCAL_MODEL;
-    }
-    return next;
+    return { ...adapterConfig };
   }
 
   function resolveInstructionsFilePath(candidatePath: string, adapterConfig: Record<string, unknown>) {
@@ -604,7 +574,7 @@ export function agentRoutes(db: Db) {
       return;
     }
 
-    const requiresApproval = company.requireBoardApprovalForNewAgents;
+    const requiresApproval = company.requireHireApproval;
     const status = requiresApproval ? "pending_approval" : "idle";
     const agent = await svc.create(companyId, {
       ...normalizedHireInput,
@@ -1156,36 +1126,6 @@ export function agentRoutes(db: Db) {
     res.status(202).json(run);
   });
 
-  router.post("/agents/:id/claude-login", async (req, res) => {
-    assertBoard(req);
-    const id = req.params.id as string;
-    const agent = await svc.getById(id);
-    if (!agent) {
-      res.status(404).json({ error: "Agent not found" });
-      return;
-    }
-    assertCompanyAccess(req, agent.companyId);
-    if (agent.adapterType !== "claude_local") {
-      res.status(400).json({ error: "Login is only supported for claude_local agents" });
-      return;
-    }
-
-    const config = asRecord(agent.adapterConfig) ?? {};
-    const runtimeConfig = await secretsSvc.resolveAdapterConfigForRuntime(agent.companyId, config);
-    const result = await runClaudeLogin({
-      runId: `claude-login-${randomUUID()}`,
-      agent: {
-        id: agent.id,
-        companyId: agent.companyId,
-        name: agent.name,
-        adapterType: agent.adapterType,
-        adapterConfig: agent.adapterConfig,
-      },
-      config: runtimeConfig,
-    });
-
-    res.json(result);
-  });
 
   router.get("/companies/:companyId/heartbeat-runs", async (req, res) => {
     const companyId = req.params.companyId as string;

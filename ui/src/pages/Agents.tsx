@@ -18,14 +18,10 @@ import { PageTabBar } from "../components/PageTabBar";
 import { Tabs } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Bot, Plus, List, GitBranch, SlidersHorizontal } from "lucide-react";
-import type { Agent } from "@paperclipai/shared";
+import type { Agent } from "@substaff/shared";
 
 const adapterLabels: Record<string, string> = {
-  claude_local: "Claude",
-  codex_local: "Codex",
-  opencode_local: "OpenCode",
-  cursor: "Cursor",
-  openclaw: "OpenClaw",
+  e2b_sandbox: "E2B Sandbox",
   process: "Process",
   http: "HTTP",
 };

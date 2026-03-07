@@ -1,24 +1,20 @@
 import * as p from "@clack/prompts";
 import pc from "picocolors";
 import { configExists, readConfig, resolveConfigPath, writeConfig } from "../config/store.js";
-import type { PaperclipConfig } from "../config/schema.js";
+import type { SubstaffConfig } from "../config/schema.js";
 import { ensureAgentJwtSecret, resolveAgentJwtEnvFile } from "../config/env.js";
-import { ensureLocalSecretsKeyFile } from "../config/secrets-key.js";
 import { promptDatabase } from "../prompts/database.js";
 import { promptLlm } from "../prompts/llm.js";
 import { promptLogging } from "../prompts/logging.js";
-import { defaultSecretsConfig } from "../prompts/secrets.js";
 import { defaultStorageConfig, promptStorage } from "../prompts/storage.js";
 import { promptServer } from "../prompts/server.js";
 import {
   describeLocalInstancePaths,
-  resolveDefaultBackupDir,
-  resolveDefaultEmbeddedPostgresDir,
   resolveDefaultLogsDir,
-  resolvePaperclipInstanceId,
+  resolveSubstaffInstanceId,
 } from "../config/home.js";
 import { bootstrapCeoInvite } from "./auth-bootstrap-ceo.js";
-import { printPaperclipCliBanner } from "../utils/banner.js";
+import { printSubstaffCliBanner } from "../utils/banner.js";
 
 type SetupMode = "quickstart" | "advanced";
 
@@ -29,45 +25,37 @@ type OnboardOptions = {
   invokedByRun?: boolean;
 };
 
-function quickstartDefaults(): Pick<PaperclipConfig, "database" | "logging" | "server" | "auth" | "storage" | "secrets"> {
-  const instanceId = resolvePaperclipInstanceId();
+function quickstartDefaults(): Pick<SubstaffConfig, "database" | "logging" | "server" | "auth" | "storage" | "redis" | "e2b" | "stripe" | "qdrant" | "voyage"> {
+  const instanceId = resolveSubstaffInstanceId();
   return {
     database: {
-      mode: "embedded-postgres",
-      embeddedPostgresDataDir: resolveDefaultEmbeddedPostgresDir(instanceId),
-      embeddedPostgresPort: 54329,
-      backup: {
-        enabled: true,
-        intervalMinutes: 60,
-        retentionDays: 30,
-        dir: resolveDefaultBackupDir(instanceId),
-      },
+      connectionString: "postgres://substaff:substaff@127.0.0.1:5432/substaff",
     },
     logging: {
       mode: "file",
       logDir: resolveDefaultLogsDir(instanceId),
     },
     server: {
-      deploymentMode: "local_trusted",
-      exposure: "private",
-      host: "127.0.0.1",
+      deploymentMode: "authenticated",
+      host: "0.0.0.0",
       port: 3100,
-      allowedHostnames: [],
       serveUi: true,
     },
-    auth: {
-      baseUrlMode: "auto",
-    },
+    auth: {},
     storage: defaultStorageConfig(),
-    secrets: defaultSecretsConfig(),
+    redis: { url: "redis://localhost:6379" },
+    e2b: { defaultTemplate: "base" },
+    stripe: {},
+    qdrant: {},
+    voyage: { indexingModel: "voyage-4-large", retrievalModel: "voyage-4-lite" },
   };
 }
 
 export async function onboard(opts: OnboardOptions): Promise<void> {
-  printPaperclipCliBanner();
-  p.intro(pc.bgCyan(pc.black(" paperclipai onboard ")));
+  printSubstaffCliBanner();
+  p.intro(pc.bgCyan(pc.black(" substaff onboard ")));
   const configPath = resolveConfigPath(opts.config);
-  const instance = describeLocalInstancePaths(resolvePaperclipInstanceId());
+  const instance = describeLocalInstancePaths(resolveSubstaffInstanceId());
   p.log.message(
     pc.dim(
       `Local home: ${instance.homeDir} | instance: ${instance.instanceId} | config: ${configPath}`,
@@ -98,7 +86,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
         {
           value: "quickstart" as const,
           label: "Quickstart",
-          hint: "Recommended: local defaults + ready to run",
+          hint: "Recommended: sensible defaults + ready to run",
         },
         {
           value: "advanced" as const,
@@ -115,30 +103,29 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
     setupMode = setupModeChoice as SetupMode;
   }
 
-  let llm: PaperclipConfig["llm"] | undefined;
+  let llm: SubstaffConfig["llm"] | undefined;
   let {
     database,
     logging,
     server,
     auth,
     storage,
-    secrets,
   } = quickstartDefaults();
 
   if (setupMode === "advanced") {
     p.log.step(pc.bold("Database"));
     database = await promptDatabase(database);
 
-    if (database.mode === "postgres" && database.connectionString) {
+    if (database.connectionString) {
       const s = p.spinner();
       s.start("Testing database connection...");
       try {
-        const { createDb } = await import("@paperclipai/db");
+        const { createDb } = await import("@substaff/db");
         const db = createDb(database.connectionString);
         await db.execute("SELECT 1");
         s.stop("Database connection successful");
       } catch {
-        s.stop(pc.yellow("Could not connect to database — you can fix this later with `paperclipai doctor`"));
+        s.stop(pc.yellow("Could not connect to database — you can fix this later with `substaff doctor`"));
       }
     }
 
@@ -195,32 +182,24 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
 
     p.log.step(pc.bold("Storage"));
     storage = await promptStorage(defaultStorageConfig());
-
-    p.log.step(pc.bold("Secrets"));
-    secrets = defaultSecretsConfig();
-    p.log.message(
-      pc.dim(
-        `Using defaults: provider=${secrets.provider}, strictMode=${secrets.strictMode}, keyFile=${secrets.localEncrypted.keyFilePath}`,
-      ),
-    );
   } else {
     p.log.step(pc.bold("Quickstart"));
     p.log.message(
-      pc.dim("Using local defaults: embedded database, no LLM provider, file storage, and local encrypted secrets."),
+      pc.dim("Using defaults: PostgreSQL database, no LLM provider, S3 storage."),
     );
   }
 
   const jwtSecret = ensureAgentJwtSecret(configPath);
   const envFilePath = resolveAgentJwtEnvFile(configPath);
   if (jwtSecret.created) {
-    p.log.success(`Created ${pc.cyan("PAPERCLIP_AGENT_JWT_SECRET")} in ${pc.dim(envFilePath)}`);
-  } else if (process.env.PAPERCLIP_AGENT_JWT_SECRET?.trim()) {
-    p.log.info(`Using existing ${pc.cyan("PAPERCLIP_AGENT_JWT_SECRET")} from environment`);
+    p.log.success(`Created ${pc.cyan("SUBSTAFF_AGENT_JWT_SECRET")} in ${pc.dim(envFilePath)}`);
+  } else if (process.env.SUBSTAFF_AGENT_JWT_SECRET?.trim()) {
+    p.log.info(`Using existing ${pc.cyan("SUBSTAFF_AGENT_JWT_SECRET")} from environment`);
   } else {
-    p.log.info(`Using existing ${pc.cyan("PAPERCLIP_AGENT_JWT_SECRET")} in ${pc.dim(envFilePath)}`);
+    p.log.info(`Using existing ${pc.cyan("SUBSTAFF_AGENT_JWT_SECRET")} in ${pc.dim(envFilePath)}`);
   }
 
-  const config: PaperclipConfig = {
+  const config: SubstaffConfig = {
     $meta: {
       version: 1,
       updatedAt: new Date().toISOString(),
@@ -232,38 +211,33 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
     server,
     auth,
     storage,
-    secrets,
+    redis: { url: "redis://localhost:6379" },
+    e2b: { defaultTemplate: "base" },
+    stripe: {},
+    qdrant: {},
+    voyage: { indexingModel: "voyage-4-large", retrievalModel: "voyage-4-lite" },
   };
-
-  const keyResult = ensureLocalSecretsKeyFile(config, configPath);
-  if (keyResult.status === "created") {
-    p.log.success(`Created local secrets key file at ${pc.dim(keyResult.path)}`);
-  } else if (keyResult.status === "existing") {
-    p.log.message(pc.dim(`Using existing local secrets key file at ${keyResult.path}`));
-  }
 
   writeConfig(config, opts.config);
 
   p.note(
     [
-      `Database: ${database.mode}`,
+      `Database: ${database.connectionString ? "PostgreSQL" : "not configured"}`,
       llm ? `LLM: ${llm.provider}` : "LLM: not configured",
-      `Logging: ${logging.mode} -> ${logging.logDir}`,
-      `Server: ${server.deploymentMode}/${server.exposure} @ ${server.host}:${server.port}`,
-      `Allowed hosts: ${server.allowedHostnames.length > 0 ? server.allowedHostnames.join(", ") : "(loopback only)"}`,
-      `Auth URL mode: ${auth.baseUrlMode}${auth.publicBaseUrl ? ` (${auth.publicBaseUrl})` : ""}`,
-      `Storage: ${storage.provider}`,
-      `Secrets: ${secrets.provider} (strict mode ${secrets.strictMode ? "on" : "off"})`,
-      "Agent auth: PAPERCLIP_AGENT_JWT_SECRET configured",
+      `Logging: ${logging?.mode ?? "default"}${logging?.logDir ? ` -> ${logging.logDir}` : ""}`,
+      `Server: ${server.deploymentMode} @ ${server.host}:${server.port}`,
+      `Auth: ${auth.publicBaseUrl ? auth.publicBaseUrl : "auto"}`,
+      `Storage: S3 (bucket=${storage.s3.bucket})`,
+      "Agent auth: SUBSTAFF_AGENT_JWT_SECRET configured",
     ].join("\n"),
     "Configuration saved",
   );
 
   p.note(
     [
-      `Run: ${pc.cyan("paperclipai run")}`,
-      `Reconfigure later: ${pc.cyan("paperclipai configure")}`,
-      `Diagnose setup: ${pc.cyan("paperclipai doctor")}`,
+      `Run: ${pc.cyan("substaff run")}`,
+      `Reconfigure later: ${pc.cyan("substaff configure")}`,
+      `Diagnose setup: ${pc.cyan("substaff doctor")}`,
     ].join("\n"),
     "Next commands",
   );
@@ -276,7 +250,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
   let shouldRunNow = opts.run === true || opts.yes === true;
   if (!shouldRunNow && !opts.invokedByRun && process.stdin.isTTY && process.stdout.isTTY) {
     const answer = await p.confirm({
-      message: "Start Paperclip now?",
+      message: "Start Substaff now?",
       initialValue: true,
     });
     if (!p.isCancel(answer)) {
@@ -285,7 +259,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
   }
 
   if (shouldRunNow && !opts.invokedByRun) {
-    process.env.PAPERCLIP_OPEN_ON_LISTEN = "true";
+    process.env.SUBSTAFF_OPEN_ON_LISTEN = "true";
     const { runCommand } = await import("./run.js");
     await runCommand({ config: configPath, repair: true, yes: true });
     return;

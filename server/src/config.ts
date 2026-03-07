@@ -1,62 +1,36 @@
 import { readConfigFile } from "./config-file.js";
 import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
-import { resolvePaperclipEnvPath } from "./paths.js";
+import { resolveSubstaffEnvPath } from "./paths.js";
 import {
-  AUTH_BASE_URL_MODES,
-  DEPLOYMENT_EXPOSURES,
   DEPLOYMENT_MODES,
-  SECRET_PROVIDERS,
-  STORAGE_PROVIDERS,
-  type AuthBaseUrlMode,
-  type DeploymentExposure,
   type DeploymentMode,
-  type SecretProvider,
-  type StorageProvider,
-} from "@paperclipai/shared";
-import {
-  resolveDefaultBackupDir,
-  resolveDefaultEmbeddedPostgresDir,
-  resolveDefaultSecretsKeyFilePath,
-  resolveDefaultStorageDir,
-  resolveHomeAwarePath,
-} from "./home-paths.js";
+} from "@substaff/shared";
 
-const PAPERCLIP_ENV_FILE_PATH = resolvePaperclipEnvPath();
-if (existsSync(PAPERCLIP_ENV_FILE_PATH)) {
-  loadDotenv({ path: PAPERCLIP_ENV_FILE_PATH, override: false, quiet: true });
+const SUBSTAFF_ENV_FILE_PATH = resolveSubstaffEnvPath();
+if (existsSync(SUBSTAFF_ENV_FILE_PATH)) {
+  loadDotenv({ path: SUBSTAFF_ENV_FILE_PATH, override: false, quiet: true });
 }
-
-type DatabaseMode = "embedded-postgres" | "postgres";
 
 export interface Config {
   deploymentMode: DeploymentMode;
-  deploymentExposure: DeploymentExposure;
   host: string;
   port: number;
-  allowedHostnames: string[];
-  authBaseUrlMode: AuthBaseUrlMode;
   authPublicBaseUrl: string | undefined;
-  databaseMode: DatabaseMode;
-  databaseUrl: string | undefined;
-  embeddedPostgresDataDir: string;
-  embeddedPostgresPort: number;
-  databaseBackupEnabled: boolean;
-  databaseBackupIntervalMinutes: number;
-  databaseBackupRetentionDays: number;
-  databaseBackupDir: string;
+  databaseUrl: string;
   serveUi: boolean;
   uiDevMiddleware: boolean;
-  secretsProvider: SecretProvider;
-  secretsStrictMode: boolean;
-  secretsMasterKeyFilePath: string;
-  storageProvider: StorageProvider;
-  storageLocalDiskBaseDir: string;
   storageS3Bucket: string;
   storageS3Region: string;
   storageS3Endpoint: string | undefined;
   storageS3Prefix: string;
   storageS3ForcePathStyle: boolean;
+  redisUrl: string | undefined;
+  qdrantUrl: string | undefined;
+  qdrantApiKey: string | undefined;
+  voyageApiKey: string | undefined;
+  voyageIndexingModel: string;
+  voyageRetrievalModel: string;
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
   companyDeletionEnabled: boolean;
@@ -64,156 +38,64 @@ export interface Config {
 
 export function loadConfig(): Config {
   const fileConfig = readConfigFile();
-  const fileDatabaseMode =
-    (fileConfig?.database.mode === "postgres" ? "postgres" : "embedded-postgres") as DatabaseMode;
 
-  const fileDbUrl =
-    fileDatabaseMode === "postgres"
-      ? fileConfig?.database.connectionString
-      : undefined;
-  const fileDatabaseBackup = fileConfig?.database.backup;
-  const fileSecrets = fileConfig?.secrets;
+  const databaseUrl =
+    process.env.DATABASE_URL ?? fileConfig?.database.connectionString;
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL environment variable or database.connectionString in config file is required.",
+    );
+  }
+
   const fileStorage = fileConfig?.storage;
-  const strictModeFromEnv = process.env.PAPERCLIP_SECRETS_STRICT_MODE;
-  const secretsStrictMode =
-    strictModeFromEnv !== undefined
-      ? strictModeFromEnv === "true"
-      : (fileSecrets?.strictMode ?? false);
-
-  const providerFromEnvRaw = process.env.PAPERCLIP_SECRETS_PROVIDER;
-  const providerFromEnv =
-    providerFromEnvRaw && SECRET_PROVIDERS.includes(providerFromEnvRaw as SecretProvider)
-      ? (providerFromEnvRaw as SecretProvider)
-      : null;
-  const providerFromFile = fileSecrets?.provider;
-  const secretsProvider: SecretProvider = providerFromEnv ?? providerFromFile ?? "local_encrypted";
-
-  const storageProviderFromEnvRaw = process.env.PAPERCLIP_STORAGE_PROVIDER;
-  const storageProviderFromEnv =
-    storageProviderFromEnvRaw && STORAGE_PROVIDERS.includes(storageProviderFromEnvRaw as StorageProvider)
-      ? (storageProviderFromEnvRaw as StorageProvider)
-      : null;
-  const storageProvider: StorageProvider = storageProviderFromEnv ?? fileStorage?.provider ?? "local_disk";
-  const storageLocalDiskBaseDir = resolveHomeAwarePath(
-    process.env.PAPERCLIP_STORAGE_LOCAL_DIR ??
-      fileStorage?.localDisk?.baseDir ??
-      resolveDefaultStorageDir(),
-  );
-  const storageS3Bucket = process.env.PAPERCLIP_STORAGE_S3_BUCKET ?? fileStorage?.s3?.bucket ?? "paperclip";
-  const storageS3Region = process.env.PAPERCLIP_STORAGE_S3_REGION ?? fileStorage?.s3?.region ?? "us-east-1";
-  const storageS3Endpoint = process.env.PAPERCLIP_STORAGE_S3_ENDPOINT ?? fileStorage?.s3?.endpoint ?? undefined;
-  const storageS3Prefix = process.env.PAPERCLIP_STORAGE_S3_PREFIX ?? fileStorage?.s3?.prefix ?? "";
+  const storageS3Bucket = process.env.SUBSTAFF_STORAGE_S3_BUCKET ?? fileStorage?.s3?.bucket ?? "substaff";
+  const storageS3Region = process.env.SUBSTAFF_STORAGE_S3_REGION ?? fileStorage?.s3?.region ?? "us-east-1";
+  const storageS3Endpoint = process.env.SUBSTAFF_STORAGE_S3_ENDPOINT ?? fileStorage?.s3?.endpoint ?? undefined;
+  const storageS3Prefix = process.env.SUBSTAFF_STORAGE_S3_PREFIX ?? fileStorage?.s3?.prefix ?? "";
   const storageS3ForcePathStyle =
-    process.env.PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE !== undefined
-      ? process.env.PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE === "true"
+    process.env.SUBSTAFF_STORAGE_S3_FORCE_PATH_STYLE !== undefined
+      ? process.env.SUBSTAFF_STORAGE_S3_FORCE_PATH_STYLE === "true"
       : (fileStorage?.s3?.forcePathStyle ?? false);
 
-  const deploymentModeFromEnvRaw = process.env.PAPERCLIP_DEPLOYMENT_MODE;
+  const deploymentModeFromEnvRaw = process.env.SUBSTAFF_DEPLOYMENT_MODE;
   const deploymentModeFromEnv =
     deploymentModeFromEnvRaw && DEPLOYMENT_MODES.includes(deploymentModeFromEnvRaw as DeploymentMode)
       ? (deploymentModeFromEnvRaw as DeploymentMode)
       : null;
-  const deploymentMode: DeploymentMode = deploymentModeFromEnv ?? fileConfig?.server.deploymentMode ?? "local_trusted";
-  const deploymentExposureFromEnvRaw = process.env.PAPERCLIP_DEPLOYMENT_EXPOSURE;
-  const deploymentExposureFromEnv =
-    deploymentExposureFromEnvRaw &&
-    DEPLOYMENT_EXPOSURES.includes(deploymentExposureFromEnvRaw as DeploymentExposure)
-      ? (deploymentExposureFromEnvRaw as DeploymentExposure)
-      : null;
-  const deploymentExposure: DeploymentExposure =
-    deploymentMode === "local_trusted"
-      ? "private"
-      : (deploymentExposureFromEnv ?? fileConfig?.server.exposure ?? "private");
-  const authBaseUrlModeFromEnvRaw = process.env.PAPERCLIP_AUTH_BASE_URL_MODE;
-  const authBaseUrlModeFromEnv =
-    authBaseUrlModeFromEnvRaw &&
-    AUTH_BASE_URL_MODES.includes(authBaseUrlModeFromEnvRaw as AuthBaseUrlMode)
-      ? (authBaseUrlModeFromEnvRaw as AuthBaseUrlMode)
-      : null;
+  const deploymentMode: DeploymentMode = deploymentModeFromEnv ?? fileConfig?.server.deploymentMode ?? "authenticated";
   const authPublicBaseUrlRaw =
-    process.env.PAPERCLIP_AUTH_PUBLIC_BASE_URL ??
+    process.env.SUBSTAFF_AUTH_PUBLIC_BASE_URL ??
     process.env.BETTER_AUTH_URL ??
     fileConfig?.auth?.publicBaseUrl;
   const authPublicBaseUrl = authPublicBaseUrlRaw?.trim() || undefined;
-  const authBaseUrlMode: AuthBaseUrlMode =
-    authBaseUrlModeFromEnv ??
-    fileConfig?.auth?.baseUrlMode ??
-    (authPublicBaseUrl ? "explicit" : "auto");
-  const allowedHostnamesFromEnvRaw = process.env.PAPERCLIP_ALLOWED_HOSTNAMES;
-  const allowedHostnamesFromEnv = allowedHostnamesFromEnvRaw
-    ? allowedHostnamesFromEnvRaw
-      .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .filter((value) => value.length > 0)
-    : null;
-  const allowedHostnames = Array.from(
-    new Set((allowedHostnamesFromEnv ?? fileConfig?.server.allowedHostnames ?? []).map((value) => value.trim().toLowerCase()).filter(Boolean)),
-  );
-  const companyDeletionEnvRaw = process.env.PAPERCLIP_ENABLE_COMPANY_DELETION;
+  const companyDeletionEnvRaw = process.env.SUBSTAFF_ENABLE_COMPANY_DELETION;
   const companyDeletionEnabled =
     companyDeletionEnvRaw !== undefined
       ? companyDeletionEnvRaw === "true"
-      : deploymentMode === "local_trusted";
-  const databaseBackupEnabled =
-    process.env.PAPERCLIP_DB_BACKUP_ENABLED !== undefined
-      ? process.env.PAPERCLIP_DB_BACKUP_ENABLED === "true"
-      : (fileDatabaseBackup?.enabled ?? true);
-  const databaseBackupIntervalMinutes = Math.max(
-    1,
-    Number(process.env.PAPERCLIP_DB_BACKUP_INTERVAL_MINUTES) ||
-      fileDatabaseBackup?.intervalMinutes ||
-      60,
-  );
-  const databaseBackupRetentionDays = Math.max(
-    1,
-    Number(process.env.PAPERCLIP_DB_BACKUP_RETENTION_DAYS) ||
-      fileDatabaseBackup?.retentionDays ||
-      30,
-  );
-  const databaseBackupDir = resolveHomeAwarePath(
-    process.env.PAPERCLIP_DB_BACKUP_DIR ??
-      fileDatabaseBackup?.dir ??
-      resolveDefaultBackupDir(),
-  );
+      : false;
 
   return {
     deploymentMode,
-    deploymentExposure,
-    host: process.env.HOST ?? fileConfig?.server.host ?? "127.0.0.1",
+    host: process.env.HOST ?? fileConfig?.server.host ?? "0.0.0.0",
     port: Number(process.env.PORT) || fileConfig?.server.port || 3100,
-    allowedHostnames,
-    authBaseUrlMode,
     authPublicBaseUrl,
-    databaseMode: fileDatabaseMode,
-    databaseUrl: process.env.DATABASE_URL ?? fileDbUrl,
-    embeddedPostgresDataDir: resolveHomeAwarePath(
-      fileConfig?.database.embeddedPostgresDataDir ?? resolveDefaultEmbeddedPostgresDir(),
-    ),
-    embeddedPostgresPort: fileConfig?.database.embeddedPostgresPort ?? 54329,
-    databaseBackupEnabled,
-    databaseBackupIntervalMinutes,
-    databaseBackupRetentionDays,
-    databaseBackupDir,
+    databaseUrl,
     serveUi:
       process.env.SERVE_UI !== undefined
         ? process.env.SERVE_UI === "true"
         : fileConfig?.server.serveUi ?? true,
-    uiDevMiddleware: process.env.PAPERCLIP_UI_DEV_MIDDLEWARE === "true",
-    secretsProvider,
-    secretsStrictMode,
-    secretsMasterKeyFilePath:
-      resolveHomeAwarePath(
-        process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE ??
-          fileSecrets?.localEncrypted.keyFilePath ??
-          resolveDefaultSecretsKeyFilePath(),
-      ),
-    storageProvider,
-    storageLocalDiskBaseDir,
+    uiDevMiddleware: process.env.SUBSTAFF_UI_DEV_MIDDLEWARE === "true",
     storageS3Bucket,
     storageS3Region,
     storageS3Endpoint,
     storageS3Prefix,
     storageS3ForcePathStyle,
+    redisUrl: process.env.REDIS_URL ?? fileConfig?.redis?.url ?? undefined,
+    qdrantUrl: process.env.QDRANT_URL ?? fileConfig?.qdrant?.url ?? undefined,
+    qdrantApiKey: process.env.QDRANT_API_KEY ?? fileConfig?.qdrant?.apiKey ?? undefined,
+    voyageApiKey: process.env.VOYAGE_API_KEY ?? fileConfig?.voyage?.apiKey ?? undefined,
+    voyageIndexingModel: process.env.VOYAGE_INDEXING_MODEL ?? fileConfig?.voyage?.indexingModel ?? "voyage-4-large",
+    voyageRetrievalModel: process.env.VOYAGE_RETRIEVAL_MODEL ?? fileConfig?.voyage?.retrievalModel ?? "voyage-4-lite",
     heartbeatSchedulerEnabled: process.env.HEARTBEAT_SCHEDULER_ENABLED !== "false",
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
     companyDeletionEnabled,

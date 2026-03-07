@@ -1,0 +1,29 @@
+FROM node:20-bookworm-slim
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl git \
+  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable
+
+WORKDIR /app
+
+# Install dependencies (these layers are cached until package.json changes)
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY cli/package.json cli/
+COPY server/package.json server/
+COPY ui/package.json ui/
+COPY packages/shared/package.json packages/shared/
+COPY packages/db/package.json packages/db/
+COPY packages/adapter-utils/package.json packages/adapter-utils/
+COPY packages/adapters/claude-local/package.json packages/adapters/claude-local/
+COPY packages/adapters/codex-local/package.json packages/adapters/codex-local/
+COPY packages/adapters/cursor-local/package.json packages/adapters/cursor-local/
+COPY packages/adapters/e2b-sandbox/package.json packages/adapters/e2b-sandbox/
+COPY packages/adapters/openclaw/package.json packages/adapters/openclaw/
+COPY packages/adapters/opencode-local/package.json packages/adapters/opencode-local/
+COPY packages/storage/package.json packages/storage/
+RUN pnpm install --frozen-lockfile
+
+# Source code is volume-mounted at runtime, not copied
+EXPOSE 3100 5173
+
+CMD ["pnpm", "dev:watch"]

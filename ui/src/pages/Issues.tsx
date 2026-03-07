@@ -39,7 +39,7 @@ export function Issues() {
   }, [liveRuns]);
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Issues" }]);
+    setBreadcrumbs([{ label: "Tasks" }]);
   }, [setBreadcrumbs]);
 
   const { data: issues, isLoading, error } = useQuery({
@@ -67,7 +67,7 @@ export function Issues() {
       error={error as Error | null}
       agents={agents}
       liveIssueIds={liveIssueIds}
-      viewStateKey="paperclip:issues-view"
+      viewStateKey="substaff:issues-view"
       initialAssignees={searchParams.get("assignee") ? [searchParams.get("assignee")!] : undefined}
       onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
     />

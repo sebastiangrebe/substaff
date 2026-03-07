@@ -1,24 +1,14 @@
 /// <reference path="./types/express.d.ts" />
-import { existsSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
-import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import type { Request as ExpressRequest, RequestHandler } from "express";
-import { and, eq } from "drizzle-orm";
 import {
   createDb,
-  ensurePostgresDatabase,
   inspectMigrations,
   applyPendingMigrations,
   reconcilePendingMigrationHistory,
-  formatDatabaseBackupResult,
-  runDatabaseBackup,
-  authUsers,
-  companies,
-  companyMemberships,
-  instanceUserRoles,
-} from "@paperclipai/db";
+} from "@substaff/db";
 import detectPort from "detect-port";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -27,7 +17,6 @@ import { setupLiveEventsWebSocketServer } from "./realtime/live-events-ws.js";
 import { heartbeatService } from "./services/index.js";
 import { createStorageServiceFromConfig } from "./storage/index.js";
 import { printStartupBanner } from "./startup-banner.js";
-import { getBoardClaimWarningUrl, initializeBoardClaimChallenge } from "./board-claim.js";
 
 type BetterAuthSessionUser = {
   id: string;
@@ -40,32 +29,7 @@ type BetterAuthSessionResult = {
   user: BetterAuthSessionUser | null;
 };
 
-type EmbeddedPostgresInstance = {
-  initialise(): Promise<void>;
-  start(): Promise<void>;
-  stop(): Promise<void>;
-};
-
-type EmbeddedPostgresCtor = new (opts: {
-  databaseDir: string;
-  user: string;
-  password: string;
-  port: number;
-  persistent: boolean;
-  onLog?: (message: unknown) => void;
-  onError?: (message: unknown) => void;
-}) => EmbeddedPostgresInstance;
-
 const config = loadConfig();
-if (process.env.PAPERCLIP_SECRETS_PROVIDER === undefined) {
-  process.env.PAPERCLIP_SECRETS_PROVIDER = config.secretsProvider;
-}
-if (process.env.PAPERCLIP_SECRETS_STRICT_MODE === undefined) {
-  process.env.PAPERCLIP_SECRETS_STRICT_MODE = config.secretsStrictMode ? "true" : "false";
-}
-if (process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE === undefined) {
-  process.env.PAPERCLIP_SECRETS_MASTER_KEY_FILE = config.secretsMasterKeyFilePath;
-}
 
 type MigrationSummary =
   | "skipped"
@@ -82,8 +46,8 @@ function formatPendingMigrationSummary(migrations: string[]): string {
 }
 
 async function promptApplyMigrations(migrations: string[]): Promise<boolean> {
-  if (process.env.PAPERCLIP_MIGRATION_PROMPT === "never") return false;
-  if (process.env.PAPERCLIP_MIGRATION_AUTO_APPLY === "true") return true;
+  if (process.env.SUBSTAFF_MIGRATION_AUTO_APPLY === "true") return true;
+  if (process.env.SUBSTAFF_MIGRATION_PROMPT === "never") return false;
   if (!stdin.isTTY || !stdout.isTTY) return true;
 
   const prompt = createInterface({ input: stdin, output: stdout });
@@ -153,251 +117,34 @@ async function ensureMigrations(
   return "applied (pending migrations)";
 }
 
-function isLoopbackHost(host: string): boolean {
-  const normalized = host.trim().toLowerCase();
-  return normalized === "127.0.0.1" || normalized === "localhost" || normalized === "::1";
+const migrationSummary = await ensureMigrations(config.databaseUrl, "PostgreSQL");
+const db = createDb(config.databaseUrl);
+logger.info("Using external PostgreSQL via DATABASE_URL/config");
+const startupDbInfo = { mode: "external-postgres" as const, connectionString: config.databaseUrl };
+
+// Initialize Redis pub/sub if configured
+if (config.redisUrl) {
+  const { initRedis } = await import("./services/redis.js");
+  await initRedis(config.redisUrl);
 }
 
-const LOCAL_BOARD_USER_ID = "local-board";
-const LOCAL_BOARD_USER_EMAIL = "local@paperclip.local";
-const LOCAL_BOARD_USER_NAME = "Board";
-
-async function ensureLocalTrustedBoardPrincipal(db: any): Promise<void> {
-  const now = new Date();
-  const existingUser = await db
-    .select({ id: authUsers.id })
-    .from(authUsers)
-    .where(eq(authUsers.id, LOCAL_BOARD_USER_ID))
-    .then((rows: Array<{ id: string }>) => rows[0] ?? null);
-
-  if (!existingUser) {
-    await db.insert(authUsers).values({
-      id: LOCAL_BOARD_USER_ID,
-      name: LOCAL_BOARD_USER_NAME,
-      email: LOCAL_BOARD_USER_EMAIL,
-      emailVerified: true,
-      image: null,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-
-  const role = await db
-    .select({ id: instanceUserRoles.id })
-    .from(instanceUserRoles)
-    .where(and(eq(instanceUserRoles.userId, LOCAL_BOARD_USER_ID), eq(instanceUserRoles.role, "instance_admin")))
-    .then((rows: Array<{ id: string }>) => rows[0] ?? null);
-  if (!role) {
-    await db.insert(instanceUserRoles).values({
-      userId: LOCAL_BOARD_USER_ID,
-      role: "instance_admin",
-    });
-  }
-
-  const companyRows = await db.select({ id: companies.id }).from(companies);
-  for (const company of companyRows) {
-    const membership = await db
-      .select({ id: companyMemberships.id })
-      .from(companyMemberships)
-      .where(
-        and(
-          eq(companyMemberships.companyId, company.id),
-          eq(companyMemberships.principalType, "user"),
-          eq(companyMemberships.principalId, LOCAL_BOARD_USER_ID),
-        ),
-      )
-      .then((rows: Array<{ id: string }>) => rows[0] ?? null);
-    if (membership) continue;
-    await db.insert(companyMemberships).values({
-      companyId: company.id,
-      principalType: "user",
-      principalId: LOCAL_BOARD_USER_ID,
-      status: "active",
-      membershipRole: "owner",
-    });
-  }
-}
-
-let db;
-let embeddedPostgres: EmbeddedPostgresInstance | null = null;
-let embeddedPostgresStartedByThisProcess = false;
-let migrationSummary: MigrationSummary = "skipped";
-let activeDatabaseConnectionString: string;
-let startupDbInfo:
-  | { mode: "external-postgres"; connectionString: string }
-  | { mode: "embedded-postgres"; dataDir: string; port: number };
-if (config.databaseUrl) {
-  migrationSummary = await ensureMigrations(config.databaseUrl, "PostgreSQL");
-
-  db = createDb(config.databaseUrl);
-  logger.info("Using external PostgreSQL via DATABASE_URL/config");
-  activeDatabaseConnectionString = config.databaseUrl;
-  startupDbInfo = { mode: "external-postgres", connectionString: config.databaseUrl };
-} else {
-  const moduleName = "embedded-postgres";
-  let EmbeddedPostgres: EmbeddedPostgresCtor;
-  try {
-    const mod = await import(moduleName);
-    EmbeddedPostgres = mod.default as EmbeddedPostgresCtor;
-  } catch {
-    throw new Error(
-      "Embedded PostgreSQL mode requires dependency `embedded-postgres`. Reinstall dependencies (without omitting required packages), or set DATABASE_URL for external Postgres.",
-    );
-  }
-
-  const dataDir = resolve(config.embeddedPostgresDataDir);
-  const configuredPort = config.embeddedPostgresPort;
-  let port = configuredPort;
-  const embeddedPostgresLogBuffer: string[] = [];
-  const EMBEDDED_POSTGRES_LOG_BUFFER_LIMIT = 120;
-  const verboseEmbeddedPostgresLogs = process.env.PAPERCLIP_EMBEDDED_POSTGRES_VERBOSE === "true";
-  const appendEmbeddedPostgresLog = (message: unknown) => {
-    const text = typeof message === "string" ? message : message instanceof Error ? message.message : String(message ?? "");
-    for (const lineRaw of text.split(/\r?\n/)) {
-      const line = lineRaw.trim();
-      if (!line) continue;
-      embeddedPostgresLogBuffer.push(line);
-      if (embeddedPostgresLogBuffer.length > EMBEDDED_POSTGRES_LOG_BUFFER_LIMIT) {
-        embeddedPostgresLogBuffer.splice(0, embeddedPostgresLogBuffer.length - EMBEDDED_POSTGRES_LOG_BUFFER_LIMIT);
-      }
-      if (verboseEmbeddedPostgresLogs) {
-        logger.info({ embeddedPostgresLog: line }, "embedded-postgres");
-      }
-    }
-  };
-  const logEmbeddedPostgresFailure = (phase: "initialise" | "start", err: unknown) => {
-    if (embeddedPostgresLogBuffer.length > 0) {
-      logger.error(
-        {
-          phase,
-          recentLogs: embeddedPostgresLogBuffer,
-          err,
-        },
-        "Embedded PostgreSQL failed; showing buffered startup logs",
-      );
-    }
-  };
-
-  if (config.databaseMode === "postgres") {
-    logger.warn("Database mode is postgres but no connection string was set; falling back to embedded PostgreSQL");
-  }
-
-  const clusterVersionFile = resolve(dataDir, "PG_VERSION");
-  const clusterAlreadyInitialized = existsSync(clusterVersionFile);
-  const postmasterPidFile = resolve(dataDir, "postmaster.pid");
-  const isPidRunning = (pid: number): boolean => {
+// Initialize Qdrant vector search if configured
+if (config.qdrantUrl) {
+  const { getQdrantClient, ensureCollections } = await import("./vector/index.js");
+  const qdrantClient = getQdrantClient();
+  if (qdrantClient) {
     try {
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const getRunningPid = (): number | null => {
-    if (!existsSync(postmasterPidFile)) return null;
-    try {
-      const pidLine = readFileSync(postmasterPidFile, "utf8").split("\n")[0]?.trim();
-      const pid = Number(pidLine);
-      if (!Number.isInteger(pid) || pid <= 0) return null;
-      if (!isPidRunning(pid)) return null;
-      return pid;
-    } catch {
-      return null;
-    }
-  };
-
-  const runningPid = getRunningPid();
-  if (runningPid) {
-    logger.warn(`Embedded PostgreSQL already running; reusing existing process (pid=${runningPid}, port=${port})`);
-  } else {
-    const detectedPort = await detectPort(configuredPort);
-    if (detectedPort !== configuredPort) {
-      logger.warn(`Embedded PostgreSQL port is in use; using next free port (requestedPort=${configuredPort}, selectedPort=${detectedPort})`);
-    }
-    port = detectedPort;
-    logger.info(`Using embedded PostgreSQL because no DATABASE_URL set (dataDir=${dataDir}, port=${port})`);
-    embeddedPostgres = new EmbeddedPostgres({
-      databaseDir: dataDir,
-      user: "paperclip",
-      password: "paperclip",
-      port,
-      persistent: true,
-      onLog: appendEmbeddedPostgresLog,
-      onError: appendEmbeddedPostgresLog,
-    });
-
-    if (!clusterAlreadyInitialized) {
-      try {
-        await embeddedPostgres.initialise();
-      } catch (err) {
-        logEmbeddedPostgresFailure("initialise", err);
-        throw err;
-      }
-    } else {
-      logger.info(`Embedded PostgreSQL cluster already exists (${clusterVersionFile}); skipping init`);
-    }
-
-    if (existsSync(postmasterPidFile)) {
-      logger.warn("Removing stale embedded PostgreSQL lock file");
-      rmSync(postmasterPidFile, { force: true });
-    }
-    try {
-      await embeddedPostgres.start();
+      await ensureCollections(qdrantClient);
+      logger.info("Qdrant vector search initialized");
     } catch (err) {
-      logEmbeddedPostgresFailure("start", err);
-      throw err;
-    }
-    embeddedPostgresStartedByThisProcess = true;
-  }
-
-  const embeddedAdminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${port}/postgres`;
-  const dbStatus = await ensurePostgresDatabase(embeddedAdminConnectionString, "paperclip");
-  if (dbStatus === "created") {
-    logger.info("Created embedded PostgreSQL database: paperclip");
-  }
-
-  const embeddedConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${port}/paperclip`;
-  const shouldAutoApplyFirstRunMigrations = !clusterAlreadyInitialized || dbStatus === "created";
-  if (shouldAutoApplyFirstRunMigrations) {
-    logger.info("Detected first-run embedded PostgreSQL setup; applying pending migrations automatically");
-  }
-  migrationSummary = await ensureMigrations(embeddedConnectionString, "Embedded PostgreSQL", {
-    autoApply: shouldAutoApplyFirstRunMigrations,
-  });
-
-  db = createDb(embeddedConnectionString);
-  logger.info("Embedded PostgreSQL ready");
-  activeDatabaseConnectionString = embeddedConnectionString;
-  startupDbInfo = { mode: "embedded-postgres", dataDir, port };
-}
-
-if (config.deploymentMode === "local_trusted" && !isLoopbackHost(config.host)) {
-  throw new Error(
-    `local_trusted mode requires loopback host binding (received: ${config.host}). ` +
-      "Use authenticated mode for non-loopback deployments.",
-  );
-}
-
-if (config.deploymentMode === "local_trusted" && config.deploymentExposure !== "private") {
-  throw new Error("local_trusted mode only supports private exposure");
-}
-
-if (config.deploymentMode === "authenticated") {
-  if (config.authBaseUrlMode === "explicit" && !config.authPublicBaseUrl) {
-    throw new Error("auth.baseUrlMode=explicit requires auth.publicBaseUrl");
-  }
-  if (config.deploymentExposure === "public") {
-    if (config.authBaseUrlMode !== "explicit") {
-      throw new Error("authenticated public exposure requires auth.baseUrlMode=explicit");
-    }
-    if (!config.authPublicBaseUrl) {
-      throw new Error("authenticated public exposure requires auth.publicBaseUrl");
+      logger.warn({ err }, "Qdrant initialization failed — vector search disabled");
     }
   }
 }
 
-let authReady = config.deploymentMode === "local_trusted";
+// No additional deployment mode validation needed; only "authenticated" is supported.
+
+let authReady = false;
 let betterAuthHandler: RequestHandler | undefined;
 let resolveSession:
   | ((req: ExpressRequest) => Promise<BetterAuthSessionResult | null>)
@@ -405,10 +152,7 @@ let resolveSession:
 let resolveSessionFromHeaders:
   | ((headers: Headers) => Promise<BetterAuthSessionResult | null>)
   | undefined;
-if (config.deploymentMode === "local_trusted") {
-  await ensureLocalTrustedBoardPrincipal(db as any);
-}
-if (config.deploymentMode === "authenticated") {
+{
   const {
     createBetterAuthHandler,
     createBetterAuthInstance,
@@ -416,17 +160,16 @@ if (config.deploymentMode === "authenticated") {
     resolveBetterAuthSessionFromHeaders,
   } = await import("./auth/better-auth.js");
   const betterAuthSecret =
-    process.env.BETTER_AUTH_SECRET?.trim() ?? process.env.PAPERCLIP_AGENT_JWT_SECRET?.trim();
+    process.env.BETTER_AUTH_SECRET?.trim() ?? process.env.SUBSTAFF_AGENT_JWT_SECRET?.trim();
   if (!betterAuthSecret) {
     throw new Error(
-      "authenticated mode requires BETTER_AUTH_SECRET (or PAPERCLIP_AGENT_JWT_SECRET) to be set",
+      "authenticated mode requires BETTER_AUTH_SECRET (or SUBSTAFF_AGENT_JWT_SECRET) to be set",
     );
   }
   const auth = createBetterAuthInstance(db as any, config);
   betterAuthHandler = createBetterAuthHandler(auth);
   resolveSession = (req) => resolveBetterAuthSession(auth, req);
   resolveSessionFromHeaders = (headers) => resolveBetterAuthSessionFromHeaders(auth, headers);
-  await initializeBoardClaimChallenge(db as any, { deploymentMode: config.deploymentMode });
   authReady = true;
 }
 
@@ -436,9 +179,6 @@ const app = await createApp(db as any, {
   uiMode,
   storageService,
   deploymentMode: config.deploymentMode,
-  deploymentExposure: config.deploymentExposure,
-  allowedHostnames: config.allowedHostnames,
-  bindHost: config.host,
   authReady,
   companyDeletionEnabled: config.companyDeletionEnabled,
   betterAuthHandler,
@@ -456,9 +196,9 @@ const runtimeApiHost =
   runtimeListenHost === "0.0.0.0" || runtimeListenHost === "::"
     ? "localhost"
     : runtimeListenHost;
-process.env.PAPERCLIP_LISTEN_HOST = runtimeListenHost;
-process.env.PAPERCLIP_LISTEN_PORT = String(listenPort);
-process.env.PAPERCLIP_API_URL = `http://${runtimeApiHost}:${listenPort}`;
+process.env.SUBSTAFF_LISTEN_HOST = runtimeListenHost;
+process.env.SUBSTAFF_LISTEN_PORT = String(listenPort);
+process.env.SUBSTAFF_API_URL = `http://${runtimeApiHost}:${listenPort}`;
 
 setupLiveEventsWebSocketServer(server, db as any, {
   deploymentMode: config.deploymentMode,
@@ -494,57 +234,9 @@ if (config.heartbeatSchedulerEnabled) {
   }, config.heartbeatSchedulerIntervalMs);
 }
 
-if (config.databaseBackupEnabled) {
-  const backupIntervalMs = config.databaseBackupIntervalMinutes * 60 * 1000;
-  let backupInFlight = false;
-
-  const runScheduledBackup = async () => {
-    if (backupInFlight) {
-      logger.warn("Skipping scheduled database backup because a previous backup is still running");
-      return;
-    }
-
-    backupInFlight = true;
-    try {
-      const result = await runDatabaseBackup({
-        connectionString: activeDatabaseConnectionString,
-        backupDir: config.databaseBackupDir,
-        retentionDays: config.databaseBackupRetentionDays,
-        filenamePrefix: "paperclip",
-      });
-      logger.info(
-        {
-          backupFile: result.backupFile,
-          sizeBytes: result.sizeBytes,
-          prunedCount: result.prunedCount,
-          backupDir: config.databaseBackupDir,
-          retentionDays: config.databaseBackupRetentionDays,
-        },
-        `Automatic database backup complete: ${formatDatabaseBackupResult(result)}`,
-      );
-    } catch (err) {
-      logger.error({ err, backupDir: config.databaseBackupDir }, "Automatic database backup failed");
-    } finally {
-      backupInFlight = false;
-    }
-  };
-
-  logger.info(
-    {
-      intervalMinutes: config.databaseBackupIntervalMinutes,
-      retentionDays: config.databaseBackupRetentionDays,
-      backupDir: config.databaseBackupDir,
-    },
-    "Automatic database backups enabled",
-  );
-  setInterval(() => {
-    void runScheduledBackup();
-  }, backupIntervalMs);
-}
-
 server.listen(listenPort, config.host, () => {
   logger.info(`Server listening on ${config.host}:${listenPort}`);
-  if (process.env.PAPERCLIP_OPEN_ON_LISTEN === "true") {
+  if (process.env.SUBSTAFF_OPEN_ON_LISTEN === "true") {
     const openHost = config.host === "0.0.0.0" || config.host === "::" ? "127.0.0.1" : config.host;
     const url = `http://${openHost}:${listenPort}`;
     void import("open")
@@ -559,7 +251,6 @@ server.listen(listenPort, config.host, () => {
   printStartupBanner({
     host: config.host,
     deploymentMode: config.deploymentMode,
-    deploymentExposure: config.deploymentExposure,
     authReady,
     requestedPort: config.port,
     listenPort,
@@ -568,45 +259,6 @@ server.listen(listenPort, config.host, () => {
     migrationSummary,
     heartbeatSchedulerEnabled: config.heartbeatSchedulerEnabled,
     heartbeatSchedulerIntervalMs: config.heartbeatSchedulerIntervalMs,
-    databaseBackupEnabled: config.databaseBackupEnabled,
-    databaseBackupIntervalMinutes: config.databaseBackupIntervalMinutes,
-    databaseBackupRetentionDays: config.databaseBackupRetentionDays,
-    databaseBackupDir: config.databaseBackupDir,
   });
 
-  const boardClaimUrl = getBoardClaimWarningUrl(config.host, listenPort);
-  if (boardClaimUrl) {
-    const red = "\x1b[41m\x1b[30m";
-    const yellow = "\x1b[33m";
-    const reset = "\x1b[0m";
-    console.log(
-      [
-        `${red}  BOARD CLAIM REQUIRED  ${reset}`,
-        `${yellow}This instance was previously local_trusted and still has local-board as the only admin.${reset}`,
-        `${yellow}Sign in with a real user and open this one-time URL to claim ownership:${reset}`,
-        `${yellow}${boardClaimUrl}${reset}`,
-        `${yellow}If you are connecting over Tailscale, replace the host in this URL with your Tailscale IP/MagicDNS name.${reset}`,
-      ].join("\n"),
-    );
-  }
 });
-
-if (embeddedPostgres && embeddedPostgresStartedByThisProcess) {
-  const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
-    logger.info({ signal }, "Stopping embedded PostgreSQL");
-    try {
-      await embeddedPostgres?.stop();
-    } catch (err) {
-      logger.error({ err }, "Failed to stop embedded PostgreSQL cleanly");
-    } finally {
-      process.exit(0);
-    }
-  };
-
-  process.once("SIGINT", () => {
-    void shutdown("SIGINT");
-  });
-  process.once("SIGTERM", () => {
-    void shutdown("SIGTERM");
-  });
-}
