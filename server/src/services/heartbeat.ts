@@ -29,6 +29,7 @@ import { setRlsAllTenantsContext } from "@substaff/db";
 import { isVectorSearchEnabled, getQdrantClient, createEmbeddingService, createRagService, indexRunArtifacts } from "../vector/index.js";
 import { loadConfig } from "../config.js";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
+import { getStorageService } from "../storage/index.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
@@ -1362,6 +1363,13 @@ export function heartbeatService(db: Db) {
         logger.warn({ err, companyId: agent.companyId, runId }, "Could not resolve LLM API key via key manager");
       }
 
+      let storageService;
+      try {
+        storageService = getStorageService();
+      } catch {
+        // Storage may not be configured — proceed without file sync
+      }
+
       const adapterResult = await adapter.execute({
         runId: run.id,
         agent,
@@ -1372,6 +1380,7 @@ export function heartbeatService(db: Db) {
         onMeta: onAdapterMeta,
         authToken: authToken ?? undefined,
         llmApiKey,
+        storageService,
       });
       const nextSessionState = resolveNextSessionState({
         codec: sessionCodec,

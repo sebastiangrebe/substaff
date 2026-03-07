@@ -11,7 +11,7 @@ function parseE2BStdoutLine(line: string, ts: string): TranscriptEntry[] {
 
 function buildE2BConfig(values: CreateConfigValues): Record<string, unknown> {
   return {
-    template: "base",
+    template: "substaff-claude",
     model: values.model || "claude-sonnet-4-20250514",
     timeoutSec: 300,
   };

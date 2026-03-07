@@ -195,6 +195,10 @@ export function ActiveAgentsPanel({ companyId }: ActiveAgentsPanelProps) {
 
   const runById = useMemo(() => new Map(runs.map((r) => [r.id, r])), [runs]);
   const activeRunIds = useMemo(() => new Set(runs.filter(isRunActive).map((r) => r.id)), [runs]);
+  const activeRunIdsKey = useMemo(
+    () => [...activeRunIds].sort().join(","),
+    [activeRunIds],
+  );
 
   // Clean up pending buffers for runs that ended
   useEffect(() => {
@@ -210,9 +214,15 @@ export function ActiveAgentsPanel({ companyId }: ActiveAgentsPanelProps) {
     }
   }, [activeRunIds]);
 
+  // Stable refs so the WebSocket handler reads latest data without triggering reconnects
+  const runByIdRef = useRef(runById);
+  runByIdRef.current = runById;
+  const activeRunIdsRef = useRef(activeRunIds);
+  activeRunIdsRef.current = activeRunIds;
+
   // WebSocket connection for streaming
   useEffect(() => {
-    if (activeRunIds.size === 0) return;
+    if (activeRunIdsKey === "") return;
 
     let closed = false;
     let reconnectTimer: number | null = null;
@@ -220,10 +230,21 @@ export function ActiveAgentsPanel({ companyId }: ActiveAgentsPanelProps) {
 
     const appendItems = (runId: string, items: FeedItem[]) => {
       if (items.length === 0) return;
+      const deduped: FeedItem[] = [];
+      for (const item of items) {
+        const key = `feed:${item.runId}:${item.tone}:${item.text}`;
+        if (seenKeysRef.current.has(key)) continue;
+        seenKeysRef.current.add(key);
+        deduped.push(item);
+      }
+      if (deduped.length === 0) return;
+      if (seenKeysRef.current.size > 6000) {
+        seenKeysRef.current.clear();
+      }
       setFeedByRun((prev) => {
         const next = new Map(prev);
         const existing = next.get(runId) ?? [];
-        next.set(runId, [...existing, ...items].slice(-MAX_FEED_ITEMS));
+        next.set(runId, [...existing, ...deduped].slice(-MAX_FEED_ITEMS));
         return next;
       });
     };
@@ -253,9 +274,9 @@ export function ActiveAgentsPanel({ companyId }: ActiveAgentsPanelProps) {
         if (event.companyId !== companyId) return;
         const payload = event.payload ?? {};
         const runId = readString(payload["runId"]);
-        if (!runId || !activeRunIds.has(runId)) return;
+        if (!runId || !activeRunIdsRef.current.has(runId)) return;
 
-        const run = runById.get(runId);
+        const run = runByIdRef.current.get(runId);
         if (!run) return;
 
         if (event.type === "heartbeat.run.event") {
@@ -317,7 +338,7 @@ export function ActiveAgentsPanel({ companyId }: ActiveAgentsPanelProps) {
         socket.close(1000, "active_agents_panel_unmount");
       }
     };
-  }, [activeRunIds, companyId, runById]);
+  }, [activeRunIdsKey, companyId]);
 
   return (
     <div>

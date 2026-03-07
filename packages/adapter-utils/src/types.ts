@@ -79,6 +79,25 @@ export interface WorkspaceSyncHooks {
   pushFiles(sourceDir: string, files: string[]): Promise<void>;
 }
 
+export interface StorageServiceLike {
+  putFile(input: {
+    companyId: string;
+    namespace: string;
+    originalFilename: string | null;
+    contentType: string;
+    body: Buffer;
+  }): Promise<{ objectKey: string }>;
+  listObjects(companyId: string, prefix: string): Promise<{
+    objects: Array<{ key: string; size: number; lastModified: Date | null }>;
+    commonPrefixes: string[];
+  }>;
+  getObject(companyId: string, objectKey: string): Promise<{
+    stream: import("node:stream").Readable;
+    contentType?: string;
+    contentLength?: number;
+  }>;
+}
+
 export interface AdapterExecutionContext {
   runId: string;
   agent: AdapterAgent;
@@ -89,6 +108,8 @@ export interface AdapterExecutionContext {
   onMeta?: (meta: AdapterInvocationMeta) => Promise<void>;
   authToken?: string;
   workspaceSync?: WorkspaceSyncHooks;
+  /** Storage service for reading/writing files to object storage (S3/MinIO). */
+  storageService?: StorageServiceLike;
   /** Resolved LLM API key (from key manager). Adapters should prefer this over process.env. */
   llmApiKey?: string;
 }

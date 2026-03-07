@@ -1,10 +1,32 @@
 import { Router } from "express";
 import type { StorageService } from "../storage/types.js";
 import { assertBoard, assertCompanyAccess } from "./authz.js";
-import { badRequest } from "../errors.js";
+import { badRequest, forbidden } from "../errors.js";
+
+const MAX_AGENT_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per file
+
+/**
+ * Resolve the agent's scoped storage namespace.
+ * Agent files live under workspace/agents/<agentId>/ — an agent can only
+ * access its own namespace.
+ */
+function agentNamespace(req: Express.Request): { companyId: string; agentId: string; prefix: string } {
+  if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.companyId) {
+    throw forbidden("Agent authentication required");
+  }
+  return {
+    companyId: req.actor.companyId,
+    agentId: req.actor.agentId,
+    prefix: `workspace/agents/${req.actor.agentId}`,
+  };
+}
 
 export function fileRoutes(storage: StorageService) {
   const router = Router();
+
+  // =========================================================================
+  // Board (UI) endpoints — full company-wide file access
+  // =========================================================================
 
   // List files/folders at a given prefix
   router.get("/companies/:companyId/files", async (req, res) => {
@@ -67,6 +89,118 @@ export function fileRoutes(storage: StorageService) {
       next(err);
     });
     object.stream.pipe(res);
+  });
+
+  // =========================================================================
+  // Agent endpoints — scoped to workspace/agents/<agentId>/
+  // Agents authenticate via SUBSTAFF_API_KEY (bearer token).
+  // =========================================================================
+
+  // List files in the agent's workspace
+  router.get("/agent/files", async (req, res) => {
+    const { companyId, prefix } = agentNamespace(req);
+    const subPrefix = (req.query.prefix as string) ?? "";
+    if (subPrefix.includes("..")) {
+      throw badRequest("Invalid prefix");
+    }
+
+    const fullPrefix = subPrefix ? `${prefix}/${subPrefix}` : `${prefix}/`;
+    const result = await storage.listObjects(companyId, fullPrefix);
+
+    // Strip the agent namespace prefix so paths are relative to the workspace root
+    const nsPrefix = `${prefix}/`;
+    const files = result.objects.map((obj) => ({
+      key: obj.key.startsWith(nsPrefix) ? obj.key.slice(nsPrefix.length) : obj.key,
+      size: obj.size,
+      lastModified: obj.lastModified,
+    }));
+
+    const folders = result.commonPrefixes.map((cp) => ({
+      key: cp.startsWith(nsPrefix) ? cp.slice(nsPrefix.length) : cp,
+    }));
+
+    res.json({ files, folders });
+  });
+
+  // Read a file from the agent's workspace
+  router.get("/agent/files/content/*filePath", async (req, res, next) => {
+    const { companyId, prefix } = agentNamespace(req);
+
+    const rawPath = req.params.filePath;
+    const filePath = Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath);
+    if (!filePath || filePath.includes("..")) {
+      throw badRequest("Invalid file path");
+    }
+
+    const objectKey = `${companyId}/${prefix}/${filePath}`;
+    const object = await storage.getObject(companyId, objectKey);
+
+    res.setHeader("Content-Type", object.contentType || "application/octet-stream");
+    if (object.contentLength) {
+      res.setHeader("Content-Length", String(object.contentLength));
+    }
+
+    object.stream.on("error", (err) => next(err));
+    object.stream.pipe(res);
+  });
+
+  // Write a file to the agent's workspace
+  router.put("/agent/files/content/*filePath", async (req, res) => {
+    const { companyId, prefix } = agentNamespace(req);
+
+    const rawPath = req.params.filePath;
+    const filePath = Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath);
+    if (!filePath || filePath.includes("..")) {
+      throw badRequest("Invalid file path");
+    }
+
+    // Collect the request body as a buffer
+    const chunks: Buffer[] = [];
+    let totalSize = 0;
+
+    for await (const chunk of req) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalSize += buf.length;
+      if (totalSize > MAX_AGENT_UPLOAD_BYTES) {
+        throw badRequest(`File too large (max ${MAX_AGENT_UPLOAD_BYTES / (1024 * 1024)} MB)`);
+      }
+      chunks.push(buf);
+    }
+
+    const body = Buffer.concat(chunks);
+    if (body.length === 0) {
+      throw badRequest("Empty file body");
+    }
+
+    const contentType = (req.headers["content-type"] as string) || "application/octet-stream";
+
+    const result = await storage.putFile({
+      companyId,
+      namespace: prefix,
+      originalFilename: filePath,
+      contentType,
+      body,
+    });
+
+    res.status(201).json({
+      objectKey: result.objectKey,
+      size: result.byteSize,
+    });
+  });
+
+  // Delete a file from the agent's workspace
+  router.delete("/agent/files/content/*filePath", async (req, res) => {
+    const { companyId, prefix } = agentNamespace(req);
+
+    const rawPath = req.params.filePath;
+    const filePath = Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath);
+    if (!filePath || filePath.includes("..")) {
+      throw badRequest("Invalid file path");
+    }
+
+    const objectKey = `${companyId}/${prefix}/${filePath}`;
+    await storage.deleteObject(companyId, objectKey);
+    res.status(204).end();
   });
 
   return router;

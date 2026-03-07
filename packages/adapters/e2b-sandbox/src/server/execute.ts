@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Sandbox } from "e2b";
@@ -6,6 +7,7 @@ import type {
   AdapterExecutionContext,
   AdapterExecutionResult,
   AdapterInvocationMeta,
+  StorageServiceLike,
 } from "@substaff/adapter-utils";
 import {
   parseObject,
@@ -42,6 +44,19 @@ async function resolveSubstaffSkillsDir(): Promise<string | null> {
   return null;
 }
 
+const SUBSTAFF_COMPANIES_CANDIDATES = [
+  path.resolve(__moduleDir, "../../companies"),         // published: <pkg>/dist/server/ -> <pkg>/companies/
+  path.resolve(__moduleDir, "../../../../../companies"), // dev: src/server/ -> repo root/companies/
+];
+
+async function resolveCompaniesDir(): Promise<string | null> {
+  for (const candidate of SUBSTAFF_COMPANIES_CANDIDATES) {
+    const isDir = await fs.stat(candidate).then((s) => s.isDirectory()).catch(() => false);
+    if (isDir) return candidate;
+  }
+  return null;
+}
+
 function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
@@ -54,7 +69,7 @@ function readNonEmptyString(value: unknown): string | null {
  */
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
   const config = parseObject(ctx.config);
-  const template = asString(config.template, "base");
+  const template = asString(config.template, "substaff-claude");
   const sandboxTimeoutSec = asNumber(config.sandboxTimeoutSec, 900);
 
   // Use claude-local's config builder to get env, args, prompt template, etc.
@@ -82,19 +97,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const dangerouslySkipPermissions = asBoolean(config.dangerouslySkipPermissions, true);
   const effort = asString(config.effort, "");
   const extraArgs = runtimeConfig?.extraArgs ?? asStringArray(config.extraArgs);
-  const defaultPrompt = buildDefaultPrompt(ctx.context, ctx.agent);
-  const promptTemplate = asString(config.promptTemplate, defaultPrompt);
-
-  const prompt = renderTemplate(promptTemplate, {
-    agentId: ctx.agent.id,
-    companyId: ctx.agent.companyId,
-    runId: ctx.runId,
-    company: { id: ctx.agent.companyId },
-    agent: ctx.agent,
-    run: { id: ctx.runId, source: "on_demand" },
-    context: ctx.context,
-    context_json: JSON.stringify(ctx.context, null, 2),
-  });
+  const customPromptTemplate = asString(config.promptTemplate, "");
+  // Prompt will be built later after persona files are loaded
 
   // Build a preview env for meta (actual env is built after sandbox creation)
   const previewEnv = runtimeConfig?.env ?? buildSubstaffEnv(ctx.agent);
@@ -168,23 +172,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     }
 
-    // Pull workspace files from S3 into sandbox
     const sandboxWorkDir = "/home/user/workspace";
     const sandboxSkillsDir = "/home/user/.skills";
-    let pulledFiles: string[] = [];
+    const storageNamespace = `workspace/agents/${ctx.agent.id}`;
 
     await sandbox.commands.run(`mkdir -p ${sandboxWorkDir}`);
-
-    if (ctx.workspaceSync) {
-      await ctx.onLog("stdout", `[e2b] Syncing workspace files from storage...\n`);
-      try {
-        pulledFiles = await ctx.workspaceSync.pullFiles(sandboxWorkDir);
-        await ctx.onLog("stdout", `[e2b] Synced ${pulledFiles.length} files into sandbox\n`);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await ctx.onLog("stderr", `[e2b] Warning: Failed to sync workspace files: ${msg}\n`);
-      }
-    }
 
     // Upload skills into sandbox so Claude Code discovers them via --add-dir
     let skillsUploaded = false;
@@ -231,6 +223,36 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     }
 
+    // Upload company template files (agent persona files) into the workspace
+    // Also collect persona content to inject into system prompt (saves agent reading time)
+    const personaContents: Record<string, string> = {};
+    const companiesDir = await resolveCompaniesDir();
+    if (companiesDir) {
+      try {
+        const agentRole = (ctx.agent as unknown as Record<string, unknown>).role;
+        const role = typeof agentRole === "string" && agentRole ? agentRole : "ceo";
+        const roleDir = path.join(companiesDir, "default", role);
+        const roleDirExists = await fs.stat(roleDir).then((s) => s.isDirectory()).catch(() => false);
+        if (roleDirExists) {
+          const targetDir = `${sandboxWorkDir}/agents/${role}`;
+          await sandbox.commands.run(`mkdir -p ${targetDir}`);
+          const files = await fs.readdir(roleDir);
+          for (const file of files) {
+            const filePath = path.join(roleDir, file);
+            const stat = await fs.stat(filePath);
+            if (!stat.isFile()) continue;
+            const content = await fs.readFile(filePath, "utf-8");
+            await sandbox.files.write(`${targetDir}/${file}`, content);
+            personaContents[file] = content;
+          }
+          await ctx.onLog("stdout", `[e2b] Agent persona files uploaded (${role})\n`);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await ctx.onLog("stderr", `[e2b] Warning: Failed to upload company templates: ${msg}\n`);
+      }
+    }
+
     // Upload agent instructions file if configured
     const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
     let sandboxInstructionsPath: string | null = null;
@@ -249,23 +271,34 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     }
 
-    // Install Claude Code CLI
-    await ctx.onLog("stdout", `[e2b] Installing Claude Code CLI...\n`);
-    const installResult = await sandbox.commands.run(
-      "npm install -g @anthropic-ai/claude-code 2>&1",
-      { envs: sandboxEnv, timeoutMs: 120_000 },
-    );
-    if (installResult.exitCode !== 0) {
-      await ctx.onLog("stderr", `[e2b] Claude Code install failed: ${installResult.stdout}\n`);
-      return {
-        exitCode: 1,
-        signal: null,
-        timedOut: false,
-        errorMessage: `Failed to install Claude Code CLI: ${installResult.stdout}`,
-        errorCode: "E2B_INSTALL_ERROR",
-      };
+    // Install Claude Code CLI (skip if already present in template)
+    let claudeAlreadyInstalled = false;
+    try {
+      const claudeCheck = await sandbox.commands.run("which claude 2>/dev/null || true", { timeoutMs: 5_000 });
+      claudeAlreadyInstalled = claudeCheck.exitCode === 0 && claudeCheck.stdout.trim().length > 0;
+    } catch {
+      // which failed — CLI not present
     }
-    await ctx.onLog("stdout", `[e2b] Claude Code CLI installed\n`);
+    if (claudeAlreadyInstalled) {
+      await ctx.onLog("stdout", `[e2b] Claude Code CLI already installed in template\n`);
+    } else {
+      await ctx.onLog("stdout", `[e2b] Installing Claude Code CLI...\n`);
+      const installResult = await sandbox.commands.run(
+        "npm install -g @anthropic-ai/claude-code 2>&1",
+        { envs: sandboxEnv, timeoutMs: 120_000 },
+      );
+      if (installResult.exitCode !== 0) {
+        await ctx.onLog("stderr", `[e2b] Claude Code install failed: ${installResult.stdout}\n`);
+        return {
+          exitCode: 1,
+          signal: null,
+          timedOut: false,
+          errorMessage: `Failed to install Claude Code CLI: ${installResult.stdout}`,
+          errorCode: "E2B_INSTALL_ERROR",
+        };
+      }
+      await ctx.onLog("stdout", `[e2b] Claude Code CLI installed\n`);
+    }
 
     // Build Claude CLI args (same flags as claude-local)
     const claudeArgs = ["--print", "-", "--output-format", "stream-json", "--verbose"];
@@ -276,6 +309,20 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (sandboxInstructionsPath) claudeArgs.push("--append-system-prompt-file", sandboxInstructionsPath);
     if (skillsUploaded) claudeArgs.push("--add-dir", sandboxSkillsDir);
     if (extraArgs.length > 0) claudeArgs.push(...extraArgs);
+
+    // Build prompt now that persona files are available
+    const defaultPrompt = buildDefaultPrompt(ctx.context, ctx.agent, personaContents);
+    const promptTemplate = customPromptTemplate || defaultPrompt;
+    const prompt = renderTemplate(promptTemplate, {
+      agentId: ctx.agent.id,
+      companyId: ctx.agent.companyId,
+      runId: ctx.runId,
+      company: { id: ctx.agent.companyId },
+      agent: ctx.agent,
+      run: { id: ctx.runId, source: "on_demand" },
+      context: ctx.context,
+      context_json: JSON.stringify(ctx.context, null, 2),
+    });
 
     // Write prompt to a file, then pipe it to claude via stdin
     const promptPath = "/home/user/.substaff-prompt.txt";
@@ -313,15 +360,18 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const parsed = parseClaudeStreamJson(stdout);
     const loginMeta = detectClaudeLoginRequired({ parsed: parsed.resultJson, stdout, stderr });
 
-    // Push modified files back to S3
-    if (ctx.workspaceSync) {
-      await ctx.onLog("stdout", `[e2b] Syncing workspace files back to storage...\n`);
+    // Push workspace files back to S3
+    if (ctx.storageService) {
+      await ctx.onLog("stdout", `[e2b] Pushing workspace files to storage...\n`);
       try {
-        await ctx.workspaceSync.pushFiles(sandboxWorkDir, pulledFiles);
-        await ctx.onLog("stdout", `[e2b] Workspace files synced back to storage\n`);
+        const uploadedCount = await pushFilesToStorage(
+          sandbox, ctx.storageService, ctx.agent.companyId,
+          sandboxWorkDir, storageNamespace, ctx.onLog,
+        );
+        await ctx.onLog("stdout", `[e2b] Pushed ${uploadedCount} files to storage\n`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        await ctx.onLog("stderr", `[e2b] Warning: Failed to sync files back: ${msg}\n`);
+        await ctx.onLog("stderr", `[e2b] Warning: Failed to push files to storage: ${msg}\n`);
       }
     }
 
@@ -413,6 +463,16 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       await ctx.onLog("stderr", `[e2b] Stack: ${err.stack}\n`);
     }
 
+    // Best-effort: push any files the agent created before the error
+    if (sandbox && ctx.storageService) {
+      try {
+        const storageNs = `workspace/agents/${ctx.agent.id}`;
+        await pushFilesToStorage(sandbox, ctx.storageService, ctx.agent.companyId, "/home/user/workspace", storageNs, ctx.onLog);
+      } catch {
+        // Ignore — sandbox may already be dead
+      }
+    }
+
     return {
       exitCode: errExitCode,
       signal: null,
@@ -432,9 +492,90 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
 }
 
+/**
+ * Guess MIME type from file extension using the `mime-types` package
+ * (available at runtime in the server, not declared as a direct dependency).
+ * Falls back to application/octet-stream if the package isn't available.
+ */
+const _require = createRequire(import.meta.url);
+
+let _mimeLookup: ((path: string) => string | false) | undefined;
+
+function guessContentType(filename: string): string {
+  if (_mimeLookup === undefined) {
+    try {
+      const mod = _require("mime-types") as { lookup: (p: string) => string | false };
+      _mimeLookup = mod.lookup;
+    } catch {
+      _mimeLookup = () => false;
+    }
+  }
+  return _mimeLookup(filename) || "application/octet-stream";
+}
+
+/** Push workspace files from the sandbox back to S3 storage. */
+async function pushFilesToStorage(
+  sandbox: Sandbox,
+  storage: StorageServiceLike,
+  companyId: string,
+  workDir: string,
+  namespace: string,
+  onLog: AdapterExecutionContext["onLog"],
+): Promise<number> {
+  // List all files in the workspace (exclude hidden dirs like .git, node_modules)
+  const findResult = await sandbox.commands.run(
+    `find ${shellEscape(workDir)} -type f ` +
+    `-not -path '*/node_modules/*' ` +
+    `-not -path '*/.git/*' ` +
+    `-not -path '*/.claude/*' ` +
+    `-not -name '.substaff-prompt.txt' ` +
+    `2>/dev/null || true`,
+    { timeoutMs: 30_000 },
+  );
+
+  const files = findResult.stdout
+    .split("\n")
+    .map((f) => f.trim())
+    .filter(Boolean);
+
+  if (files.length === 0) return 0;
+
+  let uploaded = 0;
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB limit per file
+
+  for (const absolutePath of files) {
+    try {
+      const content = await sandbox.files.read(absolutePath, { format: "bytes" });
+      const body = Buffer.from(content);
+
+      if (body.length === 0 || body.length > MAX_FILE_SIZE) continue;
+
+      // Compute relative path from workDir
+      const relativePath = absolutePath.startsWith(workDir)
+        ? absolutePath.slice(workDir.length).replace(/^\//, "")
+        : path.posix.basename(absolutePath);
+
+      await storage.putFile({
+        companyId,
+        namespace: `${namespace}/${path.posix.dirname(relativePath)}`.replace(/\/+$/, ""),
+        originalFilename: path.posix.basename(relativePath),
+        contentType: guessContentType(relativePath),
+        body,
+      });
+
+      uploaded++;
+    } catch {
+      // Skip files that fail to read/upload
+    }
+  }
+
+  return uploaded;
+}
+
 function buildDefaultPrompt(
   context: Record<string, unknown>,
   agent: { id: string; name?: string | null },
+  personaContents?: Record<string, string>,
 ): string {
   const parts = [
     `You are agent ${agent.id}${agent.name ? ` (${agent.name})` : ""}. Continue your Substaff work.`,
@@ -448,6 +589,29 @@ function buildDefaultPrompt(
     if (description) parts.push(`\nDescription: ${description}`);
     if (status) parts.push(`\nStatus: ${status}`);
   }
+  parts.push("\n\nYou are running inside an E2B sandbox. Your workspace is /home/user/workspace.");
+  parts.push("Agent persona files have been pre-loaded into agents/<role>/ in your workspace. Do NOT try to download them from GitHub.");
+
+  // Inject persona content directly so the agent doesn't need to read the files
+  if (personaContents && Object.keys(personaContents).length > 0) {
+    parts.push("\n\n--- AGENT PERSONA (pre-loaded, no need to read these files) ---");
+    // Order: AGENTS.md first (main instructions), then HEARTBEAT, SOUL, TOOLS
+    const orderedFiles = ["AGENTS.md", "HEARTBEAT.md", "SOUL.md", "TOOLS.md"];
+    for (const file of orderedFiles) {
+      if (personaContents[file]) {
+        parts.push(`\n\n### ${file}\n${personaContents[file].trim()}`);
+      }
+    }
+    // Any remaining files not in the ordered list
+    for (const [file, content] of Object.entries(personaContents)) {
+      if (!orderedFiles.includes(file)) {
+        parts.push(`\n\n### ${file}\n${content.trim()}`);
+      }
+    }
+    parts.push("\n\n--- END AGENT PERSONA ---");
+    parts.push("\n\nIMPORTANT: You already have your persona and heartbeat instructions above. Start your heartbeat procedure immediately — load the /substaff skill and begin working. Do NOT re-read the persona files from disk.");
+  }
+
   return parts.join("");
 }
 

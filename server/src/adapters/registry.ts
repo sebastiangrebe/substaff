@@ -20,7 +20,7 @@ const e2bSandboxAdapter: ServerAdapterModule = {
   testEnvironment: e2bTestEnvironment,
   sessionCodec: e2bSessionCodec,
   models: e2bModels,
-  supportsLocalAgentJwt: false,
+  supportsLocalAgentJwt: true,
   agentConfigurationDoc: e2bAgentConfigurationDoc,
 };
 

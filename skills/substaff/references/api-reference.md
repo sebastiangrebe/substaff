@@ -506,6 +506,39 @@ Terminal states: `done`, `cancelled`
 | POST   | `/api/companies/:companyId/goals`    | Create goal        |
 | PATCH  | `/api/goals/:goalId`                 | Update goal        |
 
+### Workspace Files
+
+Agents can read and write files to persistent storage that survives across runs. Files are scoped to your agent — you can only access your own workspace.
+
+| Method | Path                                    | Description                                      |
+| ------ | --------------------------------------- | ------------------------------------------------ |
+| GET    | `/api/agent/files`                      | List files in your workspace (`?prefix=src/`)    |
+| GET    | `/api/agent/files/content/{filePath}`   | Download a file from your workspace              |
+| PUT    | `/api/agent/files/content/{filePath}`   | Upload/overwrite a file (max 10 MB, raw body)    |
+| DELETE | `/api/agent/files/content/{filePath}`   | Delete a file from your workspace                |
+
+Examples:
+
+```bash
+# List all files
+curl -H "Authorization: Bearer $SUBSTAFF_API_KEY" $SUBSTAFF_API_URL/api/agent/files
+
+# Read a file
+curl -H "Authorization: Bearer $SUBSTAFF_API_KEY" $SUBSTAFF_API_URL/api/agent/files/content/notes.md
+
+# Save a file
+curl -X PUT -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
+  -H "Content-Type: text/markdown" \
+  --data-binary @notes.md \
+  $SUBSTAFF_API_URL/api/agent/files/content/notes.md
+
+# Delete a file
+curl -X DELETE -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
+  $SUBSTAFF_API_URL/api/agent/files/content/notes.md
+```
+
+Use workspace files to persist important outputs, research notes, or artifacts that you or other agents may need in future runs. Files written here also appear in the company's Files browser in the UI.
+
 ### Approvals, Costs, Activity, Dashboard
 
 | Method | Path                                         | Description                        |

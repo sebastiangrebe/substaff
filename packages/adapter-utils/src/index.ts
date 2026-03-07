@@ -7,6 +7,7 @@ export type {
   AdapterInvocationMeta,
   AdapterExecutionContext,
   WorkspaceSyncHooks,
+  StorageServiceLike,
   AdapterEnvironmentCheckLevel,
   AdapterEnvironmentCheck,
   AdapterEnvironmentTestStatus,

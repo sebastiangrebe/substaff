@@ -386,8 +386,14 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
     };
   }, [runIdsKey, runs]);
 
+  // Stable refs so the WebSocket handler reads latest data without triggering reconnects
+  const runByIdRef = useRef(runById);
+  runByIdRef.current = runById;
+  const activeRunIdsRef = useRef(activeRunIds);
+  activeRunIdsRef.current = activeRunIds;
+
   useEffect(() => {
-    if (!companyId || activeRunIds.size === 0) return;
+    if (!companyId || runIdsKey === "") return;
 
     let closed = false;
     let reconnectTimer: number | null = null;
@@ -418,9 +424,9 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
         if (event.companyId !== companyId) return;
         const payload = event.payload ?? {};
         const runId = readString(payload["runId"]);
-        if (!runId || !activeRunIds.has(runId)) return;
+        if (!runId || !activeRunIdsRef.current.has(runId)) return;
 
-        const run = runById.get(runId);
+        const run = runByIdRef.current.get(runId);
         if (!run) return;
 
         if (event.type === "heartbeat.run.event") {
@@ -486,7 +492,7 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
         socket.close(1000, "issue_live_widget_unmount");
       }
     };
-  }, [activeRunIds, companyId, runById]);
+  }, [runIdsKey, companyId]);
 
   if (runs.length === 0 && feed.length === 0) return null;
 
