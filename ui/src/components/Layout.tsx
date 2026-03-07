@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type UIEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Moon, Sun } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { Outlet, useLocation, useNavigate, useParams } from "@/lib/router";
 import { CompanyRail } from "./CompanyRail";
 import { Sidebar } from "./Sidebar";
-import { SidebarNavItem } from "./SidebarNavItem";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { CommandPalette } from "./CommandPalette";
@@ -237,12 +236,6 @@ export function Layout() {
           </div>
           <div className="border-t border-r border-border px-3 py-2 bg-background">
             <div className="flex items-center gap-1">
-              <SidebarNavItem
-                to="/docs"
-                label="Documentation"
-                icon={BookOpen}
-                className="flex-1 min-w-0"
-              />
               <Button
                 type="button"
                 variant="ghost"
@@ -272,12 +265,6 @@ export function Layout() {
           </div>
           <div className="border-t border-r border-border px-3 py-2">
             <div className="flex items-center gap-1">
-              <SidebarNavItem
-                to="/docs"
-                label="Documentation"
-                icon={BookOpen}
-                className="flex-1 min-w-0"
-              />
               <Button
                 type="button"
                 variant="ghost"

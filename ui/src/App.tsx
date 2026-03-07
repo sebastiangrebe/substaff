@@ -25,6 +25,7 @@ import { Inbox } from "./pages/Inbox";
 import { CompanySettings } from "./pages/CompanySettings";
 import { DesignGuide } from "./pages/DesignGuide";
 import { OrgChart } from "./pages/OrgChart";
+import { Analytics } from "./pages/Analytics";
 import { AuthPage } from "./pages/Auth";
 import { InviteLandingPage } from "./pages/InviteLanding";
 import { queryKeys } from "./lib/queryKeys";
@@ -102,6 +103,7 @@ function boardRoutes() {
       <Route path="approvals/all" element={<Approvals />} />
       <Route path="approvals/:approvalId" element={<ApprovalDetail />} />
       <Route path="costs" element={<Costs />} />
+      <Route path="analytics" element={<Analytics />} />
       <Route path="activity" element={<Activity />} />
       <Route path="files" element={<Files />} />
       <Route path="inbox" element={<Navigate to="/inbox/new" replace />} />

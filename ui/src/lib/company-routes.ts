@@ -15,7 +15,7 @@ const BOARD_ROUTE_ROOTS = new Set([
   "design-guide",
 ]);
 
-const GLOBAL_ROUTE_ROOTS = new Set(["auth", "invite", "docs"]);
+const GLOBAL_ROUTE_ROOTS = new Set(["auth", "invite"]);
 
 export function normalizeCompanyPrefix(prefix: string): string {
   return prefix.trim().toUpperCase();

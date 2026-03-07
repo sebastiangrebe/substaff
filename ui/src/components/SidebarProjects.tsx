@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { NavLink, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, FolderKanban, Plus } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -84,7 +84,7 @@ function SortableProjectItem({
 }
 
 export function SidebarProjects() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const { selectedCompanyId } = useCompany();
   const { openNewProject } = useDialog();
   const { isMobile, setSidebarOpen } = useSidebar();
@@ -135,32 +135,32 @@ export function SidebarProjects() {
     [orderedProjects, persistOrder],
   );
 
+  const projectsActive = /^\/(?:[^/]+\/)?projects(\/|$)/.test(location.pathname);
+
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="group">
-        <div className="flex items-center px-3 py-1.5">
-          <CollapsibleTrigger className="flex items-center gap-1 flex-1 min-w-0">
-            <ChevronRight
-              className={cn(
-                "h-3 w-3 text-muted-foreground/60 transition-transform opacity-0 group-hover:opacity-100",
-                open && "rotate-90"
-              )}
-            />
-            <span className="text-[10px] font-medium uppercase tracking-widest font-mono text-muted-foreground/60">
-              Projects
-            </span>
-          </CollapsibleTrigger>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              openNewProject();
-            }}
-            className="flex items-center justify-center h-4 w-4 rounded text-muted-foreground/60 hover:text-foreground hover:bg-accent/50 transition-colors"
-            aria-label="New project"
-          >
-            <Plus className="h-3 w-3" />
-          </button>
-        </div>
+      <div className="flex items-center">
+        <NavLink
+          to="/projects"
+          onClick={() => { if (isMobile) setSidebarOpen(false); }}
+          className={cn(
+            "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors flex-1 min-w-0",
+            projectsActive
+              ? "bg-accent text-foreground"
+              : "text-foreground/80 hover:bg-accent/50 hover:text-foreground",
+          )}
+        >
+          <FolderKanban className="h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate">Projects</span>
+        </NavLink>
+        <CollapsibleTrigger className="flex items-center justify-center h-8 w-8 shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors">
+          <ChevronRight
+            className={cn(
+              "h-3 w-3 transition-transform",
+              open && "rotate-90"
+            )}
+          />
+        </CollapsibleTrigger>
       </div>
 
       <CollapsibleContent>
@@ -173,7 +173,7 @@ export function SidebarProjects() {
             items={orderedProjects.map((project) => project.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="flex flex-col gap-0.5 mt-0.5">
+            <div className="flex flex-col gap-0.5 mt-0.5 pl-4">
               {orderedProjects.map((project: Project) => (
                 <SortableProjectItem
                   key={project.id}
@@ -183,6 +183,13 @@ export function SidebarProjects() {
                   setSidebarOpen={setSidebarOpen}
                 />
               ))}
+              <button
+                onClick={() => openNewProject()}
+                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">New Project</span>
+              </button>
             </div>
           </SortableContext>
         </DndContext>

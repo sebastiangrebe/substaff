@@ -1,8 +1,8 @@
 import {
   Inbox,
   CircleDot,
-  Target,
   LayoutDashboard,
+  BarChart3,
   DollarSign,
   History,
   Search,
@@ -14,6 +14,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
 import { SidebarNavItem } from "./SidebarNavItem";
+import { SidebarGoals } from "./SidebarGoals";
 import { SidebarProjects } from "./SidebarProjects";
 import { SidebarAgents } from "./SidebarAgents";
 import { useDialog } from "../context/DialogContext";
@@ -88,16 +89,16 @@ export function Sidebar() {
         </div>
 
         <SidebarSection label="Work">
+          <SidebarGoals />
+          <SidebarProjects />
           <SidebarNavItem to="/issues" label="Tasks" icon={CircleDot} />
-          <SidebarNavItem to="/goals" label="Goals" icon={Target} />
         </SidebarSection>
-
-        <SidebarProjects />
 
         <SidebarAgents />
 
         <SidebarSection label="Company">
           <SidebarNavItem to="/org" label="Org" icon={Network} />
+          <SidebarNavItem to="/analytics" label="Analytics" icon={BarChart3} />
           <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
           <SidebarNavItem to="/activity" label="Activity" icon={History} />
           <SidebarNavItem to="/files" label="Files" icon={FolderOpen} />
