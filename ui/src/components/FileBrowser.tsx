@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ChevronRight,
   ChevronDown,
+  Download,
   Folder,
   File,
   FileCode,
@@ -83,9 +84,13 @@ function isPreviewableText(ext: string): boolean {
 function BreadcrumbNav({
   prefix,
   onNavigate,
+  onDownload,
+  hasFiles,
 }: {
   prefix: string;
   onNavigate: (prefix: string) => void;
+  onDownload: (prefix: string) => void;
+  hasFiles: boolean;
 }) {
   const parts = prefix.split("/").filter(Boolean);
   const crumbs = parts.map((part, i) => ({
@@ -112,6 +117,16 @@ function BreadcrumbNav({
           </button>
         </span>
       ))}
+      {hasFiles && (
+        <button
+          onClick={() => onDownload(prefix)}
+          className="ml-auto flex items-center gap-1.5 text-xs hover:text-foreground transition-colors"
+          title="Download folder as zip"
+        >
+          <Download className="h-3.5 w-3.5" />
+          <span>Download zip</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -241,6 +256,14 @@ export function FileBrowser({ companyId }: FileBrowserProps) {
     setCurrentPrefix(parts.length > 0 ? parts.join("/") + "/" : "");
   }, [currentPrefix]);
 
+  const handleDownloadZip = useCallback(
+    (prefix: string) => {
+      const url = filesApi.getDownloadZipUrl(companyId, prefix);
+      window.open(url, "_blank");
+    },
+    [companyId],
+  );
+
   if (selectedFile) {
     return (
       <FilePreview
@@ -253,14 +276,20 @@ export function FileBrowser({ companyId }: FileBrowserProps) {
 
   return (
     <div className="space-y-2">
-      <BreadcrumbNav prefix={currentPrefix} onNavigate={handleNavigate} />
+      <BreadcrumbNav
+        prefix={currentPrefix}
+        onNavigate={handleNavigate}
+        onDownload={handleDownloadZip}
+        hasFiles={sortedEntries.length > 0}
+      />
 
       <div className="border border-border rounded-md bg-card overflow-hidden">
         {/* Header */}
-        <div className="grid grid-cols-[1fr_100px_160px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border bg-muted/30">
+        <div className="grid grid-cols-[1fr_100px_160px_36px] gap-2 px-4 py-2 text-xs font-medium text-muted-foreground border-b border-border bg-muted/30">
           <span>Name</span>
           <span className="text-right">Size</span>
           <span className="text-right">Modified</span>
+          <span />
         </div>
 
         {/* Loading */}
@@ -281,12 +310,13 @@ export function FileBrowser({ companyId }: FileBrowserProps) {
         {!isLoading && currentPrefix && (
           <button
             onClick={handleGoUp}
-            className="w-full grid grid-cols-[1fr_100px_160px] gap-2 px-4 py-2 text-sm hover:bg-accent/50 transition-colors text-left"
+            className="w-full grid grid-cols-[1fr_100px_160px_36px] gap-2 px-4 py-2 text-sm hover:bg-accent/50 transition-colors text-left"
           >
             <span className="flex items-center gap-2 text-muted-foreground">
               <ArrowLeft className="h-4 w-4 shrink-0" />
               <span>..</span>
             </span>
+            <span />
             <span />
             <span />
           </button>
@@ -307,16 +337,18 @@ export function FileBrowser({ companyId }: FileBrowserProps) {
             const isFolder = entry.isFolder;
 
             return (
-              <button
+              <div
                 key={entry.key}
-                onClick={() =>
-                  isFolder
-                    ? handleFolderClick(entry.key)
-                    : handleFileClick(entry.key)
-                }
-                className="w-full grid grid-cols-[1fr_100px_160px] gap-2 px-4 py-2 text-sm hover:bg-accent/50 transition-colors text-left border-t border-border first:border-t-0"
+                className="grid grid-cols-[1fr_100px_160px_36px] gap-2 px-4 py-2 text-sm hover:bg-accent/50 transition-colors border-t border-border first:border-t-0"
               >
-                <span className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() =>
+                    isFolder
+                      ? handleFolderClick(entry.key)
+                      : handleFileClick(entry.key)
+                  }
+                  className="flex items-center gap-2 min-w-0 text-left"
+                >
                   {isFolder ? (
                     <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   ) : (
@@ -328,14 +360,38 @@ export function FileBrowser({ companyId }: FileBrowserProps) {
                     }`}
                   />
                   <span className="truncate">{name}</span>
-                </span>
-                <span className="text-right text-muted-foreground tabular-nums">
+                </button>
+                <span className="text-right text-muted-foreground tabular-nums self-center">
                   {formatSize(entry.size)}
                 </span>
-                <span className="text-right text-muted-foreground">
+                <span className="text-right text-muted-foreground self-center">
                   {formatDate(entry.lastModified)}
                 </span>
-              </button>
+                <span className="flex items-center justify-center">
+                  {isFolder ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadZip(entry.key);
+                      }}
+                      className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded"
+                      title={`Download ${name} as zip`}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </button>
+                  ) : (
+                    <a
+                      href={filesApi.getContentUrl(companyId, entry.key)}
+                      download={name}
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-1 text-muted-foreground hover:text-foreground transition-colors rounded"
+                      title={`Download ${name}`}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </span>
+              </div>
             );
           })}
       </div>

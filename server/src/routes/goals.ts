@@ -16,6 +16,25 @@ export function goalRoutes(db: Db) {
     res.json(result);
   });
 
+  router.get("/companies/:companyId/goals/tree", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const tree = await svc.tree(companyId);
+    res.json(tree);
+  });
+
+  router.get("/goals/:id/progress", async (req, res) => {
+    const id = req.params.id as string;
+    const goal = await svc.getById(id);
+    if (!goal) {
+      res.status(404).json({ error: "Goal not found" });
+      return;
+    }
+    assertCompanyAccess(req, goal.companyId);
+    const progress = await svc.progress(id);
+    res.json(progress);
+  });
+
   router.get("/goals/:id", async (req, res) => {
     const id = req.params.id as string;
     const goal = await svc.getById(id);

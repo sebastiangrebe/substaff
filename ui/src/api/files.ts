@@ -15,4 +15,7 @@ export const filesApi = {
 
   getContentUrl: (companyId: string, key: string) =>
     `/api/companies/${companyId}/files/content/${key}`,
+
+  getDownloadZipUrl: (companyId: string, prefix: string) =>
+    `/api/companies/${companyId}/files/download-zip${prefix ? `?prefix=${encodeURIComponent(prefix)}` : ""}`,
 };

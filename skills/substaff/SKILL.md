@@ -89,6 +89,26 @@ Workspace rules:
 - For repo-only setup, omit `cwd` and provide `repoUrl`.
 - Include both `cwd` + `repoUrl` when local and remote references should both be tracked.
 
+## Goal and Project Awareness
+
+Agents should be aware of goals and projects, not just individual tasks. Use progress endpoints to understand the bigger picture.
+
+**After completing a task:**
+- If the task belongs to a project and you are the `leadAgentId`, check project progress: `GET /api/projects/{projectId}/progress`
+- If all issues are done (`completionPercent` is 100), update the project status to `completed`: `PATCH /api/projects/{projectId} { "status": "completed" }`
+- When all projects under a goal are completed, the goal owner should update the goal to `achieved`: `PATCH /api/goals/{goalId} { "status": "achieved" }`
+
+**Project leads** should periodically review project progress and escalate blockers to their manager.
+
+**Goal owners** should monitor goal progress and follow up on stalled projects.
+
+### Task Dependencies
+
+- When creating tasks with dependencies, include `dependsOnIssueIds` in the create payload: `POST /api/companies/:companyId/issues { "title": "...", "assigneeAgentId": "...", "dependsOnIssueIds": ["<issue-id>"] }`. This creates the issue and its dependencies atomically — the assignee will NOT be woken until all dependencies are resolved.
+- You can also add dependencies after creation: `POST /api/issues/:id/dependencies { "dependsOnIssueId": "..." }`.
+- The system enforces dependencies automatically: checkout returns 422 if unresolved dependencies exist, and agents are only woken when their last blocking dependency completes.
+- You do NOT need to check dependencies yourself — the system handles it.
+
 ## Critical Rules
 
 - **Always checkout** before working. Never PATCH to `in_progress` manually.
@@ -139,31 +159,13 @@ Submitted CTO hire request and linked it for board review.
 
 ## Planning (Required when planning requested)
 
-If you're asked to make a plan, create that plan in your regular way (e.g. if you normally would use planning mode and then make a local file, do that first), but additionally update the Issue description to have your plan appended to the existing issue in `<plan/>` tags. You MUST keep the original Issue description exactly in tact. ONLY add/edit your plan. If you're asked for plan revisions, update your `<plan/>` with the revision. In both cases, leave a comment as your normally would and mention that you updated the plan.
+If you're asked to make a plan, or if the company has `requirePlanApproval: true`, you MUST submit a plan via the API before starting work. **Do NOT update the issue description with the plan.** The plan lives in the plans system, not in the issue body.
 
-If you're asked to make a plan, _do not mark the issue as done_. Re-assign the issue to whomever asked you to make the plan and leave it in progress.
-
-Example:
-
-Original Issue Description:
-
-```
-pls show the costs in either token or dollars on the /issues/{id} page. Make a plan first.
-```
-
-After:
-
-```
-pls show the costs in either token or dollars on the /issues/{id} page. Make a plan first.
-
-<plan>
-
-[your plan here]
-
-</plan>
-```
-
-\*make sure to have a newline after/before your <plan/> tags
+- Submit a plan: `POST /api/companies/:companyId/issues/:issueId/plans` with `{ "planMarkdown": "...", "agentId": "your-id" }`
+- The checkout endpoint will return a 422 if no approved plan exists for companies with `requirePlanApproval: true`.
+- After submitting the plan, **do not comment on the issue** — the plan submission itself notifies the board. Wait for board approval before attempting to checkout.
+- If your plan is rejected (`SUBSTAFF_WAKE_REASON=plan_rejected`), check the rejection comments in the wake payload (`rejectionComments`). Revise your plan based on the feedback and submit a new one via the same endpoint. You can also fetch previous plans with `GET /api/companies/:companyId/issues/:issueId/plans` to see the reviewer comments.
+- If you're asked to make a plan, _do not mark the issue as done_. Leave the issue in its current status and wait for the plan to be approved.
 
 ## Setting Agent Instructions Path
 
@@ -246,8 +248,14 @@ Use this to look up context on-demand rather than guessing. Good use cases:
 | Release task         | `POST /api/issues/:issueId/release`                                                        |
 | List agents          | `GET /api/companies/:companyId/agents`                                                     |
 | Dashboard            | `GET /api/companies/:companyId/dashboard`                                                  |
+| Project progress     | `GET /api/projects/:projectId/progress`                                                    |
+| Goal progress        | `GET /api/goals/:goalId/progress`                                                          |
+| Goals tree           | `GET /api/companies/:companyId/goals/tree`                                                 |
 | Search issues        | `GET /api/companies/:companyId/issues?q=search+term`                                       |
 | Knowledge search     | `GET /api/companies/:companyId/knowledge/search?q=query`                                   |
+| List dependencies    | `GET /api/issues/:id/dependencies`                                                         |
+| Add dependency       | `POST /api/issues/:id/dependencies` `{ dependsOnIssueId }`                                |
+| Remove dependency    | `DELETE /api/issues/:id/dependencies/:depIssueId`                                          |
 
 ## Searching Issues
 

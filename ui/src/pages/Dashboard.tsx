@@ -19,11 +19,36 @@ import { ActivityRow } from "../components/ActivityRow";
 import { Identity } from "../components/Identity";
 import { timeAgo } from "../lib/timeAgo";
 import { cn, formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard } from "lucide-react";
+import { Bot, CircleDot, DollarSign, ShieldCheck, LayoutDashboard, Target, FolderKanban } from "lucide-react";
 import { ActiveAgentsPanel } from "../components/ActiveAgentsPanel";
 import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
 import { PageSkeleton } from "../components/PageSkeleton";
-import type { Agent, Issue } from "@substaff/shared";
+import type { Agent, Issue, GoalProgress, ProjectProgress } from "@substaff/shared";
+
+function ProgressBar({ percent, className }: { percent: number; className?: string }) {
+  return (
+    <div className={cn("h-1.5 w-full rounded-full bg-muted", className)}>
+      <div
+        className="h-full rounded-full bg-primary transition-all"
+        style={{ width: `${Math.min(percent, 100)}%` }}
+      />
+    </div>
+  );
+}
+
+function GoalStatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    planned: "bg-muted text-muted-foreground",
+    active: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+    achieved: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+    cancelled: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  };
+  return (
+    <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", colors[status] ?? colors.planned)}>
+      {status}
+    </span>
+  );
+}
 
 function getRecentIssues(issues: Issue[]): Issue[] {
   return [...issues]
@@ -275,6 +300,91 @@ export function Dashboard() {
               <SuccessRateChart runs={runs ?? []} />
             </ChartCard>
           </div>
+
+          {/* Goals & Projects Progress */}
+          {(data.goals.length > 0 || data.projects.length > 0) && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {data.goals.length > 0 && (
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Target className="h-3.5 w-3.5" />
+                    Goals Progress
+                  </h3>
+                  <div className="border border-border divide-y divide-border overflow-hidden">
+                    {data.goals.map((goal: GoalProgress) => (
+                      <Link
+                        key={goal.goalId}
+                        to={`/goals/${goal.goalId}`}
+                        className="px-4 py-2.5 block hover:bg-accent/50 transition-colors no-underline text-inherit"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="text-sm font-medium truncate">{goal.title}</span>
+                            <GoalStatusBadge status={goal.goalStatus} />
+                          </div>
+                          <span className="text-xs font-medium text-muted-foreground shrink-0">
+                            {goal.completionPercent}%
+                          </span>
+                        </div>
+                        <ProgressBar percent={goal.completionPercent} />
+                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
+                          <span>{goal.issues.total} issues</span>
+                          <span>{goal.issues.done} done</span>
+                          {goal.issues.blocked > 0 && (
+                            <span className="text-destructive">{goal.issues.blocked} blocked</span>
+                          )}
+                          {goal.ownerAgentId && (() => {
+                            const name = agentName(goal.ownerAgentId);
+                            return name ? <Identity name={name} size="sm" className="inline-flex" /> : null;
+                          })()}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {data.projects.length > 0 && (
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <FolderKanban className="h-3.5 w-3.5" />
+                    Active Projects
+                  </h3>
+                  <div className="border border-border divide-y divide-border overflow-hidden">
+                    {data.projects.map((project: ProjectProgress) => (
+                      <Link
+                        key={project.projectId}
+                        to={`/projects/${project.projectId}`}
+                        className="px-4 py-2.5 block hover:bg-accent/50 transition-colors no-underline text-inherit"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="text-sm font-medium truncate">{project.name}</span>
+                          <span className="text-xs font-medium text-muted-foreground shrink-0">
+                            {project.completionPercent}%
+                          </span>
+                        </div>
+                        <ProgressBar percent={project.completionPercent} />
+                        <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
+                          <span>{project.issues.total} issues</span>
+                          <span>{project.issues.done} done</span>
+                          {project.issues.inProgress > 0 && (
+                            <span>{project.issues.inProgress} in progress</span>
+                          )}
+                          {project.issues.blocked > 0 && (
+                            <span className="text-destructive">{project.issues.blocked} blocked</span>
+                          )}
+                          {project.leadAgentId && (() => {
+                            const name = agentName(project.leadAgentId);
+                            return name ? <Identity name={name} size="sm" className="inline-flex" /> : null;
+                          })()}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid md:grid-cols-2 gap-4">
             {/* Recent Activity */}

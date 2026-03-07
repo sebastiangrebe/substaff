@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { projects, projectGoals, goals, projectWorkspaces } from "@substaff/db";
+import { projects, projectGoals, goals, projectWorkspaces, issues } from "@substaff/db";
+import type { ProjectProgress, IssueCounts } from "@substaff/shared";
 import {
   PROJECT_COLORS,
   deriveProjectUrlKey,
@@ -320,6 +321,41 @@ export function projectService(db: Db) {
       const [withGoals] = await attachGoals(db, [row]);
       const [enriched] = withGoals ? await attachWorkspaces(db, [withGoals]) : [];
       return enriched ?? null;
+    },
+
+    progress: async (projectId: string): Promise<ProjectProgress | null> => {
+      const project = await db
+        .select({ id: projects.id, name: projects.name, status: projects.status, leadAgentId: projects.leadAgentId })
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .then((rows) => rows[0] ?? null);
+      if (!project) return null;
+
+      const rows = await db
+        .select({ status: issues.status, count: sql<number>`count(*)` })
+        .from(issues)
+        .where(eq(issues.projectId, projectId))
+        .groupBy(issues.status);
+
+      const counts: IssueCounts = { total: 0, done: 0, inProgress: 0, blocked: 0, open: 0 };
+      for (const row of rows) {
+        const c = Number(row.count);
+        counts.total += c;
+        if (row.status === "done") counts.done += c;
+        if (row.status === "in_progress") counts.inProgress += c;
+        if (row.status === "blocked") counts.blocked += c;
+        if (row.status !== "done" && row.status !== "cancelled") counts.open += c;
+      }
+      const completionPercent = counts.total > 0 ? Math.round((counts.done / counts.total) * 100) : 0;
+
+      return {
+        projectId: project.id,
+        name: project.name,
+        status: project.status,
+        leadAgentId: project.leadAgentId,
+        issues: counts,
+        completionPercent,
+      };
     },
 
     remove: (id: string) =>

@@ -29,6 +29,7 @@ export const queryKeys = {
     liveRuns: (issueId: string) => ["issues", "live-runs", issueId] as const,
     activeRun: (issueId: string) => ["issues", "active-run", issueId] as const,
     plans: (issueId: string) => ["issues", "plans", issueId] as const,
+    dependencies: (issueId: string) => ["issues", "dependencies", issueId] as const,
   },
   projects: {
     list: (companyId: string) => ["projects", companyId] as const,
@@ -37,6 +38,8 @@ export const queryKeys = {
   goals: {
     list: (companyId: string) => ["goals", companyId] as const,
     detail: (id: string) => ["goals", "detail", id] as const,
+    tree: (companyId: string) => ["goals", "tree", companyId] as const,
+    progress: (id: string) => ["goals", "progress", id] as const,
   },
   approvals: {
     list: (companyId: string, status?: string) =>
@@ -68,6 +71,10 @@ export const queryKeys = {
   liveRuns: (companyId: string) => ["live-runs", companyId] as const,
   runIssues: (runId: string) => ["run-issues", runId] as const,
   org: (companyId: string) => ["org", companyId] as const,
+  plans: {
+    listByCompany: (companyId: string, status?: string) =>
+      ["plans", companyId, status] as const,
+  },
   orgChart: (companyId: string) => ["org-chart", companyId] as const,
   files: (companyId: string, prefix: string) => ["files", companyId, prefix] as const,
 };

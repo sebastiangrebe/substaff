@@ -2,9 +2,13 @@ import { Router } from "express";
 import { eq, and } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { taskPlans, issues } from "@substaff/db";
+import {
+  heartbeatService,
+} from "../services/index.js";
 
 export function planRoutes(db: Db) {
   const router = Router();
+  const heartbeat = heartbeatService(db);
 
   // Resolve issue identifiers (e.g. "TRA-1") to UUIDs
   router.param("issueId", async (req, _res, next, rawId) => {
@@ -23,6 +27,30 @@ export function planRoutes(db: Db) {
     } catch (err) {
       next(err);
     }
+  });
+
+  // GET /api/companies/:companyId/plans — list plans for a company (optionally filtered by status)
+  router.get("/companies/:companyId/plans", async (req, res) => {
+    const { companyId } = req.params;
+    const status = req.query.status as string | undefined;
+
+    const conditions = [eq(taskPlans.companyId, companyId!)];
+    if (status) {
+      conditions.push(eq(taskPlans.status, status));
+    }
+
+    const plans = await db
+      .select({
+        plan: taskPlans,
+        issueTitle: issues.title,
+        issueIdentifier: issues.identifier,
+      })
+      .from(taskPlans)
+      .innerJoin(issues, eq(taskPlans.issueId, issues.id))
+      .where(and(...conditions))
+      .orderBy(taskPlans.createdAt);
+
+    res.json({ plans: plans.map((r) => ({ ...r.plan, issueTitle: r.issueTitle, issueIdentifier: r.issueIdentifier })) });
   });
 
   // GET /api/companies/:companyId/issues/:issueId/plans — list plans for an issue
@@ -92,6 +120,29 @@ export function planRoutes(db: Db) {
       return;
     }
 
+    // Wake the assignee agent so it can proceed with the approved plan
+    const issue = await db
+      .select({ assigneeAgentId: issues.assigneeAgentId })
+      .from(issues)
+      .where(eq(issues.id, updated.issueId))
+      .then((rows) => rows[0] ?? null);
+
+    if (issue?.assigneeAgentId) {
+      void heartbeat.wakeup(issue.assigneeAgentId, {
+        source: "automation",
+        triggerDetail: "system",
+        reason: "plan_approved",
+        payload: { issueId: updated.issueId, planId: updated.id },
+        requestedByActorType: req.actor.type === "board" ? "user" : req.actor.type,
+        requestedByActorId: req.actor.userId ?? undefined,
+        contextSnapshot: {
+          issueId: updated.issueId,
+          taskId: updated.issueId,
+          wakeReason: "plan_approved",
+        },
+      });
+    }
+
     res.json({ plan: updated });
   });
 
@@ -118,6 +169,33 @@ export function planRoutes(db: Db) {
     if (!updated) {
       res.status(404).json({ error: "Plan not found" });
       return;
+    }
+
+    // Wake the assignee agent so it can revise the plan based on rejection comments
+    const issue = await db
+      .select({ assigneeAgentId: issues.assigneeAgentId })
+      .from(issues)
+      .where(eq(issues.id, updated.issueId))
+      .then((rows) => rows[0] ?? null);
+
+    if (issue?.assigneeAgentId) {
+      void heartbeat.wakeup(issue.assigneeAgentId, {
+        source: "automation",
+        triggerDetail: "system",
+        reason: "plan_rejected",
+        payload: {
+          issueId: updated.issueId,
+          planId: updated.id,
+          rejectionComments: comments ?? null,
+        },
+        requestedByActorType: req.actor.type === "board" ? "user" : req.actor.type,
+        requestedByActorId: req.actor.userId ?? undefined,
+        contextSnapshot: {
+          issueId: updated.issueId,
+          taskId: updated.issueId,
+          wakeReason: "plan_rejected",
+        },
+      });
     }
 
     res.json({ plan: updated });

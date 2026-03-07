@@ -22,6 +22,7 @@ export const createIssueSchema = z.object({
   billingCode: z.string().optional().nullable(),
   assigneeAdapterOverrides: issueAssigneeAdapterOverridesSchema.optional().nullable(),
   labelIds: z.array(z.string().uuid()).optional(),
+  dependsOnIssueIds: z.array(z.string().uuid()).optional(),
 });
 
 export type CreateIssue = z.infer<typeof createIssueSchema>;
@@ -66,3 +67,8 @@ export const createIssueAttachmentMetadataSchema = z.object({
 });
 
 export type CreateIssueAttachmentMetadata = z.infer<typeof createIssueAttachmentMetadataSchema>;
+
+export const addIssueDependencySchema = z.object({
+  dependsOnIssueId: z.string().uuid(),
+});
+export type AddIssueDependency = z.infer<typeof addIssueDependencySchema>;

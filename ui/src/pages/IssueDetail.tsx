@@ -39,6 +39,7 @@ import {
   EyeOff,
   FileText,
   Hexagon,
+  Link2,
   ListTree,
   MessageSquare,
   MoreHorizontal,
@@ -147,6 +148,72 @@ function ActorIdentity({ evt, agentMap }: { evt: ActivityEvent; agentMap: Map<st
   return <Identity name={id || "Unknown"} size="sm" />;
 }
 
+function DependencyAdder({
+  currentIssueId,
+  existingDepIds,
+  issues,
+  onAdd,
+}: {
+  currentIssueId: string;
+  existingDepIds: Set<string>;
+  issues: { id: string; identifier: string | null; title: string }[];
+  onAdd: (issueId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const filtered = issues.filter(
+    (i) =>
+      !existingDepIds.has(i.id) &&
+      i.id !== currentIssueId &&
+      (i.title.toLowerCase().includes(search.toLowerCase()) ||
+        (i.identifier ?? "").toLowerCase().includes(search.toLowerCase())),
+  );
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="mt-2 gap-1.5">
+          <Link2 className="h-3.5 w-3.5" />
+          Add dependency
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="start">
+        <input
+          className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring mb-2"
+          placeholder="Search issues..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          autoFocus
+        />
+        <div className="max-h-48 overflow-y-auto space-y-0.5">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-muted-foreground p-2">No matching issues</p>
+          ) : (
+            filtered.slice(0, 20).map((i) => (
+              <Button
+                key={i.id}
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-xs gap-1.5"
+                onClick={() => {
+                  onAdd(i.id);
+                  setOpen(false);
+                  setSearch("");
+                }}
+              >
+                <span className="font-mono text-muted-foreground shrink-0">
+                  {i.identifier ?? i.id.slice(0, 8)}
+                </span>
+                <span className="truncate">{i.title}</span>
+              </Button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function IssueDetail() {
   const { issueId } = useParams<{ issueId: string }>();
   const { selectedCompanyId } = useCompany();
@@ -220,6 +287,12 @@ export function IssueDetail() {
     queryKey: queryKeys.issues.plans(issueId!),
     queryFn: () => plansApi.list(selectedCompanyId!, issueId!),
     enabled: !!issueId && !!selectedCompanyId,
+  });
+
+  const { data: dependencies } = useQuery({
+    queryKey: queryKeys.issues.dependencies(issueId!),
+    queryFn: () => issuesApi.listDependencies(issueId!),
+    enabled: !!issueId,
   });
 
   const hasLiveRuns = (liveRuns ?? []).length > 0 || !!activeRun;
@@ -530,6 +603,20 @@ export function IssueDetail() {
     return () => closePanel();
   }, [issue]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const addDependency = useMutation({
+    mutationFn: (dependsOnIssueId: string) => issuesApi.addDependency(issueId!, dependsOnIssueId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.dependencies(issueId!) });
+    },
+  });
+
+  const removeDependency = useMutation({
+    mutationFn: (depIssueId: string) => issuesApi.removeDependency(issueId!, depIssueId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.dependencies(issueId!) });
+    },
+  });
+
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading...</p>;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!issue) return null;
@@ -790,6 +877,10 @@ export function IssueDetail() {
             <ListTree className="h-3.5 w-3.5" />
             Sub-issues
           </TabsTrigger>
+          <TabsTrigger value="dependencies" className="gap-1.5">
+            <Link2 className="h-3.5 w-3.5" />
+            Deps{dependencies && dependencies.length > 0 ? ` (${dependencies.length})` : ""}
+          </TabsTrigger>
           <TabsTrigger value="plans" className="gap-1.5">
             <FileText className="h-3.5 w-3.5" />
             Plans{plans && plans.length > 0 ? ` (${plans.length})` : ""}
@@ -857,6 +948,48 @@ export function IssueDetail() {
                 </Link>
               ))}
             </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="dependencies">
+          {(!dependencies || dependencies.length === 0) ? (
+            <p className="text-xs text-muted-foreground">No dependencies.</p>
+          ) : (
+            <div className="border border-border rounded-lg divide-y divide-border">
+              {dependencies.map((dep) => {
+                const depIssue = allIssues?.find((i) => i.id === dep.dependsOnIssueId);
+                return (
+                  <div key={dep.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                    <Link
+                      to={`/issues/${depIssue?.identifier ?? dep.dependsOnIssueId}`}
+                      className="flex items-center gap-2 min-w-0 hover:underline"
+                    >
+                      {depIssue && <StatusIcon status={depIssue.status} />}
+                      <span className="font-mono text-muted-foreground shrink-0">
+                        {depIssue?.identifier ?? dep.dependsOnIssueId.slice(0, 8)}
+                      </span>
+                      <span className="truncate">{depIssue?.title ?? "Unknown"}</span>
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 shrink-0"
+                      onClick={() => removeDependency.mutate(dep.dependsOnIssueId)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {allIssues && (
+            <DependencyAdder
+              currentIssueId={issue.id}
+              existingDepIds={new Set((dependencies ?? []).map((d) => d.dependsOnIssueId))}
+              issues={allIssues.filter((i) => i.id !== issue.id)}
+              onAdd={(id) => addDependency.mutate(id)}
+            />
           )}
         </TabsContent>
 

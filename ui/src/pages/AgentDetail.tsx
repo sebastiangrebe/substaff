@@ -19,7 +19,6 @@ import type { TranscriptEntry } from "../adapters";
 import { StatusBadge } from "../components/StatusBadge";
 import { agentStatusDot, agentStatusDotDefault } from "../lib/status-colors";
 import { MarkdownBody } from "../components/MarkdownBody";
-import { CopyText } from "../components/CopyText";
 import { EntityRow } from "../components/EntityRow";
 import { Identity } from "../components/Identity";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -66,49 +65,6 @@ const runStatusIcons: Record<string, { icon: typeof CheckCircle2; color: string 
   timed_out: { icon: Timer, color: "text-orange-600 dark:text-orange-400" },
   cancelled: { icon: Slash, color: "text-neutral-500 dark:text-neutral-400" },
 };
-
-const REDACTED_ENV_VALUE = "***REDACTED***";
-const SECRET_ENV_KEY_RE =
-  /(api[-_]?key|access[-_]?token|auth(?:_?token)?|authorization|bearer|secret|passwd|password|credential|jwt|private[-_]?key|cookie|connectionstring)/i;
-const JWT_VALUE_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)?$/;
-
-function shouldRedactSecretValue(key: string, value: unknown): boolean {
-  if (SECRET_ENV_KEY_RE.test(key)) return true;
-  if (typeof value !== "string") return false;
-  return JWT_VALUE_RE.test(value);
-}
-
-function redactEnvValue(key: string, value: unknown): string {
-  if (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    (value as { type?: unknown }).type === "secret_ref"
-  ) {
-    return "***SECRET_REF***";
-  }
-  if (shouldRedactSecretValue(key, value)) return REDACTED_ENV_VALUE;
-  if (value === null || value === undefined) return "";
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
-function formatEnvForDisplay(envValue: unknown): string {
-  const env = asRecord(envValue);
-  if (!env) return "<unable-to-parse>";
-
-  const keys = Object.keys(env);
-  if (keys.length === 0) return "<empty>";
-
-  return keys
-    .sort()
-    .map((key) => `${key}=${redactEnvValue(key, env[key])}`)
-    .join("\n");
-}
 
 const sourceLabels: Record<string, string> = {
   timer: "Timer",
@@ -212,6 +168,88 @@ function runMetrics(run: HeartbeatRun) {
 }
 
 type RunLogChunk = { ts: string; stream: "stdout" | "stderr" | "system"; chunk: string };
+
+/**
+ * Try to extract a human-readable string from a raw stdout/system line.
+ * Many adapters emit JSON blobs — we extract the meaningful text content
+ * (assistant messages, tool names, errors) and drop pure-noise lines.
+ */
+function humanizeStdoutLine(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  // Try to parse as JSON
+  let obj: Record<string, unknown> | null = null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      obj = parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Not JSON — return as-is (could be a plain text line)
+    return trimmed;
+  }
+
+  if (!obj) return trimmed;
+
+  const type = typeof obj.type === "string" ? obj.type : "";
+
+  // Claude Code streaming JSON messages
+  if (type === "assistant") {
+    const message = typeof obj.message === "object" && obj.message ? (obj.message as Record<string, unknown>) : null;
+    const content = Array.isArray(message?.content) ? message!.content : [];
+    const parts: string[] = [];
+    for (const block of content) {
+      if (typeof block !== "object" || block === null) continue;
+      const b = block as Record<string, unknown>;
+      if (b.type === "text" && typeof b.text === "string" && b.text) {
+        parts.push(b.text);
+      } else if (b.type === "tool_use" && typeof b.name === "string") {
+        parts.push(`Used tool: ${b.name}`);
+      }
+    }
+    return parts.length > 0 ? parts.join("\n") : null;
+  }
+
+  if (type === "user") {
+    const message = typeof obj.message === "object" && obj.message ? (obj.message as Record<string, unknown>) : null;
+    const content = Array.isArray(message?.content) ? message!.content : [];
+    const parts: string[] = [];
+    for (const block of content) {
+      if (typeof block !== "object" || block === null) continue;
+      const b = block as Record<string, unknown>;
+      if (b.type === "text" && typeof b.text === "string" && b.text) {
+        parts.push(b.text);
+      } else if (b.type === "tool_result" && b.is_error === true) {
+        const errContent = typeof b.content === "string" ? b.content : "";
+        if (errContent) parts.push(`Tool error: ${errContent}`);
+      }
+    }
+    return parts.length > 0 ? parts.join("\n") : null;
+  }
+
+  if (type === "result") {
+    const cost = typeof obj.total_cost_usd === "number" ? `$${obj.total_cost_usd.toFixed(4)}` : "";
+    const resultText = typeof obj.result === "string" ? obj.result : "";
+    const pieces = [resultText, cost].filter(Boolean);
+    return pieces.length > 0 ? `Finished: ${pieces.join(" · ")}` : "Finished";
+  }
+
+  if (type === "system") {
+    if (obj.subtype === "init") {
+      const model = typeof obj.model === "string" ? obj.model : "unknown";
+      return `Started: ${model}`;
+    }
+  }
+
+  // Generic: look for a message or text field
+  if (typeof obj.message === "string" && obj.message) return obj.message;
+  if (typeof obj.text === "string" && obj.text) return obj.text;
+  if (typeof obj.error === "string" && obj.error) return `Error: ${obj.error}`;
+
+  // No human-readable content found — skip this line in human mode
+  return null;
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
@@ -1346,7 +1384,6 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const metrics = runMetrics(run);
-  const [sessionOpen, setSessionOpen] = useState(false);
   const [claudeLoginResult, setClaudeLoginResult] = useState<ClaudeLoginResult | null>(null);
 
   useEffect(() => {
@@ -1436,19 +1473,6 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
     [touchedIssues],
   );
 
-  const clearSessionsForTouchedIssues = useMutation({
-    mutationFn: async () => {
-      if (touchedIssueIds.length === 0) return 0;
-      await Promise.all(touchedIssueIds.map((issueId) => agentsApi.resetSession(run.agentId, issueId, run.companyId)));
-      return touchedIssueIds.length;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(run.agentId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.taskSessions(run.agentId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.runIssues(run.id) });
-    },
-  });
-
   const runClaudeLogin = useMutation({
     mutationFn: () => agentsApi.loginWithClaude(run.agentId, run.companyId),
     onSuccess: (data) => {
@@ -1472,238 +1496,19 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
     return () => clearInterval(id);
   }, [isRunning, run.startedAt]);
 
-  const timeFormat: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false };
-  const startTime = run.startedAt ? new Date(run.startedAt).toLocaleTimeString("en-US", timeFormat) : null;
-  const endTime = run.finishedAt ? new Date(run.finishedAt).toLocaleTimeString("en-US", timeFormat) : null;
   const durationSec = run.startedAt && run.finishedAt
     ? Math.round((new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime()) / 1000)
     : null;
   const displayDurationSec = durationSec ?? (isRunning ? elapsedSec : null);
   const hasMetrics = metrics.input > 0 || metrics.output > 0 || metrics.cached > 0 || metrics.cost > 0;
-  const hasSession = !!(run.sessionIdBefore || run.sessionIdAfter);
-  const sessionChanged = run.sessionIdBefore && run.sessionIdAfter && run.sessionIdBefore !== run.sessionIdAfter;
-  const sessionId = run.sessionIdAfter || run.sessionIdBefore;
-  const hasNonZeroExit = run.exitCode !== null && run.exitCode !== 0;
+
+  const [logMode, setLogMode] = useState<"human" | "raw">("human");
 
   return (
     <div className="space-y-4 min-w-0">
-      {/* Run summary card */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <div className="flex flex-col sm:flex-row">
-          {/* Left column: status + timing */}
-          <div className="flex-1 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <StatusBadge status={run.status} />
-              {(run.status === "running" || run.status === "queued") && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive text-xs h-6 px-2"
-                  onClick={() => cancelRun.mutate()}
-                  disabled={cancelRun.isPending}
-                >
-                  {cancelRun.isPending ? "Cancelling…" : "Cancel"}
-                </Button>
-              )}
-              {canResumeLostRun && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs h-6 px-2"
-                  onClick={() => resumeRun.mutate()}
-                  disabled={resumeRun.isPending}
-                >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                  {resumeRun.isPending ? "Resuming…" : "Resume"}
-                </Button>
-              )}
-              {canRetryRun && !canResumeLostRun && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-xs h-6 px-2"
-                  onClick={() => retryRun.mutate()}
-                  disabled={retryRun.isPending}
-                >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                  {retryRun.isPending ? "Retrying…" : "Retry"}
-                </Button>
-              )}
-            </div>
-            {resumeRun.isError && (
-              <div className="text-xs text-destructive">
-                {resumeRun.error instanceof Error ? resumeRun.error.message : "Failed to resume run"}
-              </div>
-            )}
-            {retryRun.isError && (
-              <div className="text-xs text-destructive">
-                {retryRun.error instanceof Error ? retryRun.error.message : "Failed to retry run"}
-              </div>
-            )}
-            {startTime && (
-              <div className="space-y-0.5">
-                <div className="text-sm font-mono">
-                  {startTime}
-                  {endTime && <span className="text-muted-foreground"> &rarr; </span>}
-                  {endTime}
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {relativeTime(run.startedAt!)}
-                  {run.finishedAt && <> &rarr; {relativeTime(run.finishedAt)}</>}
-                </div>
-                {displayDurationSec !== null && (
-                  <div className="text-xs text-muted-foreground">
-                    Duration: {displayDurationSec >= 60 ? `${Math.floor(displayDurationSec / 60)}m ${displayDurationSec % 60}s` : `${displayDurationSec}s`}
-                  </div>
-                )}
-              </div>
-            )}
-            {run.error && (
-              <div className="text-xs">
-                <span className="text-red-600 dark:text-red-400">{run.error}</span>
-                {run.errorCode && <span className="text-muted-foreground ml-1">({run.errorCode})</span>}
-              </div>
-            )}
-            {run.errorCode === "claude_auth_required" && adapterType === "claude_local" && (
-              <div className="space-y-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => runClaudeLogin.mutate()}
-                  disabled={runClaudeLogin.isPending}
-                >
-                  {runClaudeLogin.isPending ? "Running claude login..." : "Login to Claude Code"}
-                </Button>
-                {runClaudeLogin.isError && (
-                  <p className="text-xs text-destructive">
-                    {runClaudeLogin.error instanceof Error
-                      ? runClaudeLogin.error.message
-                      : "Failed to run Claude login"}
-                  </p>
-                )}
-                {claudeLoginResult?.loginUrl && (
-                  <p className="text-xs">
-                    Login URL:
-                    <a
-                      href={claudeLoginResult.loginUrl}
-                      className="text-blue-600 underline underline-offset-2 ml-1 break-all dark:text-blue-400"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {claudeLoginResult.loginUrl}
-                    </a>
-                  </p>
-                )}
-                {claudeLoginResult && (
-                  <>
-                    {!!claudeLoginResult.stdout && (
-                      <pre className="bg-neutral-100 dark:bg-neutral-950 rounded-md p-3 text-xs font-mono text-foreground overflow-x-auto whitespace-pre-wrap">
-                        {claudeLoginResult.stdout}
-                      </pre>
-                    )}
-                    {!!claudeLoginResult.stderr && (
-                      <pre className="bg-neutral-100 dark:bg-neutral-950 rounded-md p-3 text-xs font-mono text-red-700 dark:text-red-300 overflow-x-auto whitespace-pre-wrap">
-                        {claudeLoginResult.stderr}
-                      </pre>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-            {hasNonZeroExit && (
-              <div className="text-xs text-red-600 dark:text-red-400">
-                Exit code {run.exitCode}
-                {run.signal && <span className="text-muted-foreground ml-1">(signal: {run.signal})</span>}
-              </div>
-            )}
-          </div>
-
-          {/* Right column: metrics */}
-          {hasMetrics && (
-            <div className="border-t sm:border-t-0 sm:border-l border-border p-4 grid grid-cols-2 gap-x-4 sm:gap-x-8 gap-y-3 content-center">
-              <div>
-                <div className="text-xs text-muted-foreground">Input</div>
-                <div className="text-sm font-medium font-mono">{formatTokens(metrics.input)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Output</div>
-                <div className="text-sm font-medium font-mono">{formatTokens(metrics.output)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Cached</div>
-                <div className="text-sm font-medium font-mono">{formatTokens(metrics.cached)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Cost</div>
-                <div className="text-sm font-medium font-mono">{metrics.cost > 0 ? `$${metrics.cost.toFixed(4)}` : "-"}</div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Collapsible session row */}
-        {hasSession && (
-          <div className="border-t border-border">
-            <button
-              className="flex items-center gap-1.5 w-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => setSessionOpen((v) => !v)}
-            >
-              <ChevronRight className={cn("h-3 w-3 transition-transform", sessionOpen && "rotate-90")} />
-              Session
-              {sessionChanged && <span className="text-yellow-400 ml-1">(changed)</span>}
-            </button>
-            {sessionOpen && (
-              <div className="px-4 pb-3 space-y-1 text-xs">
-                {run.sessionIdBefore && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground w-12">{sessionChanged ? "Before" : "ID"}</span>
-                    <CopyText text={run.sessionIdBefore} className="font-mono" />
-                  </div>
-                )}
-                {sessionChanged && run.sessionIdAfter && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground w-12">After</span>
-                    <CopyText text={run.sessionIdAfter} className="font-mono" />
-                  </div>
-                )}
-                {touchedIssueIds.length > 0 && (
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground disabled:opacity-60"
-                      disabled={clearSessionsForTouchedIssues.isPending}
-                      onClick={() => {
-                        const issueCount = touchedIssueIds.length;
-                        const confirmed = window.confirm(
-                          `Clear session for ${issueCount} issue${issueCount === 1 ? "" : "s"} touched by this run?`,
-                        );
-                        if (!confirmed) return;
-                        clearSessionsForTouchedIssues.mutate();
-                      }}
-                    >
-                      {clearSessionsForTouchedIssues.isPending
-                        ? "clearing session..."
-                        : "clear session for these issues"}
-                    </button>
-                    {clearSessionsForTouchedIssues.isError && (
-                      <p className="text-[11px] text-destructive mt-1">
-                        {clearSessionsForTouchedIssues.error instanceof Error
-                          ? clearSessionsForTouchedIssues.error.message
-                          : "Failed to clear sessions"}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Issues touched by this run */}
+      {/* Tasks touched — shown as heading context */}
       {touchedIssues && touchedIssues.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <span className="text-xs font-medium text-muted-foreground">Tasks Touched ({touchedIssues.length})</span>
           <div className="border border-border rounded-lg divide-y divide-border">
             {touchedIssues.map((issue) => (
@@ -1720,6 +1525,72 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
               </Link>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Run summary */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <StatusBadge status={run.status} />
+        {displayDurationSec !== null && (
+          <span className="text-xs font-mono text-muted-foreground">
+            {displayDurationSec >= 60 ? `${Math.floor(displayDurationSec / 60)}m ${displayDurationSec % 60}s` : `${displayDurationSec}s`}
+          </span>
+        )}
+        {hasMetrics && metrics.cost > 0 && (
+          <span className="text-xs font-mono text-muted-foreground">${metrics.cost.toFixed(4)}</span>
+        )}
+        {(run.status === "running" || run.status === "queued") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive text-xs h-6 px-2"
+            onClick={() => cancelRun.mutate()}
+            disabled={cancelRun.isPending}
+          >
+            {cancelRun.isPending ? "Cancelling…" : "Cancel"}
+          </Button>
+        )}
+        {canResumeLostRun && (
+          <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => resumeRun.mutate()} disabled={resumeRun.isPending}>
+            <RotateCcw className="h-3.5 w-3.5 mr-1" />
+            {resumeRun.isPending ? "Resuming…" : "Resume"}
+          </Button>
+        )}
+        {canRetryRun && !canResumeLostRun && (
+          <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => retryRun.mutate()} disabled={retryRun.isPending}>
+            <RotateCcw className="h-3.5 w-3.5 mr-1" />
+            {retryRun.isPending ? "Retrying…" : "Retry"}
+          </Button>
+        )}
+      </div>
+      {resumeRun.isError && (
+        <div className="text-xs text-destructive">{resumeRun.error instanceof Error ? resumeRun.error.message : "Failed to resume run"}</div>
+      )}
+      {retryRun.isError && (
+        <div className="text-xs text-destructive">{retryRun.error instanceof Error ? retryRun.error.message : "Failed to retry run"}</div>
+      )}
+      {run.error && (
+        <div className="text-xs">
+          <span className="text-red-600 dark:text-red-400">{run.error}</span>
+          {run.errorCode && <span className="text-muted-foreground ml-1">({run.errorCode})</span>}
+        </div>
+      )}
+      {run.errorCode === "claude_auth_required" && adapterType === "claude_local" && (
+        <div className="space-y-2">
+          <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => runClaudeLogin.mutate()} disabled={runClaudeLogin.isPending}>
+            {runClaudeLogin.isPending ? "Running claude login..." : "Login to Claude Code"}
+          </Button>
+          {runClaudeLogin.isError && (
+            <p className="text-xs text-destructive">{runClaudeLogin.error instanceof Error ? runClaudeLogin.error.message : "Failed to run Claude login"}</p>
+          )}
+          {claudeLoginResult?.loginUrl && (
+            <p className="text-xs">
+              Login URL:
+              <a href={claudeLoginResult.loginUrl} className="text-blue-600 underline underline-offset-2 ml-1 break-all dark:text-blue-400" target="_blank" rel="noreferrer">
+                {claudeLoginResult.loginUrl}
+              </a>
+            </p>
+          )}
         </div>
       )}
 
@@ -1740,14 +1611,14 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
       )}
 
       {/* Log viewer */}
-      <LogViewer run={run} adapterType={adapterType} />
+      <LogViewer run={run} adapterType={adapterType} logMode={logMode} onLogModeChange={setLogMode} />
     </div>
   );
 }
 
 /* ---- Log Viewer ---- */
 
-function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: string }) {
+function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: HeartbeatRun; adapterType: string; logMode: "human" | "raw"; onLogModeChange: (mode: "human" | "raw") => void }) {
   const [events, setEvents] = useState<HeartbeatRunEvent[]>([]);
   const [logLines, setLogLines] = useState<Array<{ ts: string; stream: "stdout" | "stderr" | "system"; chunk: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -1979,11 +1850,6 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
     return () => clearInterval(interval);
   }, [run.id, run.logRef, isLive, logOffset]);
 
-  const adapterInvokePayload = useMemo(() => {
-    const evt = events.find((e) => e.eventType === "adapter.invoke");
-    return asRecord(evt?.payload ?? null);
-  }, [events]);
-
   const adapter = useMemo(() => getUIAdapter(adapterType), [adapterType]);
   const transcript = useMemo(() => buildTranscript(logLines, adapter.parseStdoutLine), [logLines, adapter]);
 
@@ -2009,76 +1875,32 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
 
   return (
     <div className="space-y-3">
-      {adapterInvokePayload && (
-        <div className="rounded-lg border border-border bg-background/60 p-3 space-y-2">
-          <div className="text-xs font-medium text-muted-foreground">Invocation</div>
-          {typeof adapterInvokePayload.adapterType === "string" && (
-            <div className="text-xs"><span className="text-muted-foreground">Adapter: </span>{adapterInvokePayload.adapterType}</div>
-          )}
-          {typeof adapterInvokePayload.cwd === "string" && (
-            <div className="text-xs break-all"><span className="text-muted-foreground">Working dir: </span><span className="font-mono">{adapterInvokePayload.cwd}</span></div>
-          )}
-          {typeof adapterInvokePayload.command === "string" && (
-            <div className="text-xs break-all">
-              <span className="text-muted-foreground">Command: </span>
-              <span className="font-mono">
-                {[
-                  adapterInvokePayload.command,
-                  ...(Array.isArray(adapterInvokePayload.commandArgs)
-                    ? adapterInvokePayload.commandArgs.filter((v): v is string => typeof v === "string")
-                    : []),
-                ].join(" ")}
-              </span>
-            </div>
-          )}
-          {Array.isArray(adapterInvokePayload.commandNotes) && adapterInvokePayload.commandNotes.length > 0 && (
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Command notes</div>
-              <ul className="list-disc pl-5 space-y-1">
-                {adapterInvokePayload.commandNotes
-                  .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-                  .map((note, idx) => (
-                    <li key={`${idx}-${note}`} className="text-xs break-all font-mono">
-                      {note}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          )}
-          {adapterInvokePayload.prompt !== undefined && (
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Prompt</div>
-              <pre className="bg-neutral-100 dark:bg-neutral-950 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap">
-                {typeof adapterInvokePayload.prompt === "string"
-                  ? adapterInvokePayload.prompt
-                  : JSON.stringify(adapterInvokePayload.prompt, null, 2)}
-              </pre>
-            </div>
-          )}
-          {adapterInvokePayload.context !== undefined && (
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Context</div>
-              <pre className="bg-neutral-100 dark:bg-neutral-950 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap">
-                {JSON.stringify(adapterInvokePayload.context, null, 2)}
-              </pre>
-            </div>
-          )}
-          {adapterInvokePayload.env !== undefined && (
-            <div>
-              <div className="text-xs text-muted-foreground mb-1">Environment</div>
-              <pre className="bg-neutral-100 dark:bg-neutral-950 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap font-mono">
-                {formatEnvForDisplay(adapterInvokePayload.env)}
-              </pre>
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-muted-foreground">
           Transcript ({transcript.length})
         </span>
         <div className="flex items-center gap-2">
+          {/* Human / Raw toggle */}
+          <div className="flex items-center rounded-md border border-border text-[11px] overflow-hidden">
+            <button
+              className={cn(
+                "px-2 py-0.5 transition-colors",
+                logMode === "human" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => onLogModeChange("human")}
+            >
+              Human
+            </button>
+            <button
+              className={cn(
+                "px-2 py-0.5 transition-colors border-l border-border",
+                logMode === "raw" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => onLogModeChange("raw")}
+            >
+              Raw
+            </button>
+          </div>
           {isLive && !isFollowing && (
             <Button
               variant="ghost"
@@ -2105,125 +1927,269 @@ function LogViewer({ run, adapterType }: { run: HeartbeatRun; adapterType: strin
           )}
         </div>
       </div>
-      <div className="bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3 font-mono text-xs space-y-0.5 overflow-x-hidden">
-        {transcript.length === 0 && !run.logRef && (
-          <div className="text-neutral-500">No persisted transcript for this run.</div>
-        )}
-        {transcript.map((entry, idx) => {
-          const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
-          const grid = "grid grid-cols-[auto_auto_1fr] gap-x-2 sm:gap-x-3 items-baseline";
-          const tsCell = "text-neutral-400 dark:text-neutral-600 select-none w-12 sm:w-16 text-[10px] sm:text-xs";
-          const lblCell = "w-14 sm:w-20 text-[10px] sm:text-xs";
-          const contentCell = "min-w-0 whitespace-pre-wrap break-words overflow-hidden";
-          const expandCell = "col-span-full md:col-start-3 md:col-span-1";
+      {(() => {
+        const displayEntries = isLive ? transcript : [...transcript].reverse();
+        return (
+          <div className="bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3 font-mono text-xs space-y-0.5 overflow-x-hidden">
+            {displayEntries.length === 0 && !run.logRef && (
+              <div className="text-neutral-500">No persisted transcript for this run.</div>
+            )}
+            {logMode === "human" ? (
+              /* ---- Human-readable mode ---- */
+              displayEntries.map((entry, idx) => {
+                const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
+                const tsEl = <span className="text-[10px] text-neutral-400 dark:text-neutral-600 select-none shrink-0">{time}</span>;
 
-          if (entry.kind === "assistant") {
-            return (
-              <div key={`${entry.ts}-assistant-${idx}`} className={cn(grid, "py-0.5")}>
-                <span className={tsCell}>{time}</span>
-                <span className={cn(lblCell, "text-green-700 dark:text-green-300")}>assistant</span>
-                <span className={cn(contentCell, "text-green-900 dark:text-green-100")}>{entry.text}</span>
-              </div>
-            );
-          }
+                if (entry.kind === "assistant") {
+                  return (
+                    <div key={`${entry.ts}-h-${idx}`} className="py-1.5 border-b border-border/20 last:border-0">
+                      <div className="flex items-baseline gap-2">
+                        {tsEl}
+                        <span className="text-[10px] font-medium text-green-700 dark:text-green-300">Agent</span>
+                      </div>
+                      <MarkdownBody className="mt-0.5 text-xs [&_pre]:text-[11px]">{entry.text}</MarkdownBody>
+                    </div>
+                  );
+                }
 
-          if (entry.kind === "thinking") {
-            return (
-              <div key={`${entry.ts}-thinking-${idx}`} className={cn(grid, "py-0.5")}>
-                <span className={tsCell}>{time}</span>
-                <span className={cn(lblCell, "text-green-600/60 dark:text-green-300/60")}>thinking</span>
-                <span className={cn(contentCell, "text-green-800/60 dark:text-green-100/60 italic")}>{entry.text}</span>
-              </div>
-            );
-          }
+                if (entry.kind === "thinking") {
+                  return (
+                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5 opacity-50">
+                      <div className="flex items-baseline gap-2">
+                        {tsEl}
+                        <span className="text-[10px] italic text-green-600/60 dark:text-green-300/60">Thinking</span>
+                      </div>
+                      <MarkdownBody className="mt-0.5 italic text-xs opacity-60">{entry.text}</MarkdownBody>
+                    </div>
+                  );
+                }
 
-          if (entry.kind === "user") {
-            return (
-              <div key={`${entry.ts}-user-${idx}`} className={cn(grid, "py-0.5")}>
-                <span className={tsCell}>{time}</span>
-                <span className={cn(lblCell, "text-neutral-500 dark:text-neutral-400")}>user</span>
-                <span className={cn(contentCell, "text-neutral-700 dark:text-neutral-300")}>{entry.text}</span>
-              </div>
-            );
-          }
+                if (entry.kind === "tool_call") {
+                  return (
+                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
+                      <div className="flex items-baseline gap-2">
+                        {tsEl}
+                        <span className="text-[10px] text-yellow-700 dark:text-yellow-300">Used tool</span>
+                        <span className="text-yellow-900 dark:text-yellow-100 font-medium">{entry.name}</span>
+                      </div>
+                    </div>
+                  );
+                }
 
-          if (entry.kind === "tool_call") {
-            return (
-              <div key={`${entry.ts}-tool-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
-                <span className={tsCell}>{time}</span>
-                <span className={cn(lblCell, "text-yellow-700 dark:text-yellow-300")}>tool_call</span>
-                <span className="text-yellow-900 dark:text-yellow-100 min-w-0">{entry.name}</span>
-                <pre className={cn(expandCell, "bg-neutral-200 dark:bg-neutral-900 rounded p-2 text-[11px] overflow-x-auto whitespace-pre-wrap text-neutral-800 dark:text-neutral-200")}>
-                  {JSON.stringify(entry.input, null, 2)}
-                </pre>
-              </div>
-            );
-          }
+                if (entry.kind === "tool_result") {
+                  if (entry.isError) {
+                    return (
+                      <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
+                        <div className="flex items-baseline gap-2">
+                          {tsEl}
+                          <span className="text-[10px] text-red-600 dark:text-red-300">Tool error</span>
+                        </div>
+                        <pre className="mt-0.5 text-red-600 dark:text-red-300 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
+                          {(() => { try { return JSON.stringify(JSON.parse(entry.content), null, 2); } catch { return entry.content; } })()}
+                        </pre>
+                      </div>
+                    );
+                  }
+                  // Non-error tool results — show truncated preview
+                  return null;
+                }
 
-          if (entry.kind === "tool_result") {
-            return (
-              <div key={`${entry.ts}-toolres-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
-                <span className={tsCell}>{time}</span>
-                <span className={cn(lblCell, entry.isError ? "text-red-600 dark:text-red-300" : "text-purple-600 dark:text-purple-300")}>tool_result</span>
-                {entry.isError ? <span className="text-red-600 dark:text-red-400 min-w-0">error</span> : <span />}
-                <pre className={cn(expandCell, "bg-neutral-100 dark:bg-neutral-900 rounded p-2 text-[11px] overflow-x-auto whitespace-pre-wrap text-neutral-700 dark:text-neutral-300 max-h-60 overflow-y-auto")}>
-                  {(() => { try { return JSON.stringify(JSON.parse(entry.content), null, 2); } catch { return entry.content; } })()}
-                </pre>
-              </div>
-            );
-          }
+                if (entry.kind === "init") {
+                  return (
+                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
+                      <div className="flex items-baseline gap-2">
+                        {tsEl}
+                        <span className="text-[10px] text-blue-700 dark:text-blue-300">Started</span>
+                        <span className="text-blue-900 dark:text-blue-100">{entry.model}</span>
+                      </div>
+                    </div>
+                  );
+                }
 
-          if (entry.kind === "init") {
-            return (
-              <div key={`${entry.ts}-init-${idx}`} className={grid}>
-                <span className={tsCell}>{time}</span>
-                <span className={cn(lblCell, "text-blue-700 dark:text-blue-300")}>init</span>
-                <span className={cn(contentCell, "text-blue-900 dark:text-blue-100")}>model: {entry.model}{entry.sessionId ? `, session: ${entry.sessionId}` : ""}</span>
-              </div>
-            );
-          }
+                if (entry.kind === "result") {
+                  return (
+                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
+                      <div className="flex items-baseline gap-2">
+                        {tsEl}
+                        <span className="text-[10px] text-cyan-700 dark:text-cyan-300">Finished</span>
+                        <span className="text-cyan-900 dark:text-cyan-100">
+                          {formatTokens(entry.inputTokens + entry.outputTokens)} tokens &middot; ${entry.costUsd.toFixed(4)}
+                        </span>
+                      </div>
+                      {entry.isError && entry.errors.length > 0 && (
+                        <div className="mt-0.5 text-red-600 dark:text-red-300 whitespace-pre-wrap break-words">
+                          {entry.errors.join(" | ")}
+                        </div>
+                      )}
+                      {entry.text && (
+                        <MarkdownBody className="mt-0.5 text-xs [&_pre]:text-[11px]">{entry.text}</MarkdownBody>
+                      )}
+                    </div>
+                  );
+                }
 
-          if (entry.kind === "result") {
-            return (
-              <div key={`${entry.ts}-result-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
-                <span className={tsCell}>{time}</span>
-                <span className={cn(lblCell, "text-cyan-700 dark:text-cyan-300")}>result</span>
-                <span className={cn(contentCell, "text-cyan-900 dark:text-cyan-100")}>
-                  tokens in={formatTokens(entry.inputTokens)} out={formatTokens(entry.outputTokens)} cached={formatTokens(entry.cachedTokens)} cost=${entry.costUsd.toFixed(6)}
-                </span>
-                {(entry.subtype || entry.isError || entry.errors.length > 0) && (
-                  <div className={cn(expandCell, "text-red-600 dark:text-red-300 whitespace-pre-wrap break-words")}>
-                    subtype={entry.subtype || "unknown"} is_error={entry.isError ? "true" : "false"}
-                    {entry.errors.length > 0 ? ` errors=${entry.errors.join(" | ")}` : ""}
+                if (entry.kind === "user") {
+                  return (
+                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
+                      <div className="flex items-baseline gap-2">
+                        {tsEl}
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">Prompt</span>
+                      </div>
+                      <MarkdownBody className="mt-0.5 text-xs">{entry.text}</MarkdownBody>
+                    </div>
+                  );
+                }
+
+                if (entry.kind === "stderr") {
+                  return (
+                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
+                      <div className="flex items-baseline gap-2">
+                        {tsEl}
+                        <span className="text-[10px] text-red-600 dark:text-red-300">Error</span>
+                      </div>
+                      <div className="mt-0.5 text-red-600 dark:text-red-300 whitespace-pre-wrap break-words">{entry.text}</div>
+                    </div>
+                  );
+                }
+
+                // system — skip in human mode
+                if (entry.kind === "system") return null;
+
+                // stdout — try to extract human-readable content from JSON blobs
+                {
+                  const rawText = entry.text;
+                  const humanText = humanizeStdoutLine(rawText);
+                  if (!humanText) return null;
+                  return (
+                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
+                      <div className="flex items-baseline gap-2">
+                        {tsEl}
+                      </div>
+                      <MarkdownBody className="mt-0.5 text-xs [&_pre]:text-[11px]">{humanText}</MarkdownBody>
+                    </div>
+                  );
+                }
+              })
+            ) : (
+              /* ---- Raw mode (original) ---- */
+              displayEntries.map((entry, idx) => {
+                const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
+                const grid = "grid grid-cols-[auto_auto_1fr] gap-x-2 sm:gap-x-3 items-baseline";
+                const tsCell = "text-neutral-400 dark:text-neutral-600 select-none w-12 sm:w-16 text-[10px] sm:text-xs";
+                const lblCell = "w-14 sm:w-20 text-[10px] sm:text-xs";
+                const contentCell = "min-w-0 whitespace-pre-wrap break-words overflow-hidden";
+                const expandCell = "col-span-full md:col-start-3 md:col-span-1";
+
+                if (entry.kind === "assistant") {
+                  return (
+                    <div key={`${entry.ts}-assistant-${idx}`} className={cn(grid, "py-0.5")}>
+                      <span className={tsCell}>{time}</span>
+                      <span className={cn(lblCell, "text-green-700 dark:text-green-300")}>assistant</span>
+                      <span className={cn(contentCell, "text-green-900 dark:text-green-100")}>{entry.text}</span>
+                    </div>
+                  );
+                }
+
+                if (entry.kind === "thinking") {
+                  return (
+                    <div key={`${entry.ts}-thinking-${idx}`} className={cn(grid, "py-0.5")}>
+                      <span className={tsCell}>{time}</span>
+                      <span className={cn(lblCell, "text-green-600/60 dark:text-green-300/60")}>thinking</span>
+                      <span className={cn(contentCell, "text-green-800/60 dark:text-green-100/60 italic")}>{entry.text}</span>
+                    </div>
+                  );
+                }
+
+                if (entry.kind === "user") {
+                  return (
+                    <div key={`${entry.ts}-user-${idx}`} className={cn(grid, "py-0.5")}>
+                      <span className={tsCell}>{time}</span>
+                      <span className={cn(lblCell, "text-neutral-500 dark:text-neutral-400")}>user</span>
+                      <span className={cn(contentCell, "text-neutral-700 dark:text-neutral-300")}>{entry.text}</span>
+                    </div>
+                  );
+                }
+
+                if (entry.kind === "tool_call") {
+                  return (
+                    <div key={`${entry.ts}-tool-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
+                      <span className={tsCell}>{time}</span>
+                      <span className={cn(lblCell, "text-yellow-700 dark:text-yellow-300")}>tool_call</span>
+                      <span className="text-yellow-900 dark:text-yellow-100 min-w-0">{entry.name}</span>
+                      <pre className={cn(expandCell, "bg-neutral-200 dark:bg-neutral-900 rounded p-2 text-[11px] overflow-x-auto whitespace-pre-wrap text-neutral-800 dark:text-neutral-200")}>
+                        {JSON.stringify(entry.input, null, 2)}
+                      </pre>
+                    </div>
+                  );
+                }
+
+                if (entry.kind === "tool_result") {
+                  return (
+                    <div key={`${entry.ts}-toolres-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
+                      <span className={tsCell}>{time}</span>
+                      <span className={cn(lblCell, entry.isError ? "text-red-600 dark:text-red-300" : "text-purple-600 dark:text-purple-300")}>tool_result</span>
+                      {entry.isError ? <span className="text-red-600 dark:text-red-400 min-w-0">error</span> : <span />}
+                      <pre className={cn(expandCell, "bg-neutral-100 dark:bg-neutral-900 rounded p-2 text-[11px] overflow-x-auto whitespace-pre-wrap text-neutral-700 dark:text-neutral-300 max-h-60 overflow-y-auto")}>
+                        {(() => { try { return JSON.stringify(JSON.parse(entry.content), null, 2); } catch { return entry.content; } })()}
+                      </pre>
+                    </div>
+                  );
+                }
+
+                if (entry.kind === "init") {
+                  return (
+                    <div key={`${entry.ts}-init-${idx}`} className={grid}>
+                      <span className={tsCell}>{time}</span>
+                      <span className={cn(lblCell, "text-blue-700 dark:text-blue-300")}>init</span>
+                      <span className={cn(contentCell, "text-blue-900 dark:text-blue-100")}>model: {entry.model}{entry.sessionId ? `, session: ${entry.sessionId}` : ""}</span>
+                    </div>
+                  );
+                }
+
+                if (entry.kind === "result") {
+                  return (
+                    <div key={`${entry.ts}-result-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
+                      <span className={tsCell}>{time}</span>
+                      <span className={cn(lblCell, "text-cyan-700 dark:text-cyan-300")}>result</span>
+                      <span className={cn(contentCell, "text-cyan-900 dark:text-cyan-100")}>
+                        tokens in={formatTokens(entry.inputTokens)} out={formatTokens(entry.outputTokens)} cached={formatTokens(entry.cachedTokens)} cost=${entry.costUsd.toFixed(6)}
+                      </span>
+                      {(entry.subtype || entry.isError || entry.errors.length > 0) && (
+                        <div className={cn(expandCell, "text-red-600 dark:text-red-300 whitespace-pre-wrap break-words")}>
+                          subtype={entry.subtype || "unknown"} is_error={entry.isError ? "true" : "false"}
+                          {entry.errors.length > 0 ? ` errors=${entry.errors.join(" | ")}` : ""}
+                        </div>
+                      )}
+                      {entry.text && (
+                        <div className={cn(expandCell, "whitespace-pre-wrap break-words text-neutral-800 dark:text-neutral-100")}>{entry.text}</div>
+                      )}
+                    </div>
+                  );
+                }
+
+                const rawText = entry.text;
+                const label =
+                  entry.kind === "stderr" ? "stderr" :
+                  entry.kind === "system" ? "system" :
+                  "stdout";
+                const color =
+                  entry.kind === "stderr" ? "text-red-600 dark:text-red-300" :
+                  entry.kind === "system" ? "text-blue-600 dark:text-blue-300" :
+                  "text-neutral-500";
+                return (
+                  <div key={`${entry.ts}-raw-${idx}`} className={grid}>
+                    <span className={tsCell}>{time}</span>
+                    <span className={cn(lblCell, color)}>{label}</span>
+                    <span className={cn(contentCell, color)}>{rawText}</span>
                   </div>
-                )}
-                {entry.text && (
-                  <div className={cn(expandCell, "whitespace-pre-wrap break-words text-neutral-800 dark:text-neutral-100")}>{entry.text}</div>
-                )}
-              </div>
-            );
-          }
-
-          const rawText = entry.text;
-          const label =
-            entry.kind === "stderr" ? "stderr" :
-            entry.kind === "system" ? "system" :
-            "stdout";
-          const color =
-            entry.kind === "stderr" ? "text-red-600 dark:text-red-300" :
-            entry.kind === "system" ? "text-blue-600 dark:text-blue-300" :
-            "text-neutral-500";
-          return (
-            <div key={`${entry.ts}-raw-${idx}`} className={grid}>
-              <span className={tsCell}>{time}</span>
-              <span className={cn(lblCell, color)}>{label}</span>
-              <span className={cn(contentCell, color)}>{rawText}</span>
-            </div>
-          )
-        })}
-        {logError && <div className="text-red-600 dark:text-red-300">{logError}</div>}
-        <div ref={logEndRef} />
-      </div>
+                )
+              })
+            )}
+            {logError && <div className="text-red-600 dark:text-red-300">{logError}</div>}
+            <div ref={logEndRef} />
+          </div>
+        );
+      })()}
 
       {(run.status === "failed" || run.status === "timed_out") && (
         <div className="rounded-lg border border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-950/20 p-3 space-y-2">

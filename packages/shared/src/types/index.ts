@@ -27,6 +27,7 @@ export type {
   IssueAncestorProject,
   IssueAncestorGoal,
   IssueAttachment,
+  IssueDependency,
   IssueLabel,
 } from "./issue.js";
 export type { Goal } from "./goal.js";
@@ -50,7 +51,12 @@ export type {
   AgentWakeupRequest,
 } from "./heartbeat.js";
 export type { LiveEvent } from "./live.js";
-export type { DashboardSummary } from "./dashboard.js";
+export type {
+  DashboardSummary,
+  IssueCounts,
+  ProjectProgress,
+  GoalProgress,
+} from "./dashboard.js";
 export type { ActivityEvent } from "./activity.js";
 export type { SidebarBadges } from "./sidebar-badges.js";
 export type {

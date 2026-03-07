@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { approvalsApi } from "../api/approvals";
+import { plansApi, type TaskPlanWithIssue } from "../api/plans";
 import { accessApi } from "../api/access";
 import { ApiError } from "../api/client";
 import { dashboardApi } from "../api/dashboard";
@@ -36,8 +37,12 @@ import {
   XCircle,
   UserCheck,
   RotateCcw,
+  FileText,
+  Check,
+  X,
 } from "lucide-react";
 import { Identity } from "../components/Identity";
+import { MarkdownBody } from "../components/MarkdownBody";
 import { PageTabBar } from "../components/PageTabBar";
 import type { HeartbeatRun, Issue, JoinRequest } from "@substaff/shared";
 
@@ -51,6 +56,7 @@ type InboxCategoryFilter =
   | "assigned_to_me"
   | "join_requests"
   | "approvals"
+  | "pending_plans"
   | "failed_runs"
   | "alerts"
   | "stale_work";
@@ -59,6 +65,7 @@ type SectionKey =
   | "assigned_to_me"
   | "join_requests"
   | "approvals"
+  | "pending_plans"
   | "failed_runs"
   | "alerts"
   | "stale_work";
@@ -326,6 +333,12 @@ export function Inbox() {
     enabled: !!selectedCompanyId,
   });
 
+  const { data: pendingPlans = [], isLoading: isPlansLoading } = useQuery({
+    queryKey: queryKeys.plans.listByCompany(selectedCompanyId!, "pending_review"),
+    queryFn: () => plansApi.listByCompany(selectedCompanyId!, "pending_review"),
+    enabled: !!selectedCompanyId,
+  });
+
   const staleIssues = issues ? getStaleIssues(issues) : [];
   const assignedToMeIssues = useMemo(
     () =>
@@ -430,6 +443,32 @@ export function Inbox() {
     },
   });
 
+  const approvePlanMutation = useMutation({
+    mutationFn: (plan: TaskPlanWithIssue) =>
+      plansApi.approve(selectedCompanyId!, plan.id),
+    onSuccess: () => {
+      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.plans.listByCompany(selectedCompanyId!, "pending_review") });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedCompanyId!) });
+    },
+    onError: (err) => {
+      setActionError(err instanceof Error ? err.message : "Failed to approve plan");
+    },
+  });
+
+  const rejectPlanMutation = useMutation({
+    mutationFn: ({ plan, comments }: { plan: TaskPlanWithIssue; comments?: string }) =>
+      plansApi.reject(selectedCompanyId!, plan.id, comments),
+    onSuccess: () => {
+      setActionError(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.plans.listByCompany(selectedCompanyId!, "pending_review") });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedCompanyId!) });
+    },
+    onError: (err) => {
+      setActionError(err instanceof Error ? err.message : "Failed to reject plan");
+    },
+  });
+
   if (!selectedCompanyId) {
     return <EmptyState icon={InboxIcon} message="Select a company to view inbox." />;
   }
@@ -444,11 +483,13 @@ export function Inbox() {
   const hasStale = staleIssues.length > 0;
   const hasJoinRequests = joinRequests.length > 0;
   const hasAssignedToMe = assignedToMeIssues.length > 0;
+  const hasPendingPlans = pendingPlans.length > 0;
 
   const newItemCount =
     assignedToMeIssues.length +
     joinRequests.length +
     actionableApprovals.length +
+    pendingPlans.length +
     failedRuns.length +
     staleIssues.length +
     (showAggregateAgentError ? 1 : 0) +
@@ -459,6 +500,8 @@ export function Inbox() {
   const showAssignedCategory =
     allCategoryFilter === "everything" || allCategoryFilter === "assigned_to_me";
   const showApprovalsCategory = allCategoryFilter === "everything" || allCategoryFilter === "approvals";
+  const showPendingPlansCategory =
+    allCategoryFilter === "everything" || allCategoryFilter === "pending_plans";
   const showFailedRunsCategory =
     allCategoryFilter === "everything" || allCategoryFilter === "failed_runs";
   const showAlertsCategory = allCategoryFilter === "everything" || allCategoryFilter === "alerts";
@@ -472,6 +515,8 @@ export function Inbox() {
     tab === "new"
       ? actionableApprovals.length > 0
       : showApprovalsCategory && filteredAllApprovals.length > 0;
+  const showPendingPlansSection =
+    tab === "new" ? hasPendingPlans : showPendingPlansCategory && hasPendingPlans;
   const showFailedRunsSection =
     tab === "new" ? hasRunFailures : showFailedRunsCategory && hasRunFailures;
   const showAlertsSection = tab === "new" ? hasAlerts : showAlertsCategory && hasAlerts;
@@ -480,6 +525,7 @@ export function Inbox() {
   const visibleSections = [
     showAssignedSection ? "assigned_to_me" : null,
     showApprovalsSection ? "approvals" : null,
+    showPendingPlansSection ? "pending_plans" : null,
     showJoinRequestsSection ? "join_requests" : null,
     showFailedRunsSection ? "failed_runs" : null,
     showAlertsSection ? "alerts" : null,
@@ -492,7 +538,8 @@ export function Inbox() {
     !isDashboardLoading &&
     !isIssuesLoading &&
     !isAssignedToMeLoading &&
-    !isRunsLoading;
+    !isRunsLoading &&
+    !isPlansLoading;
 
   const showSeparatorBefore = (key: SectionKey) => visibleSections.indexOf(key) > 0;
 
@@ -534,6 +581,7 @@ export function Inbox() {
                 <SelectItem value="assigned_to_me">Assigned to me</SelectItem>
                 <SelectItem value="join_requests">Join requests</SelectItem>
                 <SelectItem value="approvals">Approvals</SelectItem>
+                <SelectItem value="pending_plans">Pending plans</SelectItem>
                 <SelectItem value="failed_runs">Failed runs</SelectItem>
                 <SelectItem value="alerts">Alerts</SelectItem>
                 <SelectItem value="stale_work">Stale work</SelectItem>
@@ -626,6 +674,73 @@ export function Inbox() {
                   detailLink={`/approvals/${approval.id}`}
                   isPending={approveMutation.isPending || rejectMutation.isPending}
                 />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {showPendingPlansSection && (
+        <>
+          {showSeparatorBefore("pending_plans") && <Separator />}
+          <div>
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Plans Pending Review
+            </h3>
+            <div className="grid gap-3">
+              {pendingPlans.map((plan) => (
+                <div key={plan.id} className="rounded-xl border border-border bg-card p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-blue-500/20 p-1.5">
+                          <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        </span>
+                        <Link
+                          to={`/issues/${plan.issueIdentifier ?? plan.issueId}`}
+                          className="text-sm font-medium transition-colors hover:text-foreground no-underline text-inherit"
+                        >
+                          <span className="font-mono text-muted-foreground mr-1.5">
+                            {plan.issueIdentifier ?? plan.issueId.slice(0, 8)}
+                          </span>
+                          {plan.issueTitle}
+                        </Link>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {plan.agentId && (
+                          <Identity name={agentName(plan.agentId) ?? plan.agentId.slice(0, 8)} size="sm" />
+                        )}
+                        <span>submitted {timeAgo(plan.createdAt)}</span>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                        <MarkdownBody>{plan.planMarkdown}</MarkdownBody>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={approvePlanMutation.isPending || rejectPlanMutation.isPending}
+                        onClick={() => {
+                          const comments = window.prompt("Rejection reason (optional):");
+                          if (comments === null) return; // cancelled
+                          rejectPlanMutation.mutate({ plan, comments: comments || undefined });
+                        }}
+                      >
+                        <X className="mr-1.5 h-3.5 w-3.5" />
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={approvePlanMutation.isPending || rejectPlanMutation.isPending}
+                        onClick={() => approvePlanMutation.mutate(plan)}
+                      >
+                        <Check className="mr-1.5 h-3.5 w-3.5" />
+                        Approve
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </div>

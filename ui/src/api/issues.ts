@@ -1,4 +1,4 @@
-import type { Approval, Issue, IssueAttachment, IssueComment, IssueLabel } from "@substaff/shared";
+import type { Approval, Issue, IssueAttachment, IssueComment, IssueDependency, IssueLabel } from "@substaff/shared";
 import { api } from "./client";
 
 export const issuesApi = {
@@ -63,6 +63,11 @@ export const issuesApi = {
     return api.postForm<IssueAttachment>(`/companies/${companyId}/issues/${issueId}/attachments`, form);
   },
   deleteAttachment: (id: string) => api.delete<{ ok: true }>(`/attachments/${id}`),
+  listDependencies: (id: string) => api.get<IssueDependency[]>(`/issues/${id}/dependencies`),
+  addDependency: (id: string, dependsOnIssueId: string) =>
+    api.post<IssueDependency>(`/issues/${id}/dependencies`, { dependsOnIssueId }),
+  removeDependency: (id: string, depIssueId: string) =>
+    api.delete<IssueDependency>(`/issues/${id}/dependencies/${depIssueId}`),
   listApprovals: (id: string) => api.get<Approval[]>(`/issues/${id}/approvals`),
   linkApproval: (id: string, approvalId: string) =>
     api.post<Approval[]>(`/issues/${id}/approvals`, { approvalId }),

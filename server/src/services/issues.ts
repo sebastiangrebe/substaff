@@ -8,12 +8,14 @@ import {
   goals,
   heartbeatRuns,
   issueAttachments,
+  issueDependencies,
   issueLabels,
   issueComments,
   issues,
   labels,
   projectWorkspaces,
   projects,
+  taskPlans,
 } from "@substaff/db";
 import { extractProjectMentionIds } from "@substaff/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
@@ -1146,6 +1148,84 @@ export function issueService(db: Db) {
         project: a.projectId ? projectMap.get(a.projectId) ?? null : null,
         goal: a.goalId ? goalMap.get(a.goalId) ?? null : null,
       }));
+    },
+
+    // --- Dependencies ---
+
+    listDependencies: async (issueId: string) =>
+      db
+        .select()
+        .from(issueDependencies)
+        .where(eq(issueDependencies.issueId, issueId))
+        .orderBy(issueDependencies.createdAt),
+
+    addDependency: async (issueId: string, dependsOnIssueId: string, companyId: string) => {
+      if (issueId === dependsOnIssueId) {
+        throw unprocessable("An issue cannot depend on itself");
+      }
+      const [dep] = await db
+        .insert(issueDependencies)
+        .values({ issueId, dependsOnIssueId, companyId })
+        .onConflictDoNothing()
+        .returning();
+      return dep ?? null;
+    },
+
+    removeDependency: async (issueId: string, dependsOnIssueId: string) => {
+      const [removed] = await db
+        .delete(issueDependencies)
+        .where(
+          and(
+            eq(issueDependencies.issueId, issueId),
+            eq(issueDependencies.dependsOnIssueId, dependsOnIssueId),
+          ),
+        )
+        .returning();
+      return removed ?? null;
+    },
+
+    getDependentIssues: async (issueId: string) => {
+      const rows = await db
+        .select({
+          id: issues.id,
+          assigneeAgentId: issues.assigneeAgentId,
+          status: issues.status,
+        })
+        .from(issueDependencies)
+        .innerJoin(issues, eq(issueDependencies.issueId, issues.id))
+        .where(eq(issueDependencies.dependsOnIssueId, issueId));
+      return rows;
+    },
+
+    getUnresolvedDependencies: async (issueId: string) => {
+      const deps = await db
+        .select({
+          dependsOnIssueId: issueDependencies.dependsOnIssueId,
+          depStatus: issues.status,
+          depTitle: issues.title,
+          depIdentifier: issues.identifier,
+        })
+        .from(issueDependencies)
+        .innerJoin(issues, eq(issueDependencies.dependsOnIssueId, issues.id))
+        .where(eq(issueDependencies.issueId, issueId));
+
+      return deps.filter((d) => d.depStatus !== "done");
+    },
+
+    // --- Plan approval check ---
+
+    hasApprovedPlan: async (issueId: string) => {
+      const [plan] = await db
+        .select({ id: taskPlans.id })
+        .from(taskPlans)
+        .where(
+          and(
+            eq(taskPlans.issueId, issueId),
+            eq(taskPlans.status, "approved"),
+          ),
+        )
+        .limit(1);
+      return !!plan;
     },
 
     staleCount: async (companyId: string, minutes = 60) => {

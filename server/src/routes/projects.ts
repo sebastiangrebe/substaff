@@ -137,6 +137,18 @@ export function projectRoutes(db: Db) {
     res.json(project);
   });
 
+  router.get("/projects/:id/progress", async (req, res) => {
+    const id = req.params.id as string;
+    const project = await svc.getById(id);
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+    assertCompanyAccess(req, project.companyId);
+    const progress = await svc.progress(id);
+    res.json(progress);
+  });
+
   router.get("/projects/:id/workspaces", async (req, res) => {
     const id = req.params.id as string;
     const existing = await svc.getById(id);

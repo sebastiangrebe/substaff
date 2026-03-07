@@ -1,10 +1,16 @@
 import type { TaskPlan } from "@substaff/shared";
 import { api } from "./client";
 
+export type TaskPlanWithIssue = TaskPlan & { issueTitle: string; issueIdentifier: string | null };
+
 export const plansApi = {
   list: (companyId: string, issueId: string) =>
     api
       .get<{ plans: TaskPlan[] }>(`/companies/${companyId}/issues/${issueId}/plans`)
+      .then((res) => res.plans),
+  listByCompany: (companyId: string, status?: string) =>
+    api
+      .get<{ plans: TaskPlanWithIssue[] }>(`/companies/${companyId}/plans${status ? `?status=${status}` : ""}`)
       .then((res) => res.plans),
   create: (companyId: string, issueId: string, data: { planMarkdown: string; agentId: string }) =>
     api

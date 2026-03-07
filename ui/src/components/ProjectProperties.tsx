@@ -3,7 +3,8 @@ import { Link } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Project } from "@substaff/shared";
 import { StatusBadge } from "./StatusBadge";
-import { formatDate } from "../lib/utils";
+import { formatDate, cn } from "../lib/utils";
+import { agentsApi } from "../api/agents";
 import { goalsApi } from "../api/goals";
 import { projectsApi } from "../api/projects";
 import { useCompany } from "../context/CompanyContext";
@@ -31,6 +32,49 @@ function PropertyRow({ label, children }: { label: string; children: React.React
   );
 }
 
+function LeadPicker({
+  agents,
+  currentId,
+  onChange,
+}: {
+  agents: { id: string; name: string }[];
+  currentId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = currentId ? agents.find((a) => a.id === currentId) : null;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="cursor-pointer hover:opacity-80 transition-opacity text-sm">
+          {current ? current.name : <span className="text-muted-foreground">None</span>}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-48 p-1" align="end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("w-full justify-start text-xs", !currentId && "bg-accent")}
+          onClick={() => { onChange(null); setOpen(false); }}
+        >
+          None
+        </Button>
+        {agents.map((agent) => (
+          <Button
+            key={agent.id}
+            variant="ghost"
+            size="sm"
+            className={cn("w-full justify-start text-xs", agent.id === currentId && "bg-accent")}
+            onClick={() => { onChange(agent.id); setOpen(false); }}
+          >
+            {agent.name}
+          </Button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps) {
   const { selectedCompanyId } = useCompany();
   const queryClient = useQueryClient();
@@ -39,6 +83,12 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
   const [workspaceCwd, setWorkspaceCwd] = useState("");
   const [workspaceRepoUrl, setWorkspaceRepoUrl] = useState("");
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+
+  const { data: agents } = useQuery({
+    queryKey: queryKeys.agents.list(selectedCompanyId!),
+    queryFn: () => agentsApi.list(selectedCompanyId!),
+    enabled: !!selectedCompanyId,
+  });
 
   const { data: allGoals } = useQuery({
     queryKey: queryKeys.goals.list(selectedCompanyId!),
@@ -214,11 +264,21 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
         <PropertyRow label="Status">
           <StatusBadge status={project.status} />
         </PropertyRow>
-        {project.leadAgentId && (
-          <PropertyRow label="Lead">
-            <span className="text-sm font-mono">{project.leadAgentId.slice(0, 8)}</span>
-          </PropertyRow>
-        )}
+        <PropertyRow label="Lead">
+          {onUpdate ? (
+            <LeadPicker
+              agents={agents ?? []}
+              currentId={project.leadAgentId}
+              onChange={(leadAgentId) => onUpdate({ leadAgentId })}
+            />
+          ) : project.leadAgentId ? (
+            <span className="text-sm">
+              {agents?.find((a) => a.id === project.leadAgentId)?.name ?? project.leadAgentId.slice(0, 8)}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">None</span>
+          )}
+        </PropertyRow>
         <div className="py-1.5">
           <div className="flex items-start justify-between gap-2">
             <span className="text-xs text-muted-foreground">Goals</span>

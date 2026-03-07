@@ -2,6 +2,8 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { agents, approvals, companies, costEvents, issues } from "@substaff/db";
 import { notFound } from "../errors.js";
+import { goalService } from "./goals.js";
+import { projectService } from "./projects.js";
 
 export function dashboardService(db: Db) {
   return {
@@ -92,6 +94,16 @@ export function dashboardService(db: Db) {
           ? (monthSpendCents / company.budgetMonthlyCents) * 100
           : 0;
 
+      // Goal and project progress
+      const goalSvc = goalService(db);
+      const projectSvc = projectService(db);
+      const goalProgress = await goalSvc.tree(companyId);
+      const projectList = await projectSvc.list(companyId);
+      const activeProjects = projectList.filter((p) => !p.archivedAt && p.status !== "cancelled");
+      const projectProgressList = await Promise.all(
+        activeProjects.map((p) => projectSvc.progress(p.id)),
+      );
+
       return {
         companyId,
         agents: {
@@ -108,6 +120,8 @@ export function dashboardService(db: Db) {
         },
         pendingApprovals,
         staleTasks,
+        goals: goalProgress,
+        projects: projectProgressList.filter((p): p is NonNullable<typeof p> => p !== null),
       };
     },
   };

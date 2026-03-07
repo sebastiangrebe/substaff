@@ -81,6 +81,8 @@ export interface Issue {
   labels?: IssueLabel[];
   project?: Project | null;
   goal?: Goal | null;
+  dependsOnIssueIds?: string[];
+  dependencies?: IssueDependency[];
   mentionedProjects?: Project[];
   createdAt: Date;
   updatedAt: Date;
@@ -95,6 +97,14 @@ export interface IssueComment {
   body: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface IssueDependency {
+  id: string;
+  companyId: string;
+  issueId: string;
+  dependsOnIssueId: string;
+  createdAt: Date;
 }
 
 export interface IssueAttachment {

@@ -3,6 +3,7 @@ import multer from "multer";
 import type { Db } from "@substaff/db";
 import {
   addIssueCommentSchema,
+  addIssueDependencySchema,
   createIssueAttachmentMetadataSchema,
   createIssueLabelSchema,
   checkoutIssueSchema,
@@ -15,6 +16,7 @@ import { validate } from "../middleware/validate.js";
 import {
   accessService,
   agentService,
+  companyService,
   goalService,
   heartbeatService,
   issueApprovalService,
@@ -39,6 +41,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
   const router = Router();
   const svc = issueService(db);
   const access = accessService(db);
+  const companySvc = companyService(db);
   const heartbeat = heartbeatService(db);
   const agentsSvc = agentService(db);
   const projectsSvc = projectService(db);
@@ -361,11 +364,19 @@ export function issueRoutes(db: Db, storage: StorageService) {
     }
 
     const actor = getActorInfo(req);
+    const { dependsOnIssueIds, ...createBody } = req.body;
     const issue = await svc.create(companyId, {
-      ...req.body,
+      ...createBody,
       createdByAgentId: actor.agentId,
       createdByUserId: actor.actorType === "user" ? actor.actorId : null,
     });
+
+    // Insert dependencies atomically before any wakeup
+    if (dependsOnIssueIds && dependsOnIssueIds.length > 0) {
+      for (const depId of dependsOnIssueIds) {
+        await svc.addDependency(issue.id, depId, companyId);
+      }
+    }
 
     await logActivity(db, {
       companyId,
@@ -380,17 +391,21 @@ export function issueRoutes(db: Db, storage: StorageService) {
     });
 
     if (issue.assigneeAgentId) {
-      void heartbeat
-        .wakeup(issue.assigneeAgentId, {
-          source: "assignment",
-          triggerDetail: "system",
-          reason: "issue_assigned",
-          payload: { issueId: issue.id, mutation: "create" },
-          requestedByActorType: actor.actorType,
-          requestedByActorId: actor.actorId,
-          contextSnapshot: { issueId: issue.id, source: "issue.create" },
-        })
-        .catch((err) => logger.warn({ err, issueId: issue.id }, "failed to wake assignee on issue create"));
+      // Only wake the assignee if the issue has no unresolved dependencies
+      const unresolvedDeps = await svc.getUnresolvedDependencies(issue.id);
+      if (unresolvedDeps.length === 0) {
+        void heartbeat
+          .wakeup(issue.assigneeAgentId, {
+            source: "assignment",
+            triggerDetail: "system",
+            reason: "issue_assigned",
+            payload: { issueId: issue.id, mutation: "create" },
+            requestedByActorType: actor.actorType,
+            requestedByActorId: actor.actorId,
+            contextSnapshot: { issueId: issue.id, source: "issue.create" },
+          })
+          .catch((err) => logger.warn({ err, issueId: issue.id }, "failed to wake assignee on issue create"));
+      }
     }
 
     res.status(201).json(issue);
@@ -514,15 +529,19 @@ export function issueRoutes(db: Db, storage: StorageService) {
       const wakeups = new Map<string, Parameters<typeof heartbeat.wakeup>[1]>();
 
       if (assigneeChanged && issue.assigneeAgentId) {
-        wakeups.set(issue.assigneeAgentId, {
-          source: "assignment",
-          triggerDetail: "system",
-          reason: "issue_assigned",
-          payload: { issueId: issue.id, mutation: "update" },
-          requestedByActorType: actor.actorType,
-          requestedByActorId: actor.actorId,
-          contextSnapshot: { issueId: issue.id, source: "issue.update" },
-        });
+        // Only wake the assignee if the issue has no unresolved dependencies
+        const unresolvedDeps = await svc.getUnresolvedDependencies(issue.id);
+        if (unresolvedDeps.length === 0) {
+          wakeups.set(issue.assigneeAgentId, {
+            source: "assignment",
+            triggerDetail: "system",
+            reason: "issue_assigned",
+            payload: { issueId: issue.id, mutation: "update" },
+            requestedByActorType: actor.actorType,
+            requestedByActorId: actor.actorId,
+            contextSnapshot: { issueId: issue.id, source: "issue.update" },
+          });
+        }
       }
 
       if (commentBody && comment) {
@@ -558,6 +577,33 @@ export function issueRoutes(db: Db, storage: StorageService) {
         heartbeat
           .wakeup(agentId, wakeup)
           .catch((err) => logger.warn({ err, issueId: issue.id, agentId }, "failed to wake agent on issue update"));
+      }
+
+      // When an issue transitions to "done", wake assignees of dependent issues
+      // whose dependencies are now all resolved
+      if (issue.status === "done" && existing.status !== "done") {
+        try {
+          const dependents = await svc.getDependentIssues(issue.id);
+          for (const dep of dependents) {
+            if (!dep.assigneeAgentId || wakeups.has(dep.assigneeAgentId)) continue;
+            const unresolved = await svc.getUnresolvedDependencies(dep.id);
+            if (unresolved.length === 0) {
+              heartbeat
+                .wakeup(dep.assigneeAgentId, {
+                  source: "assignment",
+                  triggerDetail: "system",
+                  reason: "dependency_resolved",
+                  payload: { issueId: dep.id, resolvedIssueId: issue.id },
+                  requestedByActorType: actor.actorType,
+                  requestedByActorId: actor.actorId,
+                  contextSnapshot: { issueId: dep.id, source: "dependency.resolved" },
+                })
+                .catch((err) => logger.warn({ err, issueId: dep.id }, "failed to wake agent on dependency resolved"));
+            }
+          }
+        } catch (err) {
+          logger.warn({ err, issueId: issue.id }, "failed to process dependency wakeups");
+        }
       }
     })();
 
@@ -615,6 +661,33 @@ export function issueRoutes(db: Db, storage: StorageService) {
     if (req.actor.type === "agent" && req.actor.agentId !== req.body.agentId) {
       res.status(403).json({ error: "Agent can only checkout as itself" });
       return;
+    }
+
+    // Block checkout if unresolved dependencies exist
+    const unresolvedDeps = await svc.getUnresolvedDependencies(id);
+    if (unresolvedDeps.length > 0) {
+      const depList = unresolvedDeps.map((d) =>
+        `${d.depIdentifier ?? d.dependsOnIssueId.slice(0, 8)} (${d.depStatus})`
+      ).join(", ");
+      res.status(422).json({
+        error: "Cannot checkout: unresolved dependencies",
+        unresolvedDependencies: unresolvedDeps,
+        message: `Blocked by: ${depList}`,
+      });
+      return;
+    }
+
+    // Block checkout if plan approval is required but no approved plan exists
+    const company = await companySvc.getById(issue.companyId);
+    if (company?.requirePlanApproval) {
+      const hasApproved = await svc.hasApprovedPlan(id);
+      if (!hasApproved) {
+        res.status(422).json({
+          error: "Cannot checkout: plan approval required",
+          message: "This company requires an approved plan before work can begin. Submit a plan via POST /api/companies/:companyId/issues/:issueId/plans",
+        });
+        return;
+      }
     }
 
     const checkoutRunId = requireAgentRunId(req, res);
@@ -684,6 +757,89 @@ export function issueRoutes(db: Db, storage: StorageService) {
     });
 
     res.json(released);
+  });
+
+  // --- Dependencies ---
+
+  router.get("/issues/:id/dependencies", async (req, res) => {
+    const id = req.params.id as string;
+    const issue = await svc.getById(id);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
+      return;
+    }
+    assertCompanyAccess(req, issue.companyId);
+    const deps = await svc.listDependencies(id);
+    res.json(deps);
+  });
+
+  router.post("/issues/:id/dependencies", validate(addIssueDependencySchema), async (req, res) => {
+    const id = req.params.id as string;
+    const issue = await svc.getById(id);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
+      return;
+    }
+    assertCompanyAccess(req, issue.companyId);
+
+    const depIssue = await svc.getById(req.body.dependsOnIssueId);
+    if (!depIssue || depIssue.companyId !== issue.companyId) {
+      res.status(404).json({ error: "Dependency issue not found in same company" });
+      return;
+    }
+
+    const dep = await svc.addDependency(id, req.body.dependsOnIssueId, issue.companyId);
+    if (!dep) {
+      res.status(200).json({ message: "Dependency already exists" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: issue.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "issue.dependency_added",
+      entityType: "issue",
+      entityId: issue.id,
+      details: { dependsOnIssueId: req.body.dependsOnIssueId },
+    });
+
+    res.status(201).json(dep);
+  });
+
+  router.delete("/issues/:id/dependencies/:depIssueId", async (req, res) => {
+    const id = req.params.id as string;
+    const depIssueId = req.params.depIssueId as string;
+    const issue = await svc.getById(id);
+    if (!issue) {
+      res.status(404).json({ error: "Issue not found" });
+      return;
+    }
+    assertCompanyAccess(req, issue.companyId);
+
+    const removed = await svc.removeDependency(id, depIssueId);
+    if (!removed) {
+      res.status(404).json({ error: "Dependency not found" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: issue.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "issue.dependency_removed",
+      entityType: "issue",
+      entityId: issue.id,
+      details: { dependsOnIssueId: depIssueId },
+    });
+
+    res.json(removed);
   });
 
   router.get("/issues/:id/comments", async (req, res) => {
@@ -834,10 +990,12 @@ export function issueRoutes(db: Db, storage: StorageService) {
     });
 
     // Merge all wakeups from this comment into one enqueue per agent to avoid duplicate runs.
+    // Skip waking the assignee if the comment author IS the assignee (agent commenting on own task).
     void (async () => {
       const wakeups = new Map<string, Parameters<typeof heartbeat.wakeup>[1]>();
       const assigneeId = currentIssue.assigneeAgentId;
-      if (assigneeId) {
+      const commentAuthorAgentId = actor.agentId ?? undefined;
+      if (assigneeId && assigneeId !== commentAuthorAgentId) {
         if (reopened) {
           wakeups.set(assigneeId, {
             source: "automation",

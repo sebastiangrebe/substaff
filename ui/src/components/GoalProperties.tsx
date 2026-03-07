@@ -70,6 +70,49 @@ function PickerButton({
   );
 }
 
+function OwnerPicker({
+  agents,
+  currentId,
+  onChange,
+}: {
+  agents: { id: string; name: string }[];
+  currentId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = currentId ? agents.find((a) => a.id === currentId) : null;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="cursor-pointer hover:opacity-80 transition-opacity text-sm">
+          {current ? current.name : <span className="text-muted-foreground">None</span>}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-48 p-1" align="end">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("w-full justify-start text-xs", !currentId && "bg-accent")}
+          onClick={() => { onChange(null); setOpen(false); }}
+        >
+          None
+        </Button>
+        {agents.map((agent) => (
+          <Button
+            key={agent.id}
+            variant="ghost"
+            size="sm"
+            className={cn("w-full justify-start text-xs", agent.id === currentId && "bg-accent")}
+            onClick={() => { onChange(agent.id); setOpen(false); }}
+          >
+            {agent.name}
+          </Button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function GoalProperties({ goal, onUpdate }: GoalPropertiesProps) {
   const { selectedCompanyId } = useCompany();
 
@@ -125,7 +168,13 @@ export function GoalProperties({ goal, onUpdate }: GoalPropertiesProps) {
         </PropertyRow>
 
         <PropertyRow label="Owner">
-          {ownerAgent ? (
+          {onUpdate ? (
+            <OwnerPicker
+              agents={agents ?? []}
+              currentId={goal.ownerAgentId}
+              onChange={(ownerAgentId) => onUpdate({ ownerAgentId })}
+            />
+          ) : ownerAgent ? (
             <Link
               to={agentUrl(ownerAgent)}
               className="text-sm hover:underline"

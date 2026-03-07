@@ -1,4 +1,5 @@
 import { Router } from "express";
+import archiver from "archiver";
 import type { StorageService } from "../storage/types.js";
 import { assertBoard, assertCompanyAccess } from "./authz.js";
 import { badRequest, forbidden } from "../errors.js";
@@ -89,6 +90,58 @@ export function fileRoutes(storage: StorageService) {
       next(err);
     });
     object.stream.pipe(res);
+  });
+
+  // Download a folder as a zip archive
+  router.get("/companies/:companyId/files/download-zip", async (req, res, next) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    assertBoard(req);
+
+    const prefix = (req.query.prefix as string) ?? "";
+    if (prefix.includes("..")) {
+      throw badRequest("Invalid prefix");
+    }
+
+    // List all files recursively under the prefix
+    const result = await storage.listObjects(companyId, prefix, { recursive: true });
+    if (result.objects.length === 0) {
+      throw badRequest("No files to download");
+    }
+
+    // Determine the zip filename from the prefix
+    const folderName = prefix
+      ? prefix.replace(/\/+$/, "").split("/").pop() || "files"
+      : "files";
+
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${folderName}.zip"`);
+
+    const archive = archiver("zip", { zlib: { level: 5 } });
+    archive.on("error", (err) => next(err));
+    archive.pipe(res);
+
+    const companyPrefix = `${companyId}/`;
+    const basePrefix = prefix ? `${companyId}/${prefix}` : `${companyId}/`;
+
+    for (const obj of result.objects) {
+      // Compute the path inside the zip relative to the requested prefix
+      const fullKey = obj.key.startsWith(companyPrefix) ? obj.key : `${companyPrefix}${obj.key}`;
+      const relativePath = fullKey.startsWith(basePrefix)
+        ? fullKey.slice(basePrefix.length)
+        : obj.key;
+
+      if (!relativePath) continue;
+
+      try {
+        const object = await storage.getObject(companyId, obj.key);
+        archive.append(object.stream, { name: relativePath });
+      } catch {
+        // Skip files that fail to download
+      }
+    }
+
+    await archive.finalize();
   });
 
   // =========================================================================

@@ -1,4 +1,4 @@
-import type { Project, ProjectWorkspace } from "@substaff/shared";
+import type { Project, ProjectWorkspace, ProjectProgress } from "@substaff/shared";
 import { api } from "./client";
 
 function withCompanyScope(path: string, companyId?: string) {
@@ -30,4 +30,6 @@ export const projectsApi = {
   removeWorkspace: (projectId: string, workspaceId: string, companyId?: string) =>
     api.delete<ProjectWorkspace>(projectPath(projectId, companyId, `/workspaces/${encodeURIComponent(workspaceId)}`)),
   remove: (id: string, companyId?: string) => api.delete<Project>(projectPath(id, companyId)),
+  progress: (id: string, companyId?: string) =>
+    api.get<ProjectProgress>(projectPath(id, companyId, "/progress")),
 };

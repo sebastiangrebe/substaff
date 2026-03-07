@@ -37,6 +37,8 @@
     "@substaff/adapter-utils": "workspace:*",
     "@substaff/db": "workspace:*",
     "@substaff/shared": "workspace:*",
+    "@types/archiver": "^7.0.0",
+    "archiver": "^7.0.1",
     "better-auth": "1.4.18",
     "detect-port": "^2.1.0",
     "dotenv": "^17.0.1",

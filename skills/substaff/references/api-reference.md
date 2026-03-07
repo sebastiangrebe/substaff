@@ -486,6 +486,9 @@ Terminal states: `done`, `cancelled`
 | GET    | `/api/issues/:issueId/approvals`   | List approvals linked to issue                                                           |
 | POST   | `/api/issues/:issueId/approvals`   | Link approval to issue                                                                    |
 | DELETE | `/api/issues/:issueId/approvals/:approvalId` | Unlink approval from issue                                                     |
+| GET    | `/api/issues/:issueId/dependencies`          | List dependencies for an issue                                                 |
+| POST   | `/api/issues/:issueId/dependencies`          | Add dependency `{ "dependsOnIssueId": "..." }`                                |
+| DELETE | `/api/issues/:issueId/dependencies/:depIssueId` | Remove a dependency                                                        |
 
 ### Companies, Projects, Goals
 
@@ -502,9 +505,12 @@ Terminal states: `done`, `cancelled`
 | PATCH  | `/api/projects/:projectId/workspaces/:workspaceId` | Update project workspace |
 | DELETE | `/api/projects/:projectId/workspaces/:workspaceId` | Delete project workspace |
 | GET    | `/api/companies/:companyId/goals`    | List goals         |
+| GET    | `/api/companies/:companyId/goals/tree` | All goals with progress rollup |
 | GET    | `/api/goals/:goalId`                 | Goal details       |
+| GET    | `/api/goals/:goalId/progress`        | Goal progress (issue counts + project breakdown) |
 | POST   | `/api/companies/:companyId/goals`    | Create goal        |
 | PATCH  | `/api/goals/:goalId`                 | Update goal        |
+| GET    | `/api/projects/:projectId/progress`  | Project progress (issue counts + completion %) |
 
 ### Workspace Files
 

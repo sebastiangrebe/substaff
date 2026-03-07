@@ -1,4 +1,4 @@
-import type { Goal } from "@substaff/shared";
+import type { Goal, GoalProgress } from "@substaff/shared";
 import { api } from "./client";
 
 export const goalsApi = {
@@ -8,4 +8,6 @@ export const goalsApi = {
     api.post<Goal>(`/companies/${companyId}/goals`, data),
   update: (id: string, data: Record<string, unknown>) => api.patch<Goal>(`/goals/${id}`, data),
   remove: (id: string) => api.delete<Goal>(`/goals/${id}`),
+  progress: (id: string) => api.get<GoalProgress>(`/goals/${id}/progress`),
+  tree: (companyId: string) => api.get<GoalProgress[]>(`/companies/${companyId}/goals/tree`),
 };

@@ -63,6 +63,7 @@ export {
   addIssueCommentSchema,
   linkIssueApprovalSchema,
   createIssueAttachmentMetadataSchema,
+  addIssueDependencySchema,
   type CreateIssue,
   type CreateIssueLabel,
   type UpdateIssue,
@@ -70,6 +71,7 @@ export {
   type AddIssueComment,
   type LinkIssueApproval,
   type CreateIssueAttachmentMetadata,
+  type AddIssueDependency,
 } from "./issue.js";
 
 export {
