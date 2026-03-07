@@ -1209,12 +1209,12 @@ export function DesignGuide() {
             </thead>
             <tbody>
               <tr className="border-b border-border">
-                <td className="px-3 py-2">claude-sonnet-4-20250514</td>
+                <td className="px-3 py-2">claude-sonnet-4-6</td>
                 <td className="px-3 py-2 font-mono">1.2M</td>
                 <td className="px-3 py-2 font-mono">$18.00</td>
               </tr>
               <tr className="border-b border-border">
-                <td className="px-3 py-2">claude-haiku-4-20250506</td>
+                <td className="px-3 py-2">claude-haiku-4-5-20251001</td>
                 <td className="px-3 py-2 font-mono">500k</td>
                 <td className="px-3 py-2 font-mono">$1.25</td>
               </tr>

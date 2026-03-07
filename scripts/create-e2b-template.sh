@@ -26,4 +26,4 @@ e2b template build --dockerfile e2b.Dockerfile --name "substaff-claude"
 
 echo ""
 echo "Done. Copy the template ID above and set it in your agent's adapterConfig:"
-echo '  { "template": "<template-id>", "model": "claude-sonnet-4-20250514", ... }'
+echo '  { "template": "<template-id>", "model": "claude-sonnet-4-6", ... }'

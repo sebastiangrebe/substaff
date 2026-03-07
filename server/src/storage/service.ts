@@ -69,6 +69,15 @@ function buildObjectKey(companyId: string, namespace: string, originalFilename: 
   return `${companyId}/${ns}/${year}/${month}/${day}/${filename}`;
 }
 
+/** Build a deterministic key without UUID/date prefix — for workspace files that must round-trip. */
+function buildExactObjectKey(companyId: string, namespace: string, relativePath: string): string {
+  const ns = normalizeNamespace(namespace);
+  // Sanitize each segment of the relative path individually
+  const segments = relativePath.split("/").filter((s) => s.length > 0 && s !== "." && s !== "..");
+  if (segments.length === 0) throw unprocessable("relativePath is required");
+  return `${companyId}/${ns}/${segments.join("/")}`;
+}
+
 function assertPutFileInput(input: PutFileInput): void {
   if (!input.companyId || input.companyId.trim().length === 0) {
     throw unprocessable("companyId is required");
@@ -113,6 +122,29 @@ export function createStorageService(provider: StorageProvider): StorageService 
       };
     },
 
+    async putFileExact(input: PutFileInput): Promise<PutFileResult> {
+      assertPutFileInput(input);
+      if (!input.originalFilename) throw unprocessable("originalFilename is required for exact storage");
+      const objectKey = buildExactObjectKey(input.companyId, input.namespace, input.originalFilename);
+      const byteSize = input.body.length;
+      const contentType = input.contentType.trim().toLowerCase();
+      await provider.putObject({
+        objectKey,
+        body: input.body,
+        contentType,
+        contentLength: byteSize,
+      });
+
+      return {
+        provider: provider.id,
+        objectKey,
+        contentType,
+        byteSize,
+        sha256: hashBuffer(input.body),
+        originalFilename: input.originalFilename,
+      };
+    },
+
     async getObject(companyId: string, objectKey: string) {
       ensureCompanyPrefix(companyId, objectKey);
       return provider.getObject({ objectKey });
@@ -128,12 +160,15 @@ export function createStorageService(provider: StorageProvider): StorageService 
       await provider.deleteObject({ objectKey });
     },
 
-    async listObjects(companyId: string, prefix: string) {
+    async listObjects(companyId: string, prefix: string, opts?: { recursive?: boolean }) {
       const fullPrefix = prefix ? `${companyId}/${prefix}` : `${companyId}/`;
       if (fullPrefix.includes("..")) {
         throw badRequest("Invalid prefix");
       }
-      return provider.listObjects({ prefix: fullPrefix });
+      return provider.listObjects({
+        prefix: fullPrefix,
+        delimiter: opts?.recursive ? "" : undefined,
+      });
     },
   };
 }

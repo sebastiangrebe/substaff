@@ -6,9 +6,9 @@ import { badRequest, forbidden } from "../errors.js";
 const MAX_AGENT_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per file
 
 /**
- * Resolve the agent's scoped storage namespace.
- * Agent files live under workspace/agents/<agentId>/ — an agent can only
- * access its own namespace.
+ * Resolve the agent's storage namespace.
+ * All agents in a company share the same workspace namespace so files created
+ * by one agent (e.g. CEO setting up persona files) are visible to others.
  */
 function agentNamespace(req: Express.Request): { companyId: string; agentId: string; prefix: string } {
   if (req.actor.type !== "agent" || !req.actor.agentId || !req.actor.companyId) {
@@ -17,7 +17,7 @@ function agentNamespace(req: Express.Request): { companyId: string; agentId: str
   return {
     companyId: req.actor.companyId,
     agentId: req.actor.agentId,
-    prefix: `workspace/agents/${req.actor.agentId}`,
+    prefix: "workspace",
   };
 }
 
@@ -92,7 +92,7 @@ export function fileRoutes(storage: StorageService) {
   });
 
   // =========================================================================
-  // Agent endpoints — scoped to workspace/agents/<agentId>/
+  // Agent endpoints — scoped to workspace/ (shared across all agents in the company)
   // Agents authenticate via SUBSTAFF_API_KEY (bearer token).
   // =========================================================================
 
@@ -174,7 +174,7 @@ export function fileRoutes(storage: StorageService) {
 
     const contentType = (req.headers["content-type"] as string) || "application/octet-stream";
 
-    const result = await storage.putFile({
+    const result = await storage.putFileExact({
       companyId,
       namespace: prefix,
       originalFilename: filePath,

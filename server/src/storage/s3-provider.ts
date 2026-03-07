@@ -153,7 +153,7 @@ export function createS3StorageProvider(config: S3ProviderConfig): StorageProvid
 
     async listObjects(input): Promise<ListObjectsResult> {
       const fullPrefix = buildKey(prefix, input.prefix);
-      const delimiter = input.delimiter ?? "/";
+      const delimiter = input.delimiter === "" ? undefined : (input.delimiter ?? "/");
       const objects: ListObjectsResult["objects"] = [];
       const commonPrefixSet = new Set<string>();
       let continuationToken: string | undefined;

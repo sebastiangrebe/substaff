@@ -34,9 +34,9 @@ export async function indexRunArtifacts(
   const embeddingService = createEmbeddingService({ apiKey: voyageApiKey });
   const storage = getStorageService();
 
-  // List all files under the company's workspace
+  // List all files under the company's workspace (recursive to traverse nested dirs)
   const prefix = opts.projectId ? `${opts.projectId}/` : "";
-  const listing = await storage.listObjects(opts.companyId, prefix);
+  const listing = await storage.listObjects(opts.companyId, prefix, { recursive: true });
 
   let indexed = 0;
   let skipped = 0;

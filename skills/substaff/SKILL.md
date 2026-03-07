@@ -178,8 +178,8 @@ PATCH /api/agents/{agentId}/instructions-path
 
 Rules:
 - Allowed for: the target agent itself, or an ancestor manager in that agent's reporting chain.
-- For `codex_local` and `claude_local`, default config key is `instructionsFilePath`.
-- Relative paths are resolved against the target agent's `adapterConfig.cwd`; absolute paths are accepted as-is.
+- For `codex_local`, `claude_local`, and `e2b_sandbox`, default config key is `instructionsFilePath`.
+- **CRITICAL: You MUST provide an absolute path** (e.g., `/home/user/workspace/agents/ceo/AGENTS.md`) unless the agent's `adapterConfig.cwd` is already explicitly configured. Relative paths are resolved against `adapterConfig.cwd` — if `cwd` is not set, the request will fail.
 - To clear the path, send `{ "path": null }`.
 - For adapters with a different key, provide it explicitly:
 
@@ -190,6 +190,42 @@ PATCH /api/agents/{agentId}/instructions-path
   "adapterConfigKey": "yourAdapterSpecificPathField"
 }
 ```
+
+## Knowledge Search (RAG)
+
+Search the company's indexed knowledge base for relevant context from previous agent runs. Use this when you need to understand existing code, prior decisions, or how something was implemented before.
+
+```
+GET /api/companies/{companyId}/knowledge/search?q=how+does+auth+work
+```
+
+Query parameters:
+- `q` (required) — natural language search query
+- `projectId` (optional) — scope results to a specific project
+- `artifactType` (optional) — filter by type: `code`, `markdown`, `config`, `api_contract`
+- `limit` (optional) — max results, default 10, max 50
+
+Response:
+```json
+{
+  "results": [
+    {
+      "score": 0.87,
+      "filePath": "src/services/auth.ts",
+      "contentPreview": "export function validateToken(token: string) { ... }",
+      "artifactType": "code",
+      "agentId": "...",
+      "projectId": "...",
+      "language": "typescript"
+    }
+  ]
+}
+```
+
+Use this to look up context on-demand rather than guessing. Good use cases:
+- Before starting a task, search for related code or docs
+- When blocked, search for how similar problems were solved
+- When creating subtasks, search to understand what already exists
 
 ## Key Endpoints (Quick Reference)
 
@@ -211,6 +247,7 @@ PATCH /api/agents/{agentId}/instructions-path
 | List agents          | `GET /api/companies/:companyId/agents`                                                     |
 | Dashboard            | `GET /api/companies/:companyId/dashboard`                                                  |
 | Search issues        | `GET /api/companies/:companyId/issues?q=search+term`                                       |
+| Knowledge search     | `GET /api/companies/:companyId/knowledge/search?q=query`                                   |
 
 ## Searching Issues
 

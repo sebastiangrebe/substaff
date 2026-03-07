@@ -174,7 +174,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     const sandboxWorkDir = "/home/user/workspace";
     const sandboxSkillsDir = "/home/user/.skills";
-    const storageNamespace = `workspace/agents/${ctx.agent.id}`;
+    const storageNamespace = "workspace";
 
     await sandbox.commands.run(`mkdir -p ${sandboxWorkDir}`);
 
@@ -253,21 +253,53 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     }
 
-    // Upload agent instructions file if configured
+    // Load agent instructions file if configured.
+    // For E2B, the instructionsFilePath is a sandbox path (e.g. /home/user/workspace/agents/…/AGENTS.md).
+    // The file may already exist in the sandbox (uploaded by persona template above).
+    // If not, try to fetch it from storage (pushed by a previous run).
+    // Agents can access other workspace files on-demand via the files API — we only pre-load instructions.
     const instructionsFilePath = asString(config.instructionsFilePath, "").trim();
     let sandboxInstructionsPath: string | null = null;
     if (instructionsFilePath) {
+      let instructionsContent: string | null = null;
+
+      // 1. Try reading from sandbox (persona template or E2B template may have placed it)
       try {
-        const instructionsContent = await fs.readFile(instructionsFilePath, "utf-8");
-        const instructionsFileDir = `${path.dirname(instructionsFilePath)}/`;
-        const pathDirective = `\nThe above agent instructions were loaded from ${instructionsFilePath}. Resolve any relative file references from ${instructionsFileDir}.`;
-        sandboxInstructionsPath = "/home/user/agent-instructions.md";
-        await sandbox.files.write(sandboxInstructionsPath, instructionsContent + pathDirective);
-        await ctx.onLog("stdout", `[e2b] Agent instructions uploaded to sandbox\n`);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await ctx.onLog("stderr", `[e2b] Warning: Failed to upload agent instructions: ${msg}\n`);
-        sandboxInstructionsPath = null;
+        instructionsContent = await sandbox.files.read(instructionsFilePath);
+      } catch {
+        // Not in sandbox yet — try storage
+      }
+
+      // 2. Fall back to fetching from agent's storage namespace
+      if (!instructionsContent && ctx.storageService && instructionsFilePath.startsWith(sandboxWorkDir + "/")) {
+        try {
+          const relativePath = instructionsFilePath.slice(sandboxWorkDir.length + 1);
+          const objectKey = `${ctx.agent.companyId}/${storageNamespace}/${relativePath}`;
+          await pullSingleFileFromStorage(
+            sandbox, ctx.storageService, ctx.agent.companyId,
+            objectKey, instructionsFilePath,
+          );
+          instructionsContent = await sandbox.files.read(instructionsFilePath);
+          await ctx.onLog("stdout", `[e2b] Agent instructions fetched from storage\n`);
+        } catch {
+          // Not in storage either
+        }
+      }
+
+      if (instructionsContent) {
+        try {
+          const instructionsFileDir = `${path.posix.dirname(instructionsFilePath)}/`;
+          const pathDirective = `\nThe above agent instructions were loaded from ${instructionsFilePath}. Resolve any relative file references from ${instructionsFileDir}.`;
+          sandboxInstructionsPath = "/home/user/agent-instructions.md";
+          await sandbox.files.write(sandboxInstructionsPath, instructionsContent + pathDirective);
+          await ctx.onLog("stdout", `[e2b] Agent instructions loaded\n`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await ctx.onLog("stderr", `[e2b] Warning: Failed to write agent instructions: ${msg}\n`);
+          sandboxInstructionsPath = null;
+        }
+      } else {
+        await ctx.onLog("stderr", `[e2b] Warning: Agent instructions file not found: ${instructionsFilePath}\n`);
       }
     }
 
@@ -466,7 +498,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     // Best-effort: push any files the agent created before the error
     if (sandbox && ctx.storageService) {
       try {
-        const storageNs = `workspace/agents/${ctx.agent.id}`;
+        const storageNs = "workspace";
         await pushFilesToStorage(sandbox, ctx.storageService, ctx.agent.companyId, "/home/user/workspace", storageNs, ctx.onLog);
       } catch {
         // Ignore — sandbox may already be dead
@@ -513,6 +545,33 @@ function guessContentType(filename: string): string {
   return _mimeLookup(filename) || "application/octet-stream";
 }
 
+/** Fetch a single file from storage and write it into the sandbox. Returns true on success. */
+async function pullSingleFileFromStorage(
+  sandbox: Sandbox,
+  storage: StorageServiceLike,
+  companyId: string,
+  objectKey: string,
+  targetPath: string,
+): Promise<boolean> {
+  const result = await storage.getObject(companyId, objectKey);
+  const byteChunks: ArrayBuffer[] = [];
+  let totalLen = 0;
+  for await (const chunk of result.stream) {
+    const buf = Buffer.from(chunk as ArrayBuffer);
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
+    byteChunks.push(ab);
+    totalLen += ab.byteLength;
+  }
+  const content = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const ab of byteChunks) { content.set(new Uint8Array(ab), offset); offset += ab.byteLength; }
+
+  const targetDir = path.posix.dirname(targetPath);
+  await sandbox.commands.run(`mkdir -p ${shellEscape(targetDir)}`);
+  await sandbox.files.write(targetPath, content.buffer as ArrayBuffer);
+  return true;
+}
+
 /** Push workspace files from the sandbox back to S3 storage. */
 async function pushFilesToStorage(
   sandbox: Sandbox,
@@ -555,10 +614,10 @@ async function pushFilesToStorage(
         ? absolutePath.slice(workDir.length).replace(/^\//, "")
         : path.posix.basename(absolutePath);
 
-      await storage.putFile({
+      await storage.putFileExact({
         companyId,
-        namespace: `${namespace}/${path.posix.dirname(relativePath)}`.replace(/\/+$/, ""),
-        originalFilename: path.posix.basename(relativePath),
+        namespace,
+        originalFilename: relativePath,
         contentType: guessContentType(relativePath),
         body,
       });
@@ -589,6 +648,14 @@ function buildDefaultPrompt(
     if (description) parts.push(`\nDescription: ${description}`);
     if (status) parts.push(`\nStatus: ${status}`);
   }
+  // Inject project state (global context window) if available
+  const projectState = typeof context.projectState === "string" && context.projectState ? context.projectState : null;
+  if (projectState) {
+    parts.push("\n\n--- PROJECT STATE (shared context across all agents) ---");
+    parts.push(`\n${projectState.trim()}`);
+    parts.push("\n--- END PROJECT STATE ---");
+  }
+
   parts.push("\n\nYou are running inside an E2B sandbox. Your workspace is /home/user/workspace.");
   parts.push("Agent persona files have been pre-loaded into agents/<role>/ in your workspace. Do NOT try to download them from GitHub.");
 

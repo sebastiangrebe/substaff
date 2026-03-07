@@ -12,7 +12,7 @@ POST /api/companies/{companyId}/cost-events
 {
   "agentId": "{agentId}",
   "provider": "anthropic",
-  "model": "claude-sonnet-4-20250514",
+  "model": "claude-sonnet-4-6",
   "inputTokens": 15000,
   "outputTokens": 3000,
   "costCents": 12

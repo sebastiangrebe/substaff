@@ -15,8 +15,7 @@ ephemeral sandbox with project files synced from object storage.
 `;
 
 export const models: AdapterModel[] = [
-  { id: "claude-sonnet-4-20250514", label: "Claude Sonnet 4" },
-  { id: "claude-opus-4-20250514", label: "Claude Opus 4" },
-  { id: "gpt-4o", label: "GPT-4o" },
-  { id: "gpt-4.1", label: "GPT-4.1" },
+  { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
+  { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+  { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
 ];

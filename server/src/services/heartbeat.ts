@@ -26,10 +26,11 @@ import { secretService } from "./secrets.js";
 import { llmKeyManagerService } from "./llm-key-manager.js";
 import { stripeService } from "./stripe.js";
 import { setRlsAllTenantsContext } from "@substaff/db";
-import { isVectorSearchEnabled, getQdrantClient, createEmbeddingService, createRagService, indexRunArtifacts } from "../vector/index.js";
+import { isVectorSearchEnabled, indexRunArtifacts } from "../vector/index.js";
 import { loadConfig } from "../config.js";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import { getStorageService } from "../storage/index.js";
+import { projectStateService } from "./project-state.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
@@ -1310,47 +1311,20 @@ export function heartbeatService(db: Db) {
           "local agent jwt secret missing or invalid; running without injected SUBSTAFF_API_KEY",
         );
       }
-      // RAG: inject relevant knowledge from vector DB before execution
-      if (isVectorSearchEnabled()) {
+      // Inject project state so agents have shared context across runs
+      const runProjectId = readNonEmptyString(context.projectId);
+      if (runProjectId) {
         try {
-          const config = loadConfig();
-          if (config.voyageApiKey) {
-            const qdrant = getQdrantClient();
-            if (qdrant) {
-              const embeddingService = createEmbeddingService({
-                apiKey: config.voyageApiKey,
-                indexingModel: config.voyageIndexingModel,
-                retrievalModel: config.voyageRetrievalModel,
-              });
-              const ragService = createRagService({ qdrant, embeddingService });
-              const queryParts = [
-                readNonEmptyString(context.issueTitle),
-                readNonEmptyString(context.issueDescription),
-                readNonEmptyString(context.wakeReason),
-                taskKey,
-              ].filter(Boolean);
-              if (queryParts.length > 0) {
-                const ragResults = await ragService.queryRelevantContext(
-                  queryParts.join(" — "),
-                  {
-                    companyId: agent.companyId,
-                    projectId: readNonEmptyString(context.projectId) ?? undefined,
-                    topK: 10,
-                  },
-                );
-                if (ragResults.length > 0) {
-                  context.relevantKnowledge = ragResults.map((r) => ({
-                    filePath: r.filePath,
-                    type: r.artifactType,
-                    preview: r.contentPreview,
-                    relevanceScore: r.score,
-                  }));
-                }
-              }
-            }
+          const ps = projectStateService(db);
+          const state = await ps.get(runProjectId, agent.companyId);
+          if (state?.stateMarkdown) {
+            context.projectState = state.stateMarkdown;
+          }
+          if (state?.stateJson) {
+            context.projectStateJson = state.stateJson;
           }
         } catch (err) {
-          logger.warn({ err, runId }, "RAG context retrieval failed, continuing without");
+          logger.warn({ err, runId, projectId: runProjectId }, "Failed to load project state, continuing without");
         }
       }
 

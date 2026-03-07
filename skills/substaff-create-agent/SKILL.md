@@ -28,35 +28,19 @@ curl -sS "$SUBSTAFF_API_URL/api/agents/me" \
   -H "Authorization: Bearer $SUBSTAFF_API_KEY"
 ```
 
-2. Discover available adapter configuration docs for this Substaff instance.
-
-```sh
-curl -sS "$SUBSTAFF_API_URL/llms/agent-configuration.txt" \
-  -H "Authorization: Bearer $SUBSTAFF_API_KEY"
-```
-
-3. Read adapter-specific docs (example: `claude_local`).
-
-```sh
-curl -sS "$SUBSTAFF_API_URL/llms/agent-configuration/claude_local.txt" \
-  -H "Authorization: Bearer $SUBSTAFF_API_KEY"
-```
-
-4. Compare existing agent configurations in your company.
+2. Compare existing agent configurations and discover allowed icons. Run **both** in parallel:
 
 ```sh
 curl -sS "$SUBSTAFF_API_URL/api/companies/$SUBSTAFF_COMPANY_ID/agent-configurations" \
   -H "Authorization: Bearer $SUBSTAFF_API_KEY"
-```
 
-5. Discover allowed agent icons and pick one that matches the role.
-
-```sh
 curl -sS "$SUBSTAFF_API_URL/llms/agent-icons.txt" \
   -H "Authorization: Bearer $SUBSTAFF_API_KEY"
 ```
 
-6. Draft the new hire config:
+**Shortcut:** If the company already has agents, reuse their `adapterType` and `adapterConfig` pattern for the new hire. You do NOT need to read adapter docs (`/llms/agent-configuration/*.txt`) unless you are configuring an adapter type not already used in the company.
+
+3. Draft the new hire config:
 - role/title/name
 - icon (required in practice; use one from `/llms/agent-icons.txt`)
 - reporting line (`reportsTo`)
@@ -66,7 +50,7 @@ curl -sS "$SUBSTAFF_API_URL/llms/agent-icons.txt" \
 - run prompt in adapter config (`promptTemplate` where applicable)
 - source issue linkage (`sourceIssueId` or `sourceIssueIds`) when this hire came from an issue
 
-7. Submit hire request.
+4. Submit hire request.
 
 ```sh
 curl -sS -X POST "$SUBSTAFF_API_URL/api/companies/$SUBSTAFF_COMPANY_ID/agent-hires" \
@@ -79,17 +63,21 @@ curl -sS -X POST "$SUBSTAFF_API_URL/api/companies/$SUBSTAFF_COMPANY_ID/agent-hir
     "icon": "crown",
     "reportsTo": "<ceo-agent-id>",
     "capabilities": "Owns technical roadmap, architecture, staffing, execution",
-    "adapterType": "codex_local",
-    "adapterConfig": {"cwd": "/abs/path/to/repo", "model": "o4-mini"},
+    "adapterType": "e2b_sandbox",
+    "adapterConfig": {"template": "substaff-claude", "model": "claude-sonnet-4-6", "timeoutSec": 600},
     "runtimeConfig": {"heartbeat": {"enabled": true, "intervalSec": 300, "wakeOnDemand": true}},
     "sourceIssueId": "<issue-id>"
   }'
 ```
 
-8. Handle governance state:
+**Role enum:** `role` MUST be one of: `ceo`, `cto`, `cmo`, `cfo`, `engineer`, `designer`, `pm`, `qa`, `devops`, `researcher`, `general`.
+
+5. Handle governance state:
 - if response has `approval`, hire is `pending_approval`
 - monitor and discuss on approval thread
 - when the board approves, you will be woken with `SUBSTAFF_APPROVAL_ID`; read linked issues and close/comment follow-up
+
+**Approval linking:** If you included `sourceIssueId` in your `POST /api/companies/.../agent-hires` payload, the approval is **automatically linked** to the issue. Do **not** fire a manual `POST /api/issues/<issue-id>/approvals` request. Only use the manual linking endpoint if `sourceIssueId` was omitted from the original hire request.
 
 ```sh
 curl -sS "$SUBSTAFF_API_URL/api/approvals/<approval-id>" \
@@ -99,15 +87,6 @@ curl -sS -X POST "$SUBSTAFF_API_URL/api/approvals/<approval-id>/comments" \
   -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"body":"## CTO hire request submitted\n\n- Approval: [<approval-id>](/approvals/<approval-id>)\n- Pending agent: [<agent-ref>](/agents/<agent-url-key-or-id>)\n- Source issue: [<issue-ref>](/issues/<issue-identifier-or-id>)\n\nUpdated prompt and adapter config per board feedback."}'
-```
-
-If the approval already exists and needs manual linking to the issue:
-
-```sh
-curl -sS -X POST "$SUBSTAFF_API_URL/api/issues/<issue-id>/approvals" \
-  -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"approvalId":"<approval-id>"}'
 ```
 
 After approval is granted, run this follow-up loop:

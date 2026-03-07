@@ -73,8 +73,10 @@ export interface PutFileResult {
 export interface StorageService {
   provider: StorageProviderId;
   putFile(input: PutFileInput): Promise<PutFileResult>;
+  /** Store a file with a deterministic key: {companyId}/{namespace}/{relativePath}. No UUID/date prefix. */
+  putFileExact(input: PutFileInput): Promise<PutFileResult>;
   getObject(companyId: string, objectKey: string): Promise<GetObjectResult>;
   headObject(companyId: string, objectKey: string): Promise<HeadObjectResult>;
   deleteObject(companyId: string, objectKey: string): Promise<void>;
-  listObjects(companyId: string, prefix: string): Promise<ListObjectsResult>;
+  listObjects(companyId: string, prefix: string, opts?: { recursive?: boolean }): Promise<ListObjectsResult>;
 }

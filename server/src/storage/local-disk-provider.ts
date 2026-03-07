@@ -90,28 +90,34 @@ export function createLocalDiskStorageProvider(baseDir: string): StorageProvider
       const dirPath = resolveWithin(root, input.prefix || ".");
       const objects: ListObjectsResult["objects"] = [];
       const commonPrefixes: string[] = [];
+      const recursive = input.delimiter === "";
 
-      try {
-        const entries = await fs.readdir(dirPath, { withFileTypes: true });
-        for (const entry of entries) {
-          const entryKey = input.prefix
-            ? `${input.prefix}${entry.name}`
-            : entry.name;
-          if (entry.isDirectory()) {
-            commonPrefixes.push(`${entryKey}/`);
-          } else if (entry.isFile()) {
-            const stat = await fs.stat(path.join(dirPath, entry.name));
-            objects.push({
-              key: entryKey,
-              size: stat.size,
-              lastModified: stat.mtime,
-            });
+      async function walk(dir: string, keyPrefix: string) {
+        try {
+          const entries = await fs.readdir(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const entryKey = keyPrefix ? `${keyPrefix}${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+              if (recursive) {
+                await walk(path.join(dir, entry.name), `${entryKey}/`);
+              } else {
+                commonPrefixes.push(`${entryKey}/`);
+              }
+            } else if (entry.isFile()) {
+              const stat = await fs.stat(path.join(dir, entry.name));
+              objects.push({
+                key: entryKey,
+                size: stat.size,
+                lastModified: stat.mtime,
+              });
+            }
           }
+        } catch {
+          // directory doesn't exist — return empty results
         }
-      } catch {
-        // directory doesn't exist — return empty results
       }
 
+      await walk(dirPath, input.prefix || "");
       return { objects, commonPrefixes };
     },
   };

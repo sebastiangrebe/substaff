@@ -87,7 +87,15 @@ export interface StorageServiceLike {
     contentType: string;
     body: Buffer;
   }): Promise<{ objectKey: string }>;
-  listObjects(companyId: string, prefix: string): Promise<{
+  /** Store a file with a deterministic key (no UUID/date prefix). For workspace round-tripping. */
+  putFileExact(input: {
+    companyId: string;
+    namespace: string;
+    originalFilename: string | null;
+    contentType: string;
+    body: Buffer;
+  }): Promise<{ objectKey: string }>;
+  listObjects(companyId: string, prefix: string, opts?: { recursive?: boolean }): Promise<{
     objects: Array<{ key: string; size: number; lastModified: Date | null }>;
     commonPrefixes: string[];
   }>;
