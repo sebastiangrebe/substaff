@@ -72,7 +72,9 @@ export type {
   VendorUsage,
   TaskPlan,
   OrgTemplate,
+  McpServerDefinition,
   IntegrationConnection,
+  IntegrationConnectionWithDefinition,
   Company,
   Agent,
   AgentPermissions,
@@ -248,6 +250,10 @@ export {
   type CompanyPortabilityExport,
   type CompanyPortabilityPreview,
   type CompanyPortabilityImport,
+  connectIntegrationSchema,
+  updateIntegrationSchema,
+  type ConnectIntegration,
+  type UpdateIntegration,
 } from "./validators/index.js";
 
 export { API_PREFIX, API } from "./api.js";

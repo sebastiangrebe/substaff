@@ -120,6 +120,8 @@ export interface AdapterExecutionContext {
   storageService?: StorageServiceLike;
   /** Resolved LLM API key (from key manager). Adapters should prefer this over process.env. */
   llmApiKey?: string;
+  /** MCP server configuration resolved from company integrations. */
+  mcpConfig?: Record<string, unknown>;
 }
 
 export interface AdapterModel {

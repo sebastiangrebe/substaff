@@ -149,6 +149,7 @@ export function secretService(db: Db) {
 
   return {
     listProviders: () => listSecretProviders(),
+    resolveSecretValue,
 
     list: (companyId: string) =>
       db

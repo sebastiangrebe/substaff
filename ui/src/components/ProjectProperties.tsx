@@ -1,27 +1,22 @@
 import { useState } from "react";
 import { Link } from "@/lib/router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Project } from "@substaff/shared";
 import { StatusBadge } from "./StatusBadge";
 import { formatDate, cn } from "../lib/utils";
 import { agentsApi } from "../api/agents";
 import { goalsApi } from "../api/goals";
-import { projectsApi } from "../api/projects";
 import { useCompany } from "../context/CompanyContext";
 import { queryKeys } from "../lib/queryKeys";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ExternalLink, Github, Plus, Trash2, X } from "lucide-react";
-import { ChoosePathButton } from "./PathInstructionsModal";
+import { Plus, X } from "lucide-react";
 
 interface ProjectPropertiesProps {
   project: Project;
   onUpdate?: (data: Record<string, unknown>) => void;
 }
-
-const REPO_ONLY_CWD_SENTINEL = "/__substaff_repo_only__";
 
 function PropertyRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -79,10 +74,6 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
   const { selectedCompanyId } = useCompany();
   const queryClient = useQueryClient();
   const [goalOpen, setGoalOpen] = useState(false);
-  const [workspaceMode, setWorkspaceMode] = useState<"local" | "repo" | null>(null);
-  const [workspaceCwd, setWorkspaceCwd] = useState("");
-  const [workspaceRepoUrl, setWorkspaceRepoUrl] = useState("");
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -110,7 +101,6 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
       }));
 
   const availableGoals = (allGoals ?? []).filter((g) => !linkedGoalIds.includes(g.id));
-  const workspaces = project.workspaces ?? [];
 
   const invalidateProject = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(project.id) });
@@ -118,27 +108,6 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.list(selectedCompanyId) });
     }
   };
-
-  const createWorkspace = useMutation({
-    mutationFn: (data: Record<string, unknown>) => projectsApi.createWorkspace(project.id, data),
-    onSuccess: () => {
-      setWorkspaceCwd("");
-      setWorkspaceRepoUrl("");
-      setWorkspaceMode(null);
-      setWorkspaceError(null);
-      invalidateProject();
-    },
-  });
-
-  const removeWorkspace = useMutation({
-    mutationFn: (workspaceId: string) => projectsApi.removeWorkspace(project.id, workspaceId),
-    onSuccess: invalidateProject,
-  });
-  const updateWorkspace = useMutation({
-    mutationFn: ({ workspaceId, data }: { workspaceId: string; data: Record<string, unknown> }) =>
-      projectsApi.updateWorkspace(project.id, workspaceId, data),
-    onSuccess: invalidateProject,
-  });
 
   const removeGoal = (goalId: string) => {
     if (!onUpdate) return;
@@ -149,113 +118,6 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
     if (!onUpdate || linkedGoalIds.includes(goalId)) return;
     onUpdate({ goalIds: [...linkedGoalIds, goalId] });
     setGoalOpen(false);
-  };
-
-  const isAbsolutePath = (value: string) => value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value);
-
-  const isGitHubRepoUrl = (value: string) => {
-    try {
-      const parsed = new URL(value);
-      const host = parsed.hostname.toLowerCase();
-      if (host !== "github.com" && host !== "www.github.com") return false;
-      const segments = parsed.pathname.split("/").filter(Boolean);
-      return segments.length >= 2;
-    } catch {
-      return false;
-    }
-  };
-
-  const deriveWorkspaceNameFromPath = (value: string) => {
-    const normalized = value.trim().replace(/[\\/]+$/, "");
-    const segments = normalized.split(/[\\/]/).filter(Boolean);
-    return segments[segments.length - 1] ?? "Local folder";
-  };
-
-  const deriveWorkspaceNameFromRepo = (value: string) => {
-    try {
-      const parsed = new URL(value);
-      const segments = parsed.pathname.split("/").filter(Boolean);
-      const repo = segments[segments.length - 1]?.replace(/\.git$/i, "") ?? "";
-      return repo || "GitHub repo";
-    } catch {
-      return "GitHub repo";
-    }
-  };
-
-  const formatGitHubRepo = (value: string) => {
-    try {
-      const parsed = new URL(value);
-      const segments = parsed.pathname.split("/").filter(Boolean);
-      if (segments.length < 2) return value;
-      const owner = segments[0];
-      const repo = segments[1]?.replace(/\.git$/i, "");
-      if (!owner || !repo) return value;
-      return `${owner}/${repo}`;
-    } catch {
-      return value;
-    }
-  };
-
-  const submitLocalWorkspace = () => {
-    const cwd = workspaceCwd.trim();
-    if (!isAbsolutePath(cwd)) {
-      setWorkspaceError("Local folder must be a full absolute path.");
-      return;
-    }
-    setWorkspaceError(null);
-    createWorkspace.mutate({
-      name: deriveWorkspaceNameFromPath(cwd),
-      cwd,
-    });
-  };
-
-  const submitRepoWorkspace = () => {
-    const repoUrl = workspaceRepoUrl.trim();
-    if (!isGitHubRepoUrl(repoUrl)) {
-      setWorkspaceError("Repo workspace must use a valid GitHub repo URL.");
-      return;
-    }
-    setWorkspaceError(null);
-    createWorkspace.mutate({
-      name: deriveWorkspaceNameFromRepo(repoUrl),
-      cwd: REPO_ONLY_CWD_SENTINEL,
-      repoUrl,
-    });
-  };
-
-  const clearLocalWorkspace = (workspace: Project["workspaces"][number]) => {
-    const confirmed = window.confirm(
-      workspace.repoUrl
-        ? "Clear local folder from this workspace?"
-        : "Delete this workspace local folder?",
-    );
-    if (!confirmed) return;
-    if (workspace.repoUrl) {
-      updateWorkspace.mutate({
-        workspaceId: workspace.id,
-        data: { cwd: null },
-      });
-      return;
-    }
-    removeWorkspace.mutate(workspace.id);
-  };
-
-  const clearRepoWorkspace = (workspace: Project["workspaces"][number]) => {
-    const hasLocalFolder = Boolean(workspace.cwd && workspace.cwd !== REPO_ONLY_CWD_SENTINEL);
-    const confirmed = window.confirm(
-      hasLocalFolder
-        ? "Clear GitHub repo from this workspace?"
-        : "Delete this workspace repo?",
-    );
-    if (!confirmed) return;
-    if (hasLocalFolder) {
-      updateWorkspace.mutate({
-        workspaceId: workspace.id,
-        data: { repoUrl: null, repoRef: null },
-      });
-      return;
-    }
-    removeWorkspace.mutate(workspace.id);
   };
 
   return (
@@ -354,180 +216,6 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
       <Separator />
 
       <div className="space-y-1">
-        <div className="py-1.5 space-y-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <span>Workspaces</span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border text-[10px] text-muted-foreground hover:text-foreground"
-                  aria-label="Workspaces help"
-                >
-                  ?
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                Workspaces give your agents hints about where the work is
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          {workspaces.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
-              No workspace configured.
-            </p>
-          ) : (
-            <div className="space-y-1">
-              {workspaces.map((workspace) => (
-                <div key={workspace.id} className="space-y-1">
-                  {workspace.cwd && workspace.cwd !== REPO_ONLY_CWD_SENTINEL ? (
-                    <div className="flex items-center justify-between gap-2 py-1">
-                      <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">{workspace.cwd}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => clearLocalWorkspace(workspace)}
-                        aria-label="Delete local folder"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : null}
-                  {workspace.repoUrl ? (
-                    <div className="flex items-center justify-between gap-2 py-1">
-                      <a
-                        href={workspace.repoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline"
-                      >
-                        <Github className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{formatGitHubRepo(workspace.repoUrl)}</span>
-                        <ExternalLink className="h-3 w-3 shrink-0" />
-                      </a>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => clearRepoWorkspace(workspace)}
-                        aria-label="Delete workspace repo"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex flex-col items-start gap-2">
-            <Button
-              variant="outline"
-              size="xs"
-              className="h-7 px-2.5"
-              onClick={() => {
-                setWorkspaceMode("local");
-                setWorkspaceError(null);
-              }}
-            >
-              Add workspace local folder
-            </Button>
-            <Button
-              variant="outline"
-              size="xs"
-              className="h-7 px-2.5"
-              onClick={() => {
-                setWorkspaceMode("repo");
-                setWorkspaceError(null);
-              }}
-            >
-              Add workspace repo
-            </Button>
-          </div>
-          {workspaceMode === "local" && (
-            <div className="space-y-1.5 rounded-md border border-border p-2">
-              <div className="flex items-center gap-2">
-                <input
-                  className="w-full rounded border border-border bg-transparent px-2 py-1 text-xs font-mono outline-none"
-                  value={workspaceCwd}
-                  onChange={(e) => setWorkspaceCwd(e.target.value)}
-                  placeholder="/absolute/path/to/workspace"
-                />
-                <ChoosePathButton />
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="xs"
-                  className="h-6 px-2"
-                  disabled={!workspaceCwd.trim() || createWorkspace.isPending}
-                  onClick={submitLocalWorkspace}
-                >
-                  Save
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="h-6 px-2"
-                  onClick={() => {
-                    setWorkspaceMode(null);
-                    setWorkspaceCwd("");
-                    setWorkspaceError(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-          {workspaceMode === "repo" && (
-            <div className="space-y-1.5 rounded-md border border-border p-2">
-              <input
-                className="w-full rounded border border-border bg-transparent px-2 py-1 text-xs outline-none"
-                value={workspaceRepoUrl}
-                onChange={(e) => setWorkspaceRepoUrl(e.target.value)}
-                placeholder="https://github.com/org/repo"
-              />
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="xs"
-                  className="h-6 px-2"
-                  disabled={!workspaceRepoUrl.trim() || createWorkspace.isPending}
-                  onClick={submitRepoWorkspace}
-                >
-                  Save
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className="h-6 px-2"
-                  onClick={() => {
-                    setWorkspaceMode(null);
-                    setWorkspaceRepoUrl("");
-                    setWorkspaceError(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-          {workspaceError && (
-            <p className="text-xs text-destructive">{workspaceError}</p>
-          )}
-          {createWorkspace.isError && (
-            <p className="text-xs text-destructive">Failed to save workspace.</p>
-          )}
-          {removeWorkspace.isError && (
-            <p className="text-xs text-destructive">Failed to delete workspace.</p>
-          )}
-          {updateWorkspace.isError && (
-            <p className="text-xs text-destructive">Failed to update workspace.</p>
-          )}
-        </div>
-
-        <Separator />
-
         <PropertyRow label="Created">
           <span className="text-sm">{formatDate(project.createdAt)}</span>
         </PropertyRow>

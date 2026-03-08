@@ -31,6 +31,7 @@ import { loadConfig } from "../config.js";
 import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import { getStorageService } from "../storage/index.js";
 import { projectStateService } from "./project-state.js";
+import { integrationService } from "./integrations.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
@@ -1344,6 +1345,18 @@ export function heartbeatService(db: Db) {
         // Storage may not be configured — proceed without file sync
       }
 
+      // Resolve MCP integrations for the company
+      let mcpConfig: Record<string, unknown> | undefined;
+      try {
+        const integrations = integrationService(db);
+        const resolved = await integrations.resolveCompanyMcpConfig(agent.companyId);
+        if (resolved) {
+          mcpConfig = resolved;
+        }
+      } catch (err) {
+        logger.warn({ err, companyId: agent.companyId, runId }, "Failed to resolve MCP config, continuing without");
+      }
+
       const adapterResult = await adapter.execute({
         runId: run.id,
         agent,
@@ -1355,6 +1368,7 @@ export function heartbeatService(db: Db) {
         authToken: authToken ?? undefined,
         llmApiKey,
         storageService,
+        mcpConfig,
       });
       const nextSessionState = resolveNextSessionState({
         codec: sessionCodec,

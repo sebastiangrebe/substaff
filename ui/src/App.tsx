@@ -24,6 +24,7 @@ import { Files } from "./pages/Files";
 import { Inbox } from "./pages/Inbox";
 import { CompanySettings } from "./pages/CompanySettings";
 import { DesignGuide } from "./pages/DesignGuide";
+import { Integrations } from "./pages/Integrations";
 import { OrgChart } from "./pages/OrgChart";
 import { Analytics } from "./pages/Analytics";
 import { AuthPage } from "./pages/Auth";
@@ -109,6 +110,7 @@ function boardRoutes() {
       <Route path="inbox" element={<Navigate to="/inbox/new" replace />} />
       <Route path="inbox/new" element={<Inbox />} />
       <Route path="inbox/all" element={<Inbox />} />
+      <Route path="integrations" element={<Integrations />} />
       <Route path="design-guide" element={<DesignGuide />} />
     </>
   );

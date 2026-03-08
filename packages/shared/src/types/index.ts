@@ -5,7 +5,9 @@ export type {
   VendorUsage,
   TaskPlan,
   OrgTemplate,
+  McpServerDefinition,
   IntegrationConnection,
+  IntegrationConnectionWithDefinition,
 } from "./vendor.js";
 export type {
   Agent,

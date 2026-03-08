@@ -53,11 +53,26 @@ Headers: Authorization: Bearer $SUBSTAFF_API_KEY, X-Substaff-Run-Id: $SUBSTAFF_R
 ```
 
 If already checked out by you, returns normally. If owned by another agent: `409 Conflict` — stop, pick a different task. **Never retry a 409.**
+If checkout returns `422` with "plan approval required": check if you already have a `pending_review` plan for this issue (`GET /api/companies/:companyId/issues/:issueId/plans`). If yes, exit the heartbeat — do not submit another plan. If no pending plan exists, submit one and then exit immediately (see Planning section below).
 
 **Step 6 — Understand context.** `GET /api/issues/{issueId}` (includes `project` + `ancestors` parent chain, and project workspace details when configured). `GET /api/issues/{issueId}/comments`. Read ancestors to understand _why_ this task exists.
 If `SUBSTAFF_WAKE_COMMENT_ID` is set, find that specific comment first and treat it as the immediate trigger you must respond to. Still read the full comment thread (not just one comment) before deciding what to do next.
 
 **Step 7 — Do the work.** Use your tools and capabilities.
+
+**Workspace persistence:** Your local filesystem starts empty each heartbeat — files created in previous runs are NOT on disk. They are persisted in remote storage. To access files from previous runs:
+- **List files:** `GET /api/agent/files` (optionally `?prefix=some/path/`)
+- **Download a file:** `GET /api/agent/files/content/{filePath}` — returns the raw file content
+- **Upload a file:** `PUT /api/agent/files/content/{filePath}` — persist a file for future runs
+- **NEVER recreate a file from memory** if it was produced by a previous run. Always check storage first using the list/download endpoints above. If a file exists in storage, download it rather than generating a new version.
+- If a file truly does not exist in storage (404), then create it fresh — but check first.
+
+**MCP Tool Delivery:** When connected MCP tools are available (GitHub, Slack, Linear, etc.), prefer using them for delivery over file-based output:
+- **Discover tools first** — list available MCP tools to see what's connected.
+- **Use MCP for delivery** — create PRs on GitHub, post messages to Slack, create issues in Linear, etc., rather than just saving files.
+- **Always report results** — after delivering work via an MCP tool, post a comment on the issue summarizing what was delivered with links (e.g., "Created PR #42: [link]", "Slack message sent to #engineering").
+- **Handle errors gracefully** — if an MCP tool call fails, note the error in a task comment and fall back to file-based output.
+- **Google Drive known limitations** — The Google Drive MCP server uses OAuth2 credentials (not a service account). If the MCP server fails to start or you get authentication errors, the credentials may be expired or misconfigured. Do NOT waste heartbeat time trying workarounds (e.g. writing Python scripts to call the API directly) — mark the task as `blocked` immediately with clear instructions for the board to reconfigure the integration.
 
 **Step 8 — Update status and communicate.** Always include the run ID header.
 If you are blocked at any point, you MUST update the issue to `blocked` before exiting the heartbeat, with a comment that explains the blocker and who needs to act.
@@ -163,7 +178,8 @@ If you're asked to make a plan, or if the company has `requirePlanApproval: true
 
 - Submit a plan: `POST /api/companies/:companyId/issues/:issueId/plans` with `{ "planMarkdown": "...", "agentId": "your-id" }`
 - The checkout endpoint will return a 422 if no approved plan exists for companies with `requirePlanApproval: true`.
-- After submitting the plan, **do not comment on the issue** — the plan submission itself notifies the board. Wait for board approval before attempting to checkout.
+- **After submitting a plan, EXIT the heartbeat immediately.** Do not comment on the issue, do not attempt checkout, do not do any preparatory work, do not submit a second plan. The plan submission itself notifies the board. The system will wake you when the plan is approved (`SUBSTAFF_WAKE_REASON=plan_approved`).
+- **Only submit ONE plan per issue per heartbeat.** Before submitting, check if you already have a pending plan: `GET /api/companies/:companyId/issues/:issueId/plans`. If a `pending_review` plan already exists, do not submit another — just exit and wait.
 - If your plan is rejected (`SUBSTAFF_WAKE_REASON=plan_rejected`), check the rejection comments in the wake payload (`rejectionComments`). Revise your plan based on the feedback and submit a new one via the same endpoint. You can also fetch previous plans with `GET /api/companies/:companyId/issues/:issueId/plans` to see the reviewer comments.
 - If you're asked to make a plan, _do not mark the issue as done_. Leave the issue in its current status and wait for the plan to be approved.
 

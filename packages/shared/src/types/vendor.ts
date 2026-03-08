@@ -62,6 +62,22 @@ export interface OrgTemplate {
   updatedAt: Date;
 }
 
+export interface McpServerDefinition {
+  id: string;
+  slug: string;
+  displayName: string;
+  description: string;
+  iconUrl: string | null;
+  mcpPackage: string;
+  mcpCommand: string;
+  mcpArgs: string[];
+  requiredEnvKeys: string[];
+  optionalEnvKeys: string[];
+  documentationUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface IntegrationConnection {
   id: string;
   vendorId: string;
@@ -69,6 +85,14 @@ export interface IntegrationConnection {
   provider: string;
   scopes: string | null;
   expiresAt: Date | null;
+  mcpServerDefinitionId: string | null;
+  config: Record<string, unknown> | null;
+  status: string;
+  credentialSecretIds: Record<string, string> | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface IntegrationConnectionWithDefinition extends IntegrationConnection {
+  definition: McpServerDefinition | null;
 }

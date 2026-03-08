@@ -197,6 +197,20 @@
       "when": 1772445600000,
       "tag": "0027_require_hire_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1772532000000,
+      "tag": "0028_issue_dependencies",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1772618400000,
+      "tag": "0029_mcp_integrations",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
-import { pgTable, uuid, text, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { vendors } from "./vendors.js";
 import { companies } from "./companies.js";
+import { mcpServerDefinitions } from "./mcp_server_definitions.js";
 
 export const integrationConnections = pgTable(
   "integration_connections",
@@ -17,6 +18,13 @@ export const integrationConnections = pgTable(
     refreshToken: text("refresh_token"),
     scopes: text("scopes"),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
+    mcpServerDefinitionId: uuid("mcp_server_definition_id").references(
+      () => mcpServerDefinitions.id,
+      { onDelete: "set null" },
+    ),
+    config: jsonb("config").$type<Record<string, unknown>>(),
+    status: text("status").notNull().default("active"),
+    credentialSecretIds: jsonb("credential_secret_ids").$type<Record<string, string>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -26,5 +34,6 @@ export const integrationConnections = pgTable(
       table.provider,
     ),
     vendorIdx: index("integration_connections_vendor_idx").on(table.vendorId),
+    mcpDefIdx: index("integration_connections_mcp_def_idx").on(table.mcpServerDefinitionId),
   }),
 );

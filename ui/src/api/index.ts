@@ -17,3 +17,4 @@ export { plansApi } from "./plans";
 export { orgChartApi } from "./orgChart";
 export { templatesApi } from "./templates";
 export { filesApi } from "./files";
+export { integrationsApi } from "./integrations";

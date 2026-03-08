@@ -64,7 +64,6 @@ interface IssueDraft {
   assigneeModelOverride: string;
   assigneeThinkingEffort: string;
   assigneeChrome: boolean;
-  assigneeUseProjectWorkspace: boolean;
 }
 
 const ISSUE_OVERRIDE_ADAPTER_TYPES = new Set(["e2b_sandbox"]);
@@ -81,7 +80,6 @@ function buildAssigneeAdapterOverrides(input: {
   modelOverride: string;
   thinkingEffortOverride: string;
   chrome: boolean;
-  useProjectWorkspace: boolean;
 }): Record<string, unknown> | null {
   const adapterType = input.adapterType ?? null;
   if (!adapterType || !ISSUE_OVERRIDE_ADAPTER_TYPES.has(adapterType)) {
@@ -106,9 +104,6 @@ function buildAssigneeAdapterOverrides(input: {
   const overrides: Record<string, unknown> = {};
   if (Object.keys(adapterConfig).length > 0) {
     overrides.adapterConfig = adapterConfig;
-  }
-  if (!input.useProjectWorkspace) {
-    overrides.useProjectWorkspace = false;
   }
   return Object.keys(overrides).length > 0 ? overrides : null;
 }
@@ -161,7 +156,6 @@ export function NewIssueDialog() {
   const [assigneeModelOverride, setAssigneeModelOverride] = useState("");
   const [assigneeThinkingEffort, setAssigneeThinkingEffort] = useState("");
   const [assigneeChrome, setAssigneeChrome] = useState(false);
-  const [assigneeUseProjectWorkspace, setAssigneeUseProjectWorkspace] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [dialogCompanyId, setDialogCompanyId] = useState<string | null>(null);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -285,7 +279,6 @@ export function NewIssueDialog() {
       assigneeModelOverride,
       assigneeThinkingEffort,
       assigneeChrome,
-      assigneeUseProjectWorkspace,
     });
   }, [
     title,
@@ -297,7 +290,6 @@ export function NewIssueDialog() {
     assigneeModelOverride,
     assigneeThinkingEffort,
     assigneeChrome,
-    assigneeUseProjectWorkspace,
     newIssueOpen,
     scheduleSave,
   ]);
@@ -318,7 +310,6 @@ export function NewIssueDialog() {
       setAssigneeModelOverride(draft.assigneeModelOverride ?? "");
       setAssigneeThinkingEffort(draft.assigneeThinkingEffort ?? "");
       setAssigneeChrome(draft.assigneeChrome ?? false);
-      setAssigneeUseProjectWorkspace(draft.assigneeUseProjectWorkspace ?? true);
     } else {
       setStatus(newIssueDefaults.status ?? "todo");
       setPriority(newIssueDefaults.priority ?? "");
@@ -327,7 +318,7 @@ export function NewIssueDialog() {
       setAssigneeModelOverride("");
       setAssigneeThinkingEffort("");
       setAssigneeChrome(false);
-      setAssigneeUseProjectWorkspace(true);
+
     }
   }, [newIssueOpen, newIssueDefaults]);
 
@@ -337,7 +328,7 @@ export function NewIssueDialog() {
       setAssigneeModelOverride("");
       setAssigneeThinkingEffort("");
       setAssigneeChrome(false);
-      setAssigneeUseProjectWorkspace(true);
+
       return;
     }
 
@@ -365,7 +356,6 @@ export function NewIssueDialog() {
     setAssigneeModelOverride("");
     setAssigneeThinkingEffort("");
     setAssigneeChrome(false);
-    setAssigneeUseProjectWorkspace(true);
     setExpanded(false);
     setDialogCompanyId(null);
     setCompanyOpen(false);
@@ -379,7 +369,6 @@ export function NewIssueDialog() {
     setAssigneeModelOverride("");
     setAssigneeThinkingEffort("");
     setAssigneeChrome(false);
-    setAssigneeUseProjectWorkspace(true);
   }
 
   function discardDraft() {
@@ -395,7 +384,6 @@ export function NewIssueDialog() {
       modelOverride: assigneeModelOverride,
       thinkingEffortOverride: assigneeThinkingEffort,
       chrome: assigneeChrome,
-      useProjectWorkspace: assigneeUseProjectWorkspace,
     });
     createIssue.mutate({
       companyId: effectiveCompanyId,
@@ -711,23 +699,6 @@ export function NewIssueDialog() {
                       </button>
                     ))}
                   </div>
-                </div>
-                <div className="flex items-center justify-between rounded-md border border-border px-2 py-1.5">
-                  <div className="text-xs text-muted-foreground">Use project workspace</div>
-                  <button
-                    className={cn(
-                      "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                      assigneeUseProjectWorkspace ? "bg-green-600" : "bg-muted"
-                    )}
-                    onClick={() => setAssigneeUseProjectWorkspace((value) => !value)}
-                  >
-                    <span
-                      className={cn(
-                        "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
-                        assigneeUseProjectWorkspace ? "translate-x-4.5" : "translate-x-0.5"
-                      )}
-                    />
-                  </button>
                 </div>
               </div>
             )}

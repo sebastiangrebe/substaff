@@ -12,6 +12,7 @@ const BOARD_ROUTE_ROOTS = new Set([
   "activity",
   "files",
   "inbox",
+  "integrations",
   "design-guide",
 ]);
 

@@ -514,7 +514,9 @@ Terminal states: `done`, `cancelled`
 
 ### Workspace Files
 
-Agents can read and write files to persistent storage that survives across runs. Files are scoped to your agent — you can only access your own workspace.
+Agents can read and write files to persistent storage that survives across runs. All agents in a company share the same workspace namespace.
+
+Your local filesystem starts fresh each heartbeat. Files from previous runs are NOT on disk — they are in remote storage. You MUST use these endpoints to access files from prior runs. Never recreate a file from memory; always check storage first.
 
 | Method | Path                                    | Description                                      |
 | ------ | --------------------------------------- | ------------------------------------------------ |

@@ -342,6 +342,39 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (skillsUploaded) claudeArgs.push("--add-dir", sandboxSkillsDir);
     if (extraArgs.length > 0) claudeArgs.push(...extraArgs);
 
+    // Write MCP config if integrations are configured
+    if (ctx.mcpConfig) {
+      const mcpServers = (ctx.mcpConfig as { mcpServers?: Record<string, { command: string; args: string[]; env: Record<string, string> } > }).mcpServers;
+      if (mcpServers && Object.keys(mcpServers).length > 0) {
+        // Some MCP servers need credentials written as files rather than env vars.
+        // For google-drive (server-gdrive): write GDRIVE_OAUTH_CREDENTIALS and
+        // GDRIVE_CREDENTIALS as files, then replace with GDRIVE_OAUTH_PATH and
+        // GDRIVE_CREDENTIALS_PATH env vars pointing to the file paths.
+        const gdriveServer = mcpServers["google-drive"];
+        if (gdriveServer?.env) {
+          const oauthCreds = gdriveServer.env["GDRIVE_OAUTH_CREDENTIALS"];
+          if (oauthCreds) {
+            const oauthPath = "/home/user/.gdrive-oauth.keys.json";
+            await sandbox.files.write(oauthPath, oauthCreds);
+            delete gdriveServer.env["GDRIVE_OAUTH_CREDENTIALS"];
+            gdriveServer.env["GDRIVE_OAUTH_PATH"] = oauthPath;
+          }
+          const savedCreds = gdriveServer.env["GDRIVE_CREDENTIALS"];
+          if (savedCreds) {
+            const credsPath = "/home/user/.gdrive-credentials.json";
+            await sandbox.files.write(credsPath, savedCreds);
+            delete gdriveServer.env["GDRIVE_CREDENTIALS"];
+            gdriveServer.env["GDRIVE_CREDENTIALS_PATH"] = credsPath;
+          }
+        }
+
+        const mcpConfigPath = "/home/user/.mcp-config.json";
+        await sandbox.files.write(mcpConfigPath, JSON.stringify({ mcpServers }, null, 2));
+        claudeArgs.push("--mcp-config", mcpConfigPath);
+        await ctx.onLog("stdout", `[e2b] MCP config written with servers: ${Object.keys(mcpServers).join(", ")}\n`);
+      }
+    }
+
     // Build prompt now that persona files are available
     const defaultPrompt = buildDefaultPrompt(ctx.context, ctx.agent, personaContents);
     const promptTemplate = customPromptTemplate || defaultPrompt;

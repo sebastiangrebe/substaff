@@ -18,3 +18,4 @@ export { logActivity, type LogActivityInput } from "./activity-log.js";
 export { publishLiveEvent, subscribeCompanyLiveEvents } from "./live-events.js";
 export { llmKeyManagerService } from "./llm-key-manager.js";
 export { createStorageServiceFromConfig, getStorageService } from "../storage/index.js";
+export { integrationService } from "./integrations.js";

@@ -120,6 +120,13 @@ export {
 } from "./asset.js";
 
 export {
+  connectIntegrationSchema,
+  updateIntegrationSchema,
+  type ConnectIntegration,
+  type UpdateIntegration,
+} from "./integration.js";
+
+export {
   createCompanyInviteSchema,
   acceptInviteSchema,
   listJoinRequestsQuerySchema,
