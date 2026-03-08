@@ -923,6 +923,7 @@ export function heartbeatService(db: Db) {
       .where(inArray(heartbeatRuns.status, ["queued", "running"]));
 
     const reaped: string[] = [];
+    const resumed: string[] = [];
 
     for (const run of activeRuns) {
       if (runningProcesses.has(run.id)) continue;
@@ -931,6 +932,82 @@ export function heartbeatService(db: Db) {
       if (staleThresholdMs > 0) {
         const refTime = run.updatedAt ? new Date(run.updatedAt).getTime() : 0;
         if (now.getTime() - refTime < staleThresholdMs) continue;
+      }
+
+      // If the run has a persisted external ID, ask the adapter to reconnect
+      if (run.externalRunId && run.status === "running") {
+        const agent = await getAgent(run.agentId);
+        if (agent) {
+          const adapter = getServerAdapter(agent.adapterType ?? "e2b_sandbox");
+          if (adapter.tryResumeOrphanedRun) {
+            try {
+              let storageService;
+              try { storageService = getStorageService(); } catch { /* not configured */ }
+
+              const resumeResult = await adapter.tryResumeOrphanedRun({
+                runId: run.id,
+                externalRunId: run.externalRunId,
+                companyId: agent.companyId,
+                storageService,
+                onLog: async (stream: "stdout" | "stderr", chunk: string) => {
+                  publishLiveEvent({
+                    companyId: run.companyId,
+                    type: "heartbeat.run.log",
+                    payload: { runId: run.id, agentId: run.agentId, stream, chunk, truncated: false },
+                  });
+                },
+              });
+
+              if (resumeResult.status === "still_running") {
+                // Process is still running in the external runtime — re-fire executeRun
+                logger.info({ runId: run.id, externalRunId: run.externalRunId }, "external process still running, re-executing run");
+                await appendRunEvent(run, 1, {
+                  eventType: "lifecycle",
+                  stream: "system",
+                  level: "info",
+                  message: `Reconnected to external runtime after server restart`,
+                });
+                void executeRun(run.id).catch((err) => {
+                  logger.error({ err, runId: run.id }, "resumed run execution failed");
+                });
+                resumed.push(run.id);
+                continue;
+              }
+
+              if (resumeResult.status === "completed") {
+                // Process completed while we were down — finalize the run
+                logger.info({ runId: run.id, filesUploaded: resumeResult.filesUploaded }, "recovered completed orphaned run");
+                const stdoutExcerpt = run.stdoutExcerpt ?? "";
+                const stderrExcerpt = run.stderrExcerpt ?? "";
+                await setRunStatus(run.id, "succeeded", {
+                  finishedAt: new Date(),
+                  stdoutExcerpt: appendExcerpt(stdoutExcerpt, "[resumed after restart] external process completed"),
+                  stderrExcerpt,
+                });
+                await setWakeupStatus(run.wakeupRequestId, "completed", { finishedAt: new Date() });
+                const finalizedRun = await getRun(run.id);
+                if (finalizedRun) {
+                  await appendRunEvent(finalizedRun, 2, {
+                    eventType: "lifecycle",
+                    stream: "system",
+                    level: "info",
+                    message: "Run completed (recovered after server restart)",
+                  });
+                  await releaseIssueExecutionAndPromote(finalizedRun);
+                }
+                await finalizeAgentStatus(run.agentId, "succeeded");
+                await startNextQueuedRunForAgent(run.agentId);
+                resumed.push(run.id);
+                continue;
+              }
+
+              // status === "unreachable" — fall through to normal reap
+              logger.info({ runId: run.id, reason: resumeResult.reason }, "external runtime unreachable, reaping run");
+            } catch (err) {
+              logger.warn({ err, runId: run.id }, "adapter resume attempt threw unexpectedly");
+            }
+          }
+        }
       }
 
       await setRunStatus(run.id, "failed", {
@@ -961,7 +1038,10 @@ export function heartbeatService(db: Db) {
     if (reaped.length > 0) {
       logger.warn({ reapedCount: reaped.length, runIds: reaped }, "reaped orphaned heartbeat runs");
     }
-    return { reaped: reaped.length, runIds: reaped };
+    if (resumed.length > 0) {
+      logger.info({ resumedCount: resumed.length, runIds: resumed }, "resumed orphaned runs via adapter reconnection");
+    }
+    return { reaped: reaped.length, resumed: resumed.length, runIds: reaped };
   }
 
   async function updateRuntimeState(
@@ -1357,6 +1437,14 @@ export function heartbeatService(db: Db) {
         logger.warn({ err, companyId: agent.companyId, runId }, "Failed to resolve MCP config, continuing without");
       }
 
+      const onExternalRunId = async (externalRunId: string) => {
+        await db
+          .update(heartbeatRuns)
+          .set({ externalRunId, updatedAt: new Date() })
+          .where(eq(heartbeatRuns.id, runId));
+        logger.info({ runId, externalRunId }, "persisted external run ID (sandbox ID)");
+      };
+
       const adapterResult = await adapter.execute({
         runId: run.id,
         agent,
@@ -1369,6 +1457,7 @@ export function heartbeatService(db: Db) {
         llmApiKey,
         storageService,
         mcpConfig,
+        onExternalRunId,
       });
       const nextSessionState = resolveNextSessionState({
         codec: sessionCodec,

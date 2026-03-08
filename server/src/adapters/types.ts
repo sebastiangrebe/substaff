@@ -16,4 +16,6 @@ export type {
   AdapterSessionCodec,
   AdapterModel,
   ServerAdapterModule,
+  OrphanedRunResumeContext,
+  OrphanedRunResumeResult,
 } from "@substaff/adapter-utils";

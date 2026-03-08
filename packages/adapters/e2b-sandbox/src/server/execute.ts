@@ -124,6 +124,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     await ctx.onLog("stdout", `[e2b] Sandbox created: ${sandbox.sandboxId}\n`);
 
+    // Persist sandbox ID so the server can reconnect after a restart
+    if (ctx.onExternalRunId) {
+      await ctx.onExternalRunId(sandbox.sandboxId);
+    }
+
     // Build sandbox environment from claude-local's env builder + overrides
     const sandboxEnv: Record<string, string> = {};
 
@@ -347,24 +352,17 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       const mcpServers = (ctx.mcpConfig as { mcpServers?: Record<string, { command: string; args: string[]; env: Record<string, string> } > }).mcpServers;
       if (mcpServers && Object.keys(mcpServers).length > 0) {
         // Some MCP servers need credentials written as files rather than env vars.
-        // For google-drive (server-gdrive): write GDRIVE_OAUTH_CREDENTIALS and
-        // GDRIVE_CREDENTIALS as files, then replace with GDRIVE_OAUTH_PATH and
-        // GDRIVE_CREDENTIALS_PATH env vars pointing to the file paths.
+        // For google-drive (@a-bonus/google-docs-mcp): write the OAuth token
+        // to the XDG config path it reads at startup, and pass client ID/secret
+        // as env vars (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET).
         const gdriveServer = mcpServers["google-drive"];
         if (gdriveServer?.env) {
-          const oauthCreds = gdriveServer.env["GDRIVE_OAUTH_CREDENTIALS"];
-          if (oauthCreds) {
-            const oauthPath = "/home/user/.gdrive-oauth.keys.json";
-            await sandbox.files.write(oauthPath, oauthCreds);
-            delete gdriveServer.env["GDRIVE_OAUTH_CREDENTIALS"];
-            gdriveServer.env["GDRIVE_OAUTH_PATH"] = oauthPath;
-          }
-          const savedCreds = gdriveServer.env["GDRIVE_CREDENTIALS"];
-          if (savedCreds) {
-            const credsPath = "/home/user/.gdrive-credentials.json";
-            await sandbox.files.write(credsPath, savedCreds);
-            delete gdriveServer.env["GDRIVE_CREDENTIALS"];
-            gdriveServer.env["GDRIVE_CREDENTIALS_PATH"] = credsPath;
+          const tokenJson = gdriveServer.env["GOOGLE_DOCS_MCP_TOKEN"];
+          if (tokenJson) {
+            const tokenDir = "/home/user/.config/google-docs-mcp";
+            const tokenPath = `${tokenDir}/token.json`;
+            await sandbox.files.write(tokenPath, tokenJson);
+            delete gdriveServer.env["GOOGLE_DOCS_MCP_TOKEN"];
           }
         }
 
@@ -606,7 +604,7 @@ async function pullSingleFileFromStorage(
 }
 
 /** Push workspace files from the sandbox back to S3 storage. */
-async function pushFilesToStorage(
+export async function pushFilesToStorage(
   sandbox: Sandbox,
   storage: StorageServiceLike,
   companyId: string,

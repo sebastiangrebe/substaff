@@ -44,12 +44,11 @@ const SETUP_GUIDES: Record<string, { steps: string[]; linkLabel: string; linkUrl
   "google-drive": {
     steps: [
       "Go to the Google Cloud Console and create or select a project",
-      "Enable the Google Drive API under APIs & Services > Library",
+      "Enable the Google Drive API and Google Docs API under APIs & Services > Library",
       "Go to APIs & Services > Credentials, click \"Create Credentials\" > \"OAuth client ID\"",
-      "Choose application type \"Desktop app\", give it a name, and click Create",
-      "Download the OAuth client JSON file — paste the entire JSON contents as your GDRIVE_OAUTH_CREDENTIALS value",
-      "Run the one-time auth flow locally: npx -y @modelcontextprotocol/server-gdrive auth (this opens a browser to authorize)",
-      "After authorizing, copy the contents of the saved credentials file (.gdrive-server-credentials.json) and paste as your GDRIVE_CREDENTIALS value",
+      "Choose application type \"Web application\" and add the Substaff callback URL as an authorized redirect URI",
+      "Set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET env vars on the server",
+      "Click \"Connect with Google\" below — you'll be redirected to authorize access",
     ],
     linkLabel: "Google Cloud Console",
     linkUrl: "https://console.cloud.google.com/apis/credentials",

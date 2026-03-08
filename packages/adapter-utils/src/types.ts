@@ -122,6 +122,25 @@ export interface AdapterExecutionContext {
   llmApiKey?: string;
   /** MCP server configuration resolved from company integrations. */
   mcpConfig?: Record<string, unknown>;
+  /** Called when a sandbox/external run ID is available, so the server can persist it for reconnection. */
+  onExternalRunId?: (externalRunId: string) => Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Orphaned run resume types
+// ---------------------------------------------------------------------------
+
+export type OrphanedRunResumeResult =
+  | { status: "still_running" }
+  | { status: "completed"; filesUploaded?: number }
+  | { status: "unreachable"; reason: string };
+
+export interface OrphanedRunResumeContext {
+  runId: string;
+  externalRunId: string;
+  companyId: string;
+  onLog: (stream: "stdout" | "stderr", chunk: string) => Promise<void>;
+  storageService?: StorageServiceLike;
 }
 
 export interface AdapterModel {
@@ -166,6 +185,13 @@ export interface ServerAdapterModule {
   models?: AdapterModel[];
   listModels?: () => Promise<AdapterModel[]>;
   agentConfigurationDoc?: string;
+  /**
+   * Attempt to reconnect to an orphaned run after a server restart.
+   * Adapters that manage external runtimes (e.g. E2B sandboxes) can implement
+   * this to recover in-flight work instead of marking the run as lost.
+   * Returns null if the adapter does not support orphaned run recovery.
+   */
+  tryResumeOrphanedRun?: (ctx: OrphanedRunResumeContext) => Promise<OrphanedRunResumeResult>;
 }
 
 // ---------------------------------------------------------------------------

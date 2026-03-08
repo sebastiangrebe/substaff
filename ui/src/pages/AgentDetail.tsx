@@ -73,60 +73,6 @@ const sourceLabels: Record<string, string> = {
   automation: "Automation",
 };
 
-const LIVE_SCROLL_BOTTOM_TOLERANCE_PX = 32;
-type ScrollContainer = Window | HTMLElement;
-
-function isWindowContainer(container: ScrollContainer): container is Window {
-  return container === window;
-}
-
-function isElementScrollContainer(element: HTMLElement): boolean {
-  const overflowY = window.getComputedStyle(element).overflowY;
-  return overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay";
-}
-
-function findScrollContainer(anchor: HTMLElement | null): ScrollContainer {
-  let parent = anchor?.parentElement ?? null;
-  while (parent) {
-    if (isElementScrollContainer(parent)) return parent;
-    parent = parent.parentElement;
-  }
-  return window;
-}
-
-function readScrollMetrics(container: ScrollContainer): { scrollHeight: number; distanceFromBottom: number } {
-  if (isWindowContainer(container)) {
-    const pageHeight = Math.max(
-      document.documentElement.scrollHeight,
-      document.body.scrollHeight,
-    );
-    const viewportBottom = window.scrollY + window.innerHeight;
-    return {
-      scrollHeight: pageHeight,
-      distanceFromBottom: Math.max(0, pageHeight - viewportBottom),
-    };
-  }
-
-  const viewportBottom = container.scrollTop + container.clientHeight;
-  return {
-    scrollHeight: container.scrollHeight,
-    distanceFromBottom: Math.max(0, container.scrollHeight - viewportBottom),
-  };
-}
-
-function scrollToContainerBottom(container: ScrollContainer, behavior: ScrollBehavior = "auto") {
-  if (isWindowContainer(container)) {
-    const pageHeight = Math.max(
-      document.documentElement.scrollHeight,
-      document.body.scrollHeight,
-    );
-    window.scrollTo({ top: pageHeight, behavior });
-    return;
-  }
-
-  container.scrollTo({ top: container.scrollHeight, behavior });
-}
-
 type AgentDetailView = "overview" | "configure" | "runs";
 
 function parseAgentDetailView(value: string | null): AgentDetailView {
@@ -1625,15 +1571,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
   const [logLoading, setLogLoading] = useState(!!run.logRef);
   const [logError, setLogError] = useState<string | null>(null);
   const [logOffset, setLogOffset] = useState(0);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const logEndRef = useRef<HTMLDivElement>(null);
   const pendingLogLineRef = useRef("");
-  const scrollContainerRef = useRef<ScrollContainer | null>(null);
-  const isFollowingRef = useRef(false);
-  const lastMetricsRef = useRef<{ scrollHeight: number; distanceFromBottom: number }>({
-    scrollHeight: 0,
-    distanceFromBottom: Number.POSITIVE_INFINITY,
-  });
   const isLive = run.status === "running" || run.status === "queued";
 
   function appendLogContent(content: string, finalize = false) {
@@ -1680,87 +1618,6 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
       setLoading(false);
     }
   }, [initialEvents]);
-
-  const getScrollContainer = useCallback((): ScrollContainer => {
-    if (scrollContainerRef.current) return scrollContainerRef.current;
-    const container = findScrollContainer(logEndRef.current);
-    scrollContainerRef.current = container;
-    return container;
-  }, []);
-
-  const updateFollowingState = useCallback(() => {
-    const container = getScrollContainer();
-    const metrics = readScrollMetrics(container);
-    lastMetricsRef.current = metrics;
-    const nearBottom = metrics.distanceFromBottom <= LIVE_SCROLL_BOTTOM_TOLERANCE_PX;
-    isFollowingRef.current = nearBottom;
-    setIsFollowing((prev) => (prev === nearBottom ? prev : nearBottom));
-  }, [getScrollContainer]);
-
-  useEffect(() => {
-    scrollContainerRef.current = null;
-    lastMetricsRef.current = {
-      scrollHeight: 0,
-      distanceFromBottom: Number.POSITIVE_INFINITY,
-    };
-
-    if (!isLive) {
-      isFollowingRef.current = false;
-      setIsFollowing(false);
-      return;
-    }
-
-    updateFollowingState();
-  }, [isLive, run.id, updateFollowingState]);
-
-  useEffect(() => {
-    if (!isLive) return;
-    const container = getScrollContainer();
-    updateFollowingState();
-
-    if (container === window) {
-      window.addEventListener("scroll", updateFollowingState, { passive: true });
-    } else {
-      container.addEventListener("scroll", updateFollowingState, { passive: true });
-    }
-    window.addEventListener("resize", updateFollowingState);
-    return () => {
-      if (container === window) {
-        window.removeEventListener("scroll", updateFollowingState);
-      } else {
-        container.removeEventListener("scroll", updateFollowingState);
-      }
-      window.removeEventListener("resize", updateFollowingState);
-    };
-  }, [isLive, run.id, getScrollContainer, updateFollowingState]);
-
-  // Auto-scroll only for live runs when following
-  useEffect(() => {
-    if (!isLive || !isFollowingRef.current) return;
-
-    const container = getScrollContainer();
-    const previous = lastMetricsRef.current;
-    const current = readScrollMetrics(container);
-    const growth = Math.max(0, current.scrollHeight - previous.scrollHeight);
-    const expectedDistance = previous.distanceFromBottom + growth;
-    const movedAwayBy = current.distanceFromBottom - expectedDistance;
-
-    // If user moved away from bottom between updates, release auto-follow immediately.
-    if (movedAwayBy > LIVE_SCROLL_BOTTOM_TOLERANCE_PX) {
-      isFollowingRef.current = false;
-      setIsFollowing(false);
-      lastMetricsRef.current = current;
-      return;
-    }
-
-    scrollToContainerBottom(container, "auto");
-    const after = readScrollMetrics(container);
-    lastMetricsRef.current = after;
-    if (!isFollowingRef.current) {
-      isFollowingRef.current = true;
-    }
-    setIsFollowing((prev) => (prev ? prev : true));
-  }, [events.length, logLines.length, isLive, getScrollContainer]);
 
   // Fetch persisted shell log
   useEffect(() => {
@@ -1901,21 +1758,6 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
               Raw
             </button>
           </div>
-          {isLive && !isFollowing && (
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => {
-                const container = getScrollContainer();
-                isFollowingRef.current = true;
-                setIsFollowing(true);
-                scrollToContainerBottom(container, "auto");
-                lastMetricsRef.current = readScrollMetrics(container);
-              }}
-            >
-              Jump to live
-            </Button>
-          )}
           {isLive && (
             <span className="flex items-center gap-1 text-xs text-cyan-400">
               <span className="relative flex h-2 w-2">
@@ -1928,49 +1770,50 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
         </div>
       </div>
       {(() => {
-        const displayEntries = isLive ? transcript : [...transcript].reverse();
+        const displayEntries = [...transcript].reverse();
         return (
-          <div className="bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3 font-mono text-xs space-y-0.5 overflow-x-hidden">
+          <div className="rounded-lg font-mono text-xs overflow-x-hidden space-y-2">
             {displayEntries.length === 0 && !run.logRef && (
-              <div className="text-neutral-500">No persisted transcript for this run.</div>
+              <div className="text-neutral-500 bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3">No persisted transcript for this run.</div>
             )}
             {logMode === "human" ? (
               /* ---- Human-readable mode ---- */
               displayEntries.map((entry, idx) => {
                 const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
                 const tsEl = <span className="text-[10px] text-neutral-400 dark:text-neutral-600 select-none shrink-0">{time}</span>;
+                const cardBase = "rounded-lg border p-3 [animation:log-entry-in_0.35s_ease-out_both]";
 
                 if (entry.kind === "assistant") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className="py-1.5 border-b border-border/20 last:border-0">
-                      <div className="flex items-baseline gap-2">
+                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-green-200 dark:border-green-900/40 bg-green-50/50 dark:bg-green-950/20")}>
+                      <div className="flex items-center gap-2 mb-1.5">
                         {tsEl}
-                        <span className="text-[10px] font-medium text-green-700 dark:text-green-300">Agent</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-300">Agent</span>
                       </div>
-                      <MarkdownBody className="mt-0.5 text-xs [&_pre]:text-[11px]">{entry.text}</MarkdownBody>
+                      <MarkdownBody className="text-xs [&_pre]:text-[11px] text-green-950 dark:text-green-50">{entry.text}</MarkdownBody>
                     </div>
                   );
                 }
 
                 if (entry.kind === "thinking") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5 opacity-50">
-                      <div className="flex items-baseline gap-2">
+                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-green-100 dark:border-green-900/20 bg-green-50/30 dark:bg-green-950/10 opacity-60")}>
+                      <div className="flex items-center gap-2 mb-1">
                         {tsEl}
-                        <span className="text-[10px] italic text-green-600/60 dark:text-green-300/60">Thinking</span>
+                        <span className="text-[10px] italic font-medium text-green-600/70 dark:text-green-300/60">Thinking</span>
                       </div>
-                      <MarkdownBody className="mt-0.5 italic text-xs opacity-60">{entry.text}</MarkdownBody>
+                      <MarkdownBody className="italic text-xs opacity-70">{entry.text}</MarkdownBody>
                     </div>
                   );
                 }
 
                 if (entry.kind === "tool_call") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
-                      <div className="flex items-baseline gap-2">
+                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-yellow-200 dark:border-yellow-900/30 bg-yellow-50/40 dark:bg-yellow-950/15")}>
+                      <div className="flex items-center gap-2">
                         {tsEl}
-                        <span className="text-[10px] text-yellow-700 dark:text-yellow-300">Used tool</span>
-                        <span className="text-yellow-900 dark:text-yellow-100 font-medium">{entry.name}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-yellow-700 dark:text-yellow-300">Tool</span>
+                        <span className="text-xs text-yellow-900 dark:text-yellow-100 font-medium">{entry.name}</span>
                       </div>
                     </div>
                   );
@@ -1979,28 +1822,28 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                 if (entry.kind === "tool_result") {
                   if (entry.isError) {
                     return (
-                      <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
-                        <div className="flex items-baseline gap-2">
+                      <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20")}>
+                        <div className="flex items-center gap-2 mb-1.5">
                           {tsEl}
-                          <span className="text-[10px] text-red-600 dark:text-red-300">Tool error</span>
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Tool error</span>
                         </div>
-                        <pre className="mt-0.5 text-red-600 dark:text-red-300 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
+                        <pre className="text-red-600 dark:text-red-300 whitespace-pre-wrap break-words max-h-40 overflow-y-auto text-[11px]">
                           {(() => { try { return JSON.stringify(JSON.parse(entry.content), null, 2); } catch { return entry.content; } })()}
                         </pre>
                       </div>
                     );
                   }
-                  // Non-error tool results — show truncated preview
+                  // Non-error tool results — skip in human mode
                   return null;
                 }
 
                 if (entry.kind === "init") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
-                      <div className="flex items-baseline gap-2">
+                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-blue-200 dark:border-blue-900/30 bg-blue-50/40 dark:bg-blue-950/15")}>
+                      <div className="flex items-center gap-2">
                         {tsEl}
-                        <span className="text-[10px] text-blue-700 dark:text-blue-300">Started</span>
-                        <span className="text-blue-900 dark:text-blue-100">{entry.model}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">Started</span>
+                        <span className="text-xs text-blue-900 dark:text-blue-100">{entry.model}</span>
                       </div>
                     </div>
                   );
@@ -2008,21 +1851,21 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "result") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
-                      <div className="flex items-baseline gap-2">
+                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-cyan-200 dark:border-cyan-900/30 bg-cyan-50/40 dark:bg-cyan-950/15")}>
+                      <div className="flex items-center gap-2 mb-1">
                         {tsEl}
-                        <span className="text-[10px] text-cyan-700 dark:text-cyan-300">Finished</span>
-                        <span className="text-cyan-900 dark:text-cyan-100">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">Finished</span>
+                        <span className="text-xs text-cyan-900 dark:text-cyan-100">
                           {formatTokens(entry.inputTokens + entry.outputTokens)} tokens &middot; ${entry.costUsd.toFixed(4)}
                         </span>
                       </div>
                       {entry.isError && entry.errors.length > 0 && (
-                        <div className="mt-0.5 text-red-600 dark:text-red-300 whitespace-pre-wrap break-words">
+                        <div className="text-red-600 dark:text-red-300 whitespace-pre-wrap break-words text-[11px]">
                           {entry.errors.join(" | ")}
                         </div>
                       )}
                       {entry.text && (
-                        <MarkdownBody className="mt-0.5 text-xs [&_pre]:text-[11px]">{entry.text}</MarkdownBody>
+                        <MarkdownBody className="mt-1 text-xs [&_pre]:text-[11px]">{entry.text}</MarkdownBody>
                       )}
                     </div>
                   );
@@ -2030,24 +1873,24 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "user") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
-                      <div className="flex items-baseline gap-2">
+                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50")}>
+                      <div className="flex items-center gap-2 mb-1.5">
                         {tsEl}
-                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400">Prompt</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Prompt</span>
                       </div>
-                      <MarkdownBody className="mt-0.5 text-xs">{entry.text}</MarkdownBody>
+                      <MarkdownBody className="text-xs">{entry.text}</MarkdownBody>
                     </div>
                   );
                 }
 
                 if (entry.kind === "stderr") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
-                      <div className="flex items-baseline gap-2">
+                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20")}>
+                      <div className="flex items-center gap-2 mb-1.5">
                         {tsEl}
-                        <span className="text-[10px] text-red-600 dark:text-red-300">Error</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Error</span>
                       </div>
-                      <div className="mt-0.5 text-red-600 dark:text-red-300 whitespace-pre-wrap break-words">{entry.text}</div>
+                      <div className="text-red-600 dark:text-red-300 whitespace-pre-wrap break-words text-[11px]">{entry.text}</div>
                     </div>
                   );
                 }
@@ -2061,18 +1904,19 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                   const humanText = humanizeStdoutLine(rawText);
                   if (!humanText) return null;
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className="py-0.5">
-                      <div className="flex items-baseline gap-2">
+                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950")}>
+                      <div className="flex items-center gap-2 mb-1.5">
                         {tsEl}
                       </div>
-                      <MarkdownBody className="mt-0.5 text-xs [&_pre]:text-[11px]">{humanText}</MarkdownBody>
+                      <MarkdownBody className="text-xs [&_pre]:text-[11px]">{humanText}</MarkdownBody>
                     </div>
                   );
                 }
               })
             ) : (
               /* ---- Raw mode (original) ---- */
-              displayEntries.map((entry, idx) => {
+              <div className="bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3 space-y-0.5">
+              {displayEntries.map((entry, idx) => {
                 const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
                 const grid = "grid grid-cols-[auto_auto_1fr] gap-x-2 sm:gap-x-3 items-baseline";
                 const tsCell = "text-neutral-400 dark:text-neutral-600 select-none w-12 sm:w-16 text-[10px] sm:text-xs";
@@ -2183,10 +2027,10 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                     <span className={cn(contentCell, color)}>{rawText}</span>
                   </div>
                 )
-              })
+              })}
+              </div>
             )}
-            {logError && <div className="text-red-600 dark:text-red-300">{logError}</div>}
-            <div ref={logEndRef} />
+            {logError && <div className="text-red-600 dark:text-red-300 p-3">{logError}</div>}
           </div>
         );
       })()}

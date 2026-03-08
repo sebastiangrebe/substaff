@@ -3,6 +3,7 @@ import {
   execute as e2bExecute,
   testEnvironment as e2bTestEnvironment,
   sessionCodec as e2bSessionCodec,
+  tryResumeOrphanedRun as e2bTryResumeOrphanedRun,
 } from "@substaff/adapter-e2b-sandbox/server";
 import { agentConfigurationDoc as e2bAgentConfigurationDoc, models as e2bModels } from "@substaff/adapter-e2b-sandbox";
 import {
@@ -22,6 +23,7 @@ const e2bSandboxAdapter: ServerAdapterModule = {
   models: e2bModels,
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: e2bAgentConfigurationDoc,
+  tryResumeOrphanedRun: e2bTryResumeOrphanedRun,
 };
 
 const claudeLocalAdapter: ServerAdapterModule = {

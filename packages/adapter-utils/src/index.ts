@@ -20,4 +20,6 @@ export type {
   StdoutLineParser,
   CLIAdapterModule,
   CreateConfigValues,
+  OrphanedRunResumeContext,
+  OrphanedRunResumeResult,
 } from "./types.js";

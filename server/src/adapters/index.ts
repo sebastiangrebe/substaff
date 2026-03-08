@@ -13,5 +13,7 @@ export type {
   UsageSummary,
   AdapterAgent,
   AdapterRuntime,
+  OrphanedRunResumeContext,
+  OrphanedRunResumeResult,
 } from "@substaff/adapter-utils";
 export { runningProcesses } from "./utils.js";

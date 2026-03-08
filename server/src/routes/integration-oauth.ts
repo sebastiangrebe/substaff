@@ -69,6 +69,8 @@ function verifyState(state: string): Record<string, string> | null {
 
 const GOOGLE_DRIVE_SCOPES = [
   "https://www.googleapis.com/auth/drive",
+  "https://www.googleapis.com/auth/documents",
+  "https://www.googleapis.com/auth/spreadsheets",
 ].join(" ");
 
 export function integrationOAuthRoutes(db: Db) {
@@ -196,41 +198,40 @@ export function integrationOAuthRoutes(db: Db) {
         return;
       }
 
-      // Build the credentials objects that server-gdrive expects:
-      // 1. OAuth client credentials (gcp-oauth.keys.json format)
-      const oauthKeysJson = JSON.stringify({
-        installed: {
-          client_id: config.clientId,
-          client_secret: config.clientSecret,
-          redirect_uris: [config.redirectUri],
-        },
-      });
-
-      // 2. Saved token credentials (.gdrive-server-credentials.json format)
-      const savedCredsJson = JSON.stringify({
-        access_token: tokens.access_token,
+      // Build credentials for @a-bonus/google-docs-mcp:
+      // 1. GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as env vars
+      // 2. Token file at ~/.config/google-docs-mcp/token.json with authorized_user format
+      const tokenJson = JSON.stringify({
+        type: "authorized_user",
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
         refresh_token: tokens.refresh_token,
-        scope: tokens.scope,
-        token_type: tokens.token_type,
-        expiry_date: Date.now() + tokens.expires_in * 1000,
       });
 
       const actor = { userId: userId || null, agentId: null };
 
-      // Store as company secrets (upsert pattern: create or rotate)
-      const oauthSecretId = await upsertSecret(
+      // Store client ID, client secret, and token as company secrets
+      const clientIdSecretId = await upsertSecret(
         db, secrets, companyId,
-        "google-drive/GDRIVE_OAUTH_CREDENTIALS",
-        oauthKeysJson,
-        "Google Drive OAuth client keys",
+        "google-drive/GOOGLE_CLIENT_ID",
+        config.clientId,
+        "Google OAuth Client ID",
         actor,
       );
 
-      const credsSecretId = await upsertSecret(
+      const clientSecretSecretId = await upsertSecret(
         db, secrets, companyId,
-        "google-drive/GDRIVE_CREDENTIALS",
-        savedCredsJson,
-        "Google Drive OAuth tokens (auto-generated via OAuth flow)",
+        "google-drive/GOOGLE_CLIENT_SECRET",
+        config.clientSecret,
+        "Google OAuth Client Secret",
+        actor,
+      );
+
+      const tokenSecretId = await upsertSecret(
+        db, secrets, companyId,
+        "google-drive/GOOGLE_DOCS_MCP_TOKEN",
+        tokenJson,
+        "Google Docs MCP OAuth token (auto-generated via OAuth flow)",
         actor,
       );
 
@@ -249,8 +250,9 @@ export function integrationOAuthRoutes(db: Db) {
       await svc.connectIntegration(companyId, {
         definitionId: definition.id,
         credentialSecretIds: {
-          GDRIVE_OAUTH_CREDENTIALS: oauthSecretId,
-          GDRIVE_CREDENTIALS: credsSecretId,
+          GOOGLE_CLIENT_ID: clientIdSecretId,
+          GOOGLE_CLIENT_SECRET: clientSecretSecretId,
+          GOOGLE_DOCS_MCP_TOKEN: tokenSecretId,
         },
       });
 
