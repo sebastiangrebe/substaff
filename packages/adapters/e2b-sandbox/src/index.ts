@@ -10,7 +10,7 @@ ephemeral sandbox with project files synced from object storage.
 
 - **template** (string): E2B sandbox template ID (default: "base")
 - **language** (string): Primary language runtime — "node", "python", etc.
-- **timeoutSec** (number): Max execution time in seconds (default: 300)
+- **timeoutSec** (number): Max execution time in seconds (default: 900, from DEFAULT_AGENT_TIMEOUT_SEC)
 - **model** (string): LLM model to use inside the sandbox
 `;
 

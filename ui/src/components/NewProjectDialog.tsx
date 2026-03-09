@@ -30,7 +30,7 @@ import { MarkdownEditor, type MarkdownEditorRef } from "./MarkdownEditor";
 import { StatusBadge } from "./StatusBadge";
 
 const projectStatuses = [
-  { value: "backlog", label: "Backlog" },
+  { value: "backlog", label: "Later" },
   { value: "planned", label: "Planned" },
   { value: "in_progress", label: "In Progress" },
   { value: "completed", label: "Completed" },

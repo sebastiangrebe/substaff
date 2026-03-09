@@ -4,6 +4,7 @@ import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { companiesApi } from "../api/companies";
 import { accessApi } from "../api/access";
+import { api } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
@@ -80,6 +81,11 @@ export function CompanySettings() {
       setInviteError(err instanceof Error ? err.message : "Failed to create invite");
     },
   });
+  const reindexMutation = useMutation({
+    mutationFn: () =>
+      api.post(`/companies/${selectedCompanyId}/knowledge/reindex-all`, {}),
+  });
+
   const archiveMutation = useMutation({
     mutationFn: ({
       companyId,
@@ -291,6 +297,39 @@ export function CompanySettings() {
               <div className="mt-1 break-all font-mono text-xs">{inviteLink}</div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Knowledge */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Knowledge
+        </div>
+        <div className="space-y-3 rounded-md border border-border px-4 py-4">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Re-embed all agent comments and workspace files into the vector knowledge base.</span>
+            <HintIcon text="This clears existing vectors and re-indexes everything. Runs in the background — it may take a few minutes for large companies." />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => reindexMutation.mutate()}
+              disabled={reindexMutation.isPending}
+            >
+              {reindexMutation.isPending ? "Re-embedding..." : "Re-embed all knowledge"}
+            </Button>
+            {reindexMutation.isSuccess && (
+              <span className="text-xs text-muted-foreground">Started — running in background</span>
+            )}
+            {reindexMutation.isError && (
+              <span className="text-xs text-destructive">
+                {reindexMutation.error instanceof Error
+                  ? reindexMutation.error.message
+                  : "Failed to start re-embedding"}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 

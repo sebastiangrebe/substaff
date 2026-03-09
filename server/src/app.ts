@@ -118,6 +118,9 @@ export async function createApp(
   api.use(integrationRoutes(db));
   api.use(integrationOAuthRoutes(db));
   api.use("/companies", projectStateRoutes(db));
+  api.use((_req, res) => {
+    res.status(404).json({ error: "Not found" });
+  });
   app.use("/api", api);
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -76,7 +76,7 @@ export function SidebarAgents() {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="group">
+      <div id="tour-team" className="group">
         <div className="flex items-center px-3 py-1.5">
           <CollapsibleTrigger className="flex items-center gap-1 flex-1 min-w-0">
             <ChevronRight
@@ -86,7 +86,7 @@ export function SidebarAgents() {
               )}
             />
             <span className="text-[10px] font-medium uppercase tracking-widest font-mono text-muted-foreground/60">
-              Agents
+              Team
             </span>
           </CollapsibleTrigger>
         </div>
@@ -119,7 +119,7 @@ export function SidebarAgents() {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
                     </span>
                     <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400">
-                      {runCount} live
+                      {runCount} working
                     </span>
                   </span>
                 )}

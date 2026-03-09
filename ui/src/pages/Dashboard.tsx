@@ -20,6 +20,47 @@ import { LayoutDashboard, Target, FolderKanban, AlertTriangle, CheckCircle2, Plu
 import { PageSkeleton } from "../components/PageSkeleton";
 import type { Issue, GoalProgress, ProjectProgress } from "@substaff/shared";
 
+function ProgressRing({ percent, size = 40, strokeWidth = 3.5, className }: { percent: number; size?: number; strokeWidth?: number; className?: string }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.min(Math.max(percent, 0), 100);
+  const offset = circumference - (clamped / 100) * circumference;
+  const color = clamped >= 100 ? "stroke-green-500" : clamped >= 50 ? "stroke-blue-500" : "stroke-amber-500";
+
+  return (
+    <div className={cn("relative inline-flex items-center justify-center shrink-0", className)}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          className="stroke-muted"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          className={cn("progress-ring-circle", color)}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          style={{
+            "--ring-circumference": `${circumference}`,
+            "--ring-offset": `${offset}`,
+            strokeDashoffset: offset,
+          } as React.CSSProperties}
+        />
+      </svg>
+      <span className="absolute text-[9px] font-semibold tabular-nums text-muted-foreground">
+        {Math.round(clamped)}%
+      </span>
+    </div>
+  );
+}
+
 function ProgressBar({ percent, className }: { percent: number; className?: string }) {
   return (
     <div className={cn("h-1.5 w-full rounded-full bg-muted", className)}>
@@ -38,9 +79,15 @@ function GoalStatusBadge({ status }: { status: string }) {
     achieved: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
     cancelled: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   };
+  const labels: Record<string, string> = {
+    planned: "Planned",
+    active: "Active",
+    achieved: "Achieved",
+    cancelled: "Cancelled",
+  };
   return (
-    <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded", colors[status] ?? colors.planned)}>
-      {status}
+    <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full", colors[status] ?? colors.planned)}>
+      {labels[status] ?? status}
     </span>
   );
 }
@@ -87,7 +134,7 @@ export function Dashboard() {
   });
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Dashboard" }]);
+    setBreadcrumbs([{ label: "Home" }]);
   }, [setBreadcrumbs]);
 
   const { data, isLoading, error } = useQuery({
@@ -131,14 +178,14 @@ export function Dashboard() {
       return (
         <EmptyState
           icon={LayoutDashboard}
-          message="Welcome to Substaff. Set up your first company and agent to get started."
+          message="Welcome to Substaff! Set up your first workspace and team to get started."
           action="Get Started"
           onAction={openOnboarding}
         />
       );
     }
     return (
-      <EmptyState icon={LayoutDashboard} message="Create or select a company to view the dashboard." />
+      <EmptyState icon={LayoutDashboard} message="Create or select a workspace to get started." />
     );
   }
 
@@ -157,62 +204,66 @@ export function Dashboard() {
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
             <p className="text-sm text-amber-900 dark:text-amber-100">
-              You have no agents.
+              Your team is empty. Add your first team member to start getting work done.
             </p>
           </div>
           <button
             onClick={() => openOnboarding({ initialStep: 2, companyId: selectedCompanyId! })}
             className="text-sm font-medium text-amber-700 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100 underline underline-offset-2 shrink-0"
           >
-            Create one here
+            Add team member
           </button>
         </div>
       )}
 
-      {/* Status banner + quick actions */}
+      {/* Welcome banner + status summary */}
       {data && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border border-border bg-background/60 px-5 py-4">
-          <div>
-            <p className="text-sm text-foreground">
-              {currentWork.length > 0 ? (
-                <>
-                  <span className="font-medium">{currentWork.length} {currentWork.length === 1 ? "task" : "tasks"}</span> being worked on right now
-                  {data.tasks.blocked > 0 && (
-                    <span className="text-destructive"> &middot; {data.tasks.blocked} blocked</span>
-                  )}
-                </>
-              ) : data.tasks.inProgress > 0 ? (
-                <>
-                  <span className="font-medium">{data.tasks.inProgress} {data.tasks.inProgress === 1 ? "task" : "tasks"}</span> in progress
-                  {data.tasks.blocked > 0 && (
-                    <span className="text-destructive"> &middot; {data.tasks.blocked} blocked</span>
-                  )}
-                </>
-              ) : data.tasks.open > 0 ? (
-                <>
-                  <span className="font-medium">{data.tasks.open} {data.tasks.open === 1 ? "task" : "tasks"}</span> waiting to be picked up
-                </>
-              ) : data.tasks.done > 0 ? (
-                <>All <span className="font-medium">{data.tasks.done} tasks</span> are complete</>
-              ) : (
-                <>No tasks yet &mdash; create one to get started</>
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {formatCents(data.costs.monthSpendCents)} spent this month
-              {data.costs.monthBudgetCents > 0 && (
-                <> &middot; {data.costs.monthUtilizationPercent}% of budget</>
-              )}
-            </p>
+        <div className="rounded-xl border border-border bg-gradient-to-r from-primary/5 via-background to-primary/5 px-6 py-5 animate-fade-up">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground mb-1">
+                {(() => {
+                  const hour = new Date().getHours();
+                  if (hour < 12) return "Good morning!";
+                  if (hour < 17) return "Good afternoon!";
+                  return "Good evening!";
+                })()}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {currentWork.length > 0 ? (
+                  <>
+                    <span className="font-medium text-foreground">{currentWork.length} {currentWork.length === 1 ? "task" : "tasks"}</span> being worked on right now
+                    {data.tasks.blocked > 0 && (
+                      <span className="text-destructive"> &middot; {data.tasks.blocked} stuck</span>
+                    )}
+                  </>
+                ) : data.tasks.inProgress > 0 ? (
+                  <>
+                    <span className="font-medium text-foreground">{data.tasks.inProgress} {data.tasks.inProgress === 1 ? "task" : "tasks"}</span> in progress
+                    {data.tasks.blocked > 0 && (
+                      <span className="text-destructive"> &middot; {data.tasks.blocked} stuck</span>
+                    )}
+                  </>
+                ) : data.tasks.open > 0 ? (
+                  <>
+                    <span className="font-medium text-foreground">{data.tasks.open} {data.tasks.open === 1 ? "task" : "tasks"}</span> waiting to be picked up
+                  </>
+                ) : data.tasks.done > 0 ? (
+                  <>All <span className="font-medium text-foreground">{data.tasks.done} tasks</span> are complete</>
+                ) : (
+                  <>No tasks yet &mdash; create one to get started</>
+                )}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              className="shrink-0"
+              onClick={() => openNewIssue()}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Create Task
+            </Button>
           </div>
-          <Button
-            size="sm"
-            className="shrink-0"
-            onClick={() => openNewIssue()}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Create Task
-          </Button>
         </div>
       )}
 
@@ -224,7 +275,7 @@ export function Dashboard() {
         >
           <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
           <p className="text-sm text-amber-900 dark:text-amber-100 flex-1">
-            <span className="font-medium">{data.pendingApprovals}</span> {data.pendingApprovals === 1 ? "approval" : "approvals"} waiting for your review
+            <span className="font-medium">{data.pendingApprovals}</span> {data.pendingApprovals === 1 ? "request" : "requests"} waiting for your review
           </p>
           <span className="text-xs text-amber-700 dark:text-amber-300 font-medium shrink-0">Review &rarr;</span>
         </Link>
@@ -237,7 +288,7 @@ export function Dashboard() {
           Currently Working On
         </h3>
         {currentWork.length > 0 ? (
-          <div className="border border-border divide-y divide-border rounded-lg overflow-hidden">
+          <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
             {currentWork.map((run) => {
               const issue = run.issueId ? issueById.get(run.issueId) : undefined;
               const isActive = run.status === "running" || run.status === "queued";
@@ -279,7 +330,7 @@ export function Dashboard() {
           <div className="border border-border rounded-lg">
             <EmptyState
               icon={Zap}
-              message="No tasks are being worked on right now. Create a task and it will be picked up automatically."
+              message="No tasks are being worked on right now. Create a task and your team will pick it up automatically."
               compact
               action="Create Task"
               onAction={() => openNewIssue()}
@@ -297,29 +348,26 @@ export function Dashboard() {
               Goals
             </h3>
             {data.goals.length > 0 ? (
-              <div className="border border-border divide-y divide-border overflow-hidden">
+              <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
                 {data.goals.map((goal: GoalProgress) => (
                   <Link
                     key={goal.goalId}
                     to={`/goals/${goal.goalId}`}
-                    className="px-4 py-2.5 block hover:bg-accent/50 transition-colors no-underline text-inherit"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors no-underline text-inherit"
                   >
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <ProgressRing percent={goal.completionPercent} size={42} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-sm font-medium truncate">{goal.title}</span>
                         <GoalStatusBadge status={goal.goalStatus} />
                       </div>
-                      <span className="text-xs font-medium text-muted-foreground shrink-0">
-                        {goal.completionPercent}%
-                      </span>
-                    </div>
-                    <ProgressBar percent={goal.completionPercent} />
-                    <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
-                      <span>{goal.issues.total} tasks</span>
-                      <span>{goal.issues.done} done</span>
-                      {goal.issues.blocked > 0 && (
-                        <span className="text-destructive">{goal.issues.blocked} blocked</span>
-                      )}
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                        <span>{goal.issues.total} tasks</span>
+                        <span>{goal.issues.done} done</span>
+                        {goal.issues.blocked > 0 && (
+                          <span className="text-destructive">{goal.issues.blocked} stuck</span>
+                        )}
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -341,29 +389,26 @@ export function Dashboard() {
               Projects
             </h3>
             {data.projects.length > 0 ? (
-              <div className="border border-border divide-y divide-border overflow-hidden">
+              <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
                 {data.projects.map((project: ProjectProgress) => (
                   <Link
                     key={project.projectId}
                     to={`/projects/${project.projectId}`}
-                    className="px-4 py-2.5 block hover:bg-accent/50 transition-colors no-underline text-inherit"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors no-underline text-inherit"
                   >
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="text-sm font-medium truncate">{project.name}</span>
-                      <span className="text-xs font-medium text-muted-foreground shrink-0">
-                        {project.completionPercent}%
-                      </span>
-                    </div>
-                    <ProgressBar percent={project.completionPercent} />
-                    <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
-                      <span>{project.issues.total} tasks</span>
-                      <span>{project.issues.done} done</span>
-                      {project.issues.inProgress > 0 && (
-                        <span>{project.issues.inProgress} in progress</span>
-                      )}
-                      {project.issues.blocked > 0 && (
-                        <span className="text-destructive">{project.issues.blocked} blocked</span>
-                      )}
+                    <ProgressRing percent={project.completionPercent} size={42} />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium truncate block">{project.name}</span>
+                      <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
+                        <span>{project.issues.total} tasks</span>
+                        <span>{project.issues.done} done</span>
+                        {project.issues.inProgress > 0 && (
+                          <span>{project.issues.inProgress} in progress</span>
+                        )}
+                        {project.issues.blocked > 0 && (
+                          <span className="text-destructive">{project.issues.blocked} stuck</span>
+                        )}
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -389,7 +434,7 @@ export function Dashboard() {
             Recently Completed
           </h3>
           {completedIssues.length > 0 ? (
-            <div className="border border-border divide-y divide-border overflow-hidden">
+            <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
               {completedIssues.map((issue) => (
                 <Link
                   key={issue.id}
@@ -435,7 +480,7 @@ export function Dashboard() {
               />
             </div>
           ) : (
-            <div className="border border-border divide-y divide-border overflow-hidden">
+            <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
               {recentIssues.slice(0, 10).map((issue) => (
                 <Link
                   key={issue.id}

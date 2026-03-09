@@ -60,7 +60,7 @@ export function Costs() {
   const [customTo, setCustomTo] = useState("");
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Costs" }]);
+    setBreadcrumbs([{ label: "Budget" }]);
   }, [setBreadcrumbs]);
 
   const { from, to } = useMemo(() => {

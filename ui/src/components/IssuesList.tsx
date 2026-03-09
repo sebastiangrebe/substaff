@@ -26,8 +26,10 @@ import type { Issue } from "@substaff/shared";
 const statusOrder = ["in_progress", "todo", "backlog", "in_review", "blocked", "done", "cancelled"];
 const priorityOrder = ["critical", "high", "medium", "low"];
 
+import { issueStatusLabel, formatLabel } from "../lib/labels";
+
 function statusLabel(status: string): string {
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return issueStatusLabel[status] ?? formatLabel(status);
 }
 
 /* ── View state ── */
@@ -59,7 +61,7 @@ const defaultViewState: IssueViewState = {
 const quickFilterPresets = [
   { label: "All", statuses: [] as string[] },
   { label: "Active", statuses: ["todo", "in_progress", "in_review", "blocked"] },
-  { label: "Backlog", statuses: ["backlog"] },
+  { label: "Later", statuses: ["backlog"] },
   { label: "Done", statuses: ["done", "cancelled"] },
 ];
 
@@ -274,9 +276,9 @@ export function IssuesList({
             <Input
               value={issueSearch}
               onChange={(e) => setIssueSearch(e.target.value)}
-              placeholder="Search issues..."
+              placeholder="Search tasks..."
               className="pl-7 text-xs sm:text-sm"
-              aria-label="Search issues"
+              aria-label="Search tasks"
             />
           </div>
         </div>
@@ -523,8 +525,8 @@ export function IssuesList({
       {!isLoading && filtered.length === 0 && viewState.viewMode === "list" && (
         <EmptyState
           icon={CircleDot}
-          message="No issues match the current filters or search."
-          action="Create Issue"
+          message="No tasks match the current filters or search."
+          action="Create Task"
           onAction={() => openNewIssue(newIssueDefaults())}
         />
       )}
@@ -652,7 +654,7 @@ export function IssuesList({
                         >
                           <input
                             className="w-full px-2 py-1.5 text-xs bg-transparent outline-none border-b border-border mb-1 placeholder:text-muted-foreground/50"
-                            placeholder="Search agents..."
+                            placeholder="Search team members..."
                             value={assigneeSearch}
                             onChange={(e) => setAssigneeSearch(e.target.value)}
                             autoFocus

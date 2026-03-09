@@ -27,6 +27,7 @@ import {
 import { logger } from "../middleware/logger.js";
 import { forbidden, HttpError, unauthorized } from "../errors.js";
 import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { indexComment } from "../vector/index.js";
 
 const MAX_ATTACHMENT_BYTES = Number(process.env.SUBSTAFF_ATTACHMENT_MAX_BYTES) || 10 * 1024 * 1024;
 const ALLOWED_ATTACHMENT_CONTENT_TYPES = new Set([
@@ -520,6 +521,18 @@ export function issueRoutes(db: Db, storage: StorageService) {
         },
       });
 
+      // Index agent comments into vector DB for knowledge search
+      if (actor.agentId) {
+        const cId = comment.id;
+        void indexComment(commentBody, {
+          companyId: issue.companyId,
+          agentId: actor.agentId,
+          issueId: id,
+          commentId: cId,
+          projectId: existing.projectId,
+          runId: actor.runId,
+        }).catch((err) => logger.warn({ err, commentId: cId }, "Failed to index comment"));
+      }
     }
 
     const assigneeChanged = assigneeWillChange;
@@ -988,6 +1001,18 @@ export function issueRoutes(db: Db, storage: StorageService) {
         ...(interruptedRunId ? { interruptedRunId } : {}),
       },
     });
+
+    // Index agent comments into vector DB for knowledge search
+    if (actor.agentId) {
+      void indexComment(req.body.body, {
+        companyId: currentIssue.companyId,
+        agentId: actor.agentId,
+        issueId: id,
+        commentId: comment.id,
+        projectId: currentIssue.projectId,
+        runId: actor.runId,
+      }).catch((err) => logger.warn({ err, commentId: comment.id }, "Failed to index comment"));
+    }
 
     // Merge all wakeups from this comment into one enqueue per agent to avoid duplicate runs.
     // Skip waking the assignee if the comment author IS the assignee (agent commenting on own task).

@@ -1,5 +1,5 @@
 import type { AdapterExecutionContext, AdapterExecutionResult } from "@substaff/adapter-utils";
-import { asNumber, asString, parseObject } from "@substaff/adapter-utils/server-utils";
+import { asNumber, asString, parseObject, DEFAULT_AGENT_TIMEOUT_SEC } from "@substaff/adapter-utils/server-utils";
 import { parseOpenClawResponse } from "./parse.js";
 
 function nonEmpty(value: unknown): string | null {
@@ -20,7 +20,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
 
   const method = asString(config.method, "POST").trim().toUpperCase() || "POST";
-  const timeoutSec = Math.max(1, asNumber(config.timeoutSec, 30));
+  const timeoutSec = Math.max(1, asNumber(config.timeoutSec, 0) || DEFAULT_AGENT_TIMEOUT_SEC);
   const headersConfig = parseObject(config.headers) as Record<string, unknown>;
   const payloadTemplate = parseObject(config.payloadTemplate);
   const webhookAuthHeader = nonEmpty(config.webhookAuthHeader);

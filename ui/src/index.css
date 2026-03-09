@@ -183,6 +183,79 @@
   transition: max-width 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── Retail-friendly animations ── */
+
+/* Fade-up entrance for list rows and cards */
+@keyframes fade-up-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up-in 0.3s ease-out both;
+}
+
+/* Stagger children — each child delays 30ms more */
+.stagger-children > * {
+  animation: fade-up-in 0.3s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 30ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 60ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 90ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 150ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 180ms; }
+.stagger-children > *:nth-child(8) { animation-delay: 210ms; }
+.stagger-children > *:nth-child(9) { animation-delay: 240ms; }
+.stagger-children > *:nth-child(10) { animation-delay: 270ms; }
+
+/* SVG circular progress ring animation */
+@keyframes progress-ring-fill {
+  0% {
+    stroke-dashoffset: var(--ring-circumference);
+  }
+  100% {
+    stroke-dashoffset: var(--ring-offset);
+  }
+}
+
+.progress-ring-circle {
+  animation: progress-ring-fill 0.8s ease-out 0.2s both;
+}
+
+/* Scale-in for badges and indicators */
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.25s ease-out both;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .stagger-children > *,
+  .progress-ring-circle,
+  .animate-scale-in {
+    animation: none !important;
+  }
+}
+
 /* Log entry pop-in animation */
 @keyframes log-entry-in {
   0% {

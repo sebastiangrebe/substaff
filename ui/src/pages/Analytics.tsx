@@ -102,13 +102,13 @@ export function Analytics() {
             <MetricCard
               icon={Bot}
               value={data.agents.active + data.agents.running + data.agents.paused + data.agents.error}
-              label="Agents Enabled"
+              label="Team Members"
               to="/agents"
               description={
                 <span>
-                  {data.agents.running} running{", "}
+                  {data.agents.running} working{", "}
                   {data.agents.paused} paused{", "}
-                  {data.agents.error} errors
+                  {data.agents.error} need help
                 </span>
               }
             />
@@ -120,7 +120,7 @@ export function Analytics() {
               description={
                 <span>
                   {data.tasks.open} open{", "}
-                  {data.tasks.blocked} blocked
+                  {data.tasks.blocked} stuck
                 </span>
               }
             />
@@ -140,11 +140,11 @@ export function Analytics() {
             <MetricCard
               icon={ShieldCheck}
               value={data.pendingApprovals}
-              label="Pending Approvals"
+              label="Pending Reviews"
               to="/approvals"
               description={
                 <span>
-                  {data.staleTasks} stale tasks
+                  {data.staleTasks} tasks need attention
                 </span>
               }
             />

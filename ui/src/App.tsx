@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Layout } from "./components/Layout";
+import { AppLoader } from "./components/AppLoader";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { authApi } from "./api/auth";
 import { healthApi } from "./api/health";
@@ -50,7 +51,7 @@ function CloudAccessGate() {
   });
 
   if (healthQuery.isLoading || (isAuthenticatedMode && sessionQuery.isLoading)) {
-    return <div className="mx-auto max-w-xl py-10 text-sm text-muted-foreground">Loading...</div>;
+    return <AppLoader />;
   }
 
   if (healthQuery.error) {
@@ -121,7 +122,7 @@ function CompanyRootRedirect() {
   const { onboardingOpen } = useDialog();
 
   if (loading) {
-    return <div className="mx-auto max-w-xl py-10 text-sm text-muted-foreground">Loading...</div>;
+    return <AppLoader />;
   }
 
   // Keep the first-run onboarding mounted until it completes.
@@ -142,7 +143,7 @@ function UnprefixedBoardRedirect() {
   const { companies, selectedCompany, loading } = useCompany();
 
   if (loading) {
-    return <div className="mx-auto max-w-xl py-10 text-sm text-muted-foreground">Loading...</div>;
+    return <AppLoader />;
   }
 
   const targetCompany = selectedCompany ?? companies[0] ?? null;
@@ -172,12 +173,12 @@ function NoCompaniesStartPage({ autoOpen = true }: { autoOpen?: boolean }) {
   return (
     <div className="mx-auto max-w-xl py-10">
       <div className="rounded-lg border border-border bg-card p-6">
-        <h1 className="text-xl font-semibold">Create your first company</h1>
+        <h1 className="text-xl font-semibold">Create your first workspace</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Get started by creating a company.
+          Set up a workspace and start building your AI team.
         </p>
         <div className="mt-4">
-          <Button onClick={() => openOnboarding()}>New Company</Button>
+          <Button onClick={() => openOnboarding()}>Get Started</Button>
         </div>
       </div>
     </div>

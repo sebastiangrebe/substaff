@@ -150,7 +150,7 @@ export function NewAgentDialog() {
               </span>
             )}
             <span className="text-muted-foreground/60">&rsaquo;</span>
-            <span>New agent</span>
+            <span>Add team member</span>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon-xs" className="text-muted-foreground" onClick={() => setExpanded(!expanded)}>
@@ -286,7 +286,7 @@ export function NewAgentDialog() {
             disabled={!name.trim() || createAgent.isPending}
             onClick={handleSubmit}
           >
-            {createAgent.isPending ? "Creating…" : "Create agent"}
+            {createAgent.isPending ? "Adding…" : "Add to team"}
           </Button>
         </div>
       </DialogContent>

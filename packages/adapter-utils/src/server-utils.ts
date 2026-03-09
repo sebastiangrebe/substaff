@@ -2,6 +2,13 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { constants as fsConstants, promises as fs } from "node:fs";
 import path from "node:path";
 
+/**
+ * Default agent execution timeout in seconds (15 minutes).
+ * This is the single source of truth for all adapter timeouts.
+ * Agents can override this via `config.timeoutSec`.
+ */
+export const DEFAULT_AGENT_TIMEOUT_SEC = 900;
+
 export interface RunProcessResult {
   exitCode: number | null;
   signal: string | null;

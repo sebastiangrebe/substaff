@@ -58,7 +58,6 @@ export function buildOpenCodeLocalConfig(v: CreateConfigValues): Record<string, 
   if (v.promptTemplate) ac.promptTemplate = v.promptTemplate;
   ac.model = v.model || DEFAULT_OPENCODE_LOCAL_MODEL;
   if (v.thinkingEffort) ac.variant = v.thinkingEffort;
-  ac.timeoutSec = 0;
   ac.graceSec = 15;
   const env = parseEnvBindings(v.envBindings);
   const legacy = parseEnvVars(v.envVars);

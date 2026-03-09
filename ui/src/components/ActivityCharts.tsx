@@ -169,12 +169,12 @@ const statusColors: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   todo: "To Do",
-  in_progress: "In Progress",
-  in_review: "In Review",
+  in_progress: "Working on it",
+  in_review: "Review",
   done: "Done",
-  blocked: "Blocked",
+  blocked: "Stuck",
   cancelled: "Cancelled",
-  backlog: "Backlog",
+  backlog: "Later",
 };
 
 export function IssueStatusChart({ issues }: { issues: { status: string; createdAt: Date }[] }) {

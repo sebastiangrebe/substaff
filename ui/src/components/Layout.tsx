@@ -25,6 +25,7 @@ import { agentsApi } from "../api/agents";
 import { queryKeys } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
+import { useGuidedTour } from "../hooks/useGuidedTour";
 
 export function Layout() {
   const { sidebarOpen, setSidebarOpen, toggleSidebar, isMobile } = useSidebar();
@@ -122,6 +123,7 @@ export function Layout() {
   );
 
   useCompanyPageMemory();
+  useGuidedTour();
 
   useKeyboardShortcuts({
     onNewIssue: () => openNewIssue(),

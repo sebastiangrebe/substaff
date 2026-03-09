@@ -375,9 +375,9 @@ export function AgentDetail() {
 
   useEffect(() => {
     const crumbs: { label: string; href?: string }[] = [
-      { label: "Agents", href: "/agents" },
+      { label: "Team", href: "/agents" },
     ];
-    const agentName = agent?.name ?? routeAgentRef ?? "Agent";
+    const agentName = agent?.name ?? routeAgentRef ?? "Team Member";
     if (activeView === "overview" && !urlRunId) {
       crumbs.push({ label: agentName });
     } else {

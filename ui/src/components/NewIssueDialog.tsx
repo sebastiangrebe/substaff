@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, type ChangeEvent } from "react";
+import { useState, useEffect, useRef, useMemo, type ChangeEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
@@ -41,9 +41,6 @@ import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./Ma
 import { AgentIcon } from "./AgentIconPicker";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
 
-const DRAFT_KEY = "substaff:issue-draft";
-const DEBOUNCE_MS = 800;
-
 /** Return black or white hex based on background luminance (WCAG perceptual weights). */
 function getContrastTextColor(hexColor: string): string {
   const hex = hexColor.replace("#", "");
@@ -52,18 +49,6 @@ function getContrastTextColor(hexColor: string): string {
   const b = parseInt(hex.substring(4, 6), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5 ? "#000000" : "#ffffff";
-}
-
-interface IssueDraft {
-  title: string;
-  description: string;
-  status: string;
-  priority: string;
-  assigneeId: string;
-  projectId: string;
-  assigneeModelOverride: string;
-  assigneeThinkingEffort: string;
-  assigneeChrome: boolean;
 }
 
 const ISSUE_OVERRIDE_ADAPTER_TYPES = new Set(["e2b_sandbox"]);
@@ -108,29 +93,11 @@ function buildAssigneeAdapterOverrides(input: {
   return Object.keys(overrides).length > 0 ? overrides : null;
 }
 
-function loadDraft(): IssueDraft | null {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as IssueDraft;
-  } catch {
-    return null;
-  }
-}
-
-function saveDraft(draft: IssueDraft) {
-  localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-}
-
-function clearDraft() {
-  localStorage.removeItem(DRAFT_KEY);
-}
-
 const statuses = [
-  { value: "backlog", label: "Backlog", color: issueStatusText.backlog ?? issueStatusTextDefault },
-  { value: "todo", label: "Todo", color: issueStatusText.todo ?? issueStatusTextDefault },
-  { value: "in_progress", label: "In Progress", color: issueStatusText.in_progress ?? issueStatusTextDefault },
-  { value: "in_review", label: "In Review", color: issueStatusText.in_review ?? issueStatusTextDefault },
+  { value: "backlog", label: "Later", color: issueStatusText.backlog ?? issueStatusTextDefault },
+  { value: "todo", label: "To Do", color: issueStatusText.todo ?? issueStatusTextDefault },
+  { value: "in_progress", label: "Working on it", color: issueStatusText.in_progress ?? issueStatusTextDefault },
+  { value: "in_review", label: "Review", color: issueStatusText.in_review ?? issueStatusTextDefault },
   { value: "done", label: "Done", color: issueStatusText.done ?? issueStatusTextDefault },
 ];
 
@@ -158,7 +125,6 @@ export function NewIssueDialog() {
   const [assigneeChrome, setAssigneeChrome] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [dialogCompanyId, setDialogCompanyId] = useState<string | null>(null);
-  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const effectiveCompanyId = dialogCompanyId ?? selectedCompanyId;
   const dialogCompany = companies.find((c) => c.id === effectiveCompanyId) ?? selectedCompany;
@@ -234,8 +200,6 @@ export function NewIssueDialog() {
       issuesApi.create(companyId, data),
     onSuccess: (issue) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(effectiveCompanyId!) });
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-      clearDraft();
       reset();
       closeNewIssue();
       pushToast({
@@ -255,71 +219,17 @@ export function NewIssueDialog() {
     },
   });
 
-  // Debounced draft saving
-  const scheduleSave = useCallback(
-    (draft: IssueDraft) => {
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-      draftTimer.current = setTimeout(() => {
-        if (draft.title.trim()) saveDraft(draft);
-      }, DEBOUNCE_MS);
-    },
-    [],
-  );
-
-  // Save draft on meaningful changes
-  useEffect(() => {
-    if (!newIssueOpen) return;
-    scheduleSave({
-      title,
-      description,
-      status,
-      priority,
-      assigneeId,
-      projectId,
-      assigneeModelOverride,
-      assigneeThinkingEffort,
-      assigneeChrome,
-    });
-  }, [
-    title,
-    description,
-    status,
-    priority,
-    assigneeId,
-    projectId,
-    assigneeModelOverride,
-    assigneeThinkingEffort,
-    assigneeChrome,
-    newIssueOpen,
-    scheduleSave,
-  ]);
-
-  // Restore draft or apply defaults when dialog opens
+  // Apply defaults when dialog opens
   useEffect(() => {
     if (!newIssueOpen) return;
     setDialogCompanyId(selectedCompanyId);
-
-    const draft = loadDraft();
-    if (draft && draft.title.trim()) {
-      setTitle(draft.title);
-      setDescription(draft.description);
-      setStatus(draft.status || "todo");
-      setPriority(draft.priority);
-      setAssigneeId(newIssueDefaults.assigneeAgentId ?? draft.assigneeId);
-      setProjectId(newIssueDefaults.projectId ?? draft.projectId);
-      setAssigneeModelOverride(draft.assigneeModelOverride ?? "");
-      setAssigneeThinkingEffort(draft.assigneeThinkingEffort ?? "");
-      setAssigneeChrome(draft.assigneeChrome ?? false);
-    } else {
-      setStatus(newIssueDefaults.status ?? "todo");
-      setPriority(newIssueDefaults.priority ?? "");
-      setProjectId(newIssueDefaults.projectId ?? "");
-      setAssigneeId(newIssueDefaults.assigneeAgentId ?? "");
-      setAssigneeModelOverride("");
-      setAssigneeThinkingEffort("");
-      setAssigneeChrome(false);
-
-    }
+    setStatus(newIssueDefaults.status ?? "todo");
+    setPriority(newIssueDefaults.priority ?? "");
+    setProjectId(newIssueDefaults.projectId ?? "");
+    setAssigneeId(newIssueDefaults.assigneeAgentId ?? "");
+    setAssigneeModelOverride("");
+    setAssigneeThinkingEffort("");
+    setAssigneeChrome(false);
   }, [newIssueOpen, newIssueDefaults]);
 
   useEffect(() => {
@@ -337,13 +247,6 @@ export function NewIssueDialog() {
       setAssigneeThinkingEffort("");
     }
   }, [supportsAssigneeOverrides, assigneeAdapterType, assigneeThinkingEffort]);
-
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-    };
-  }, []);
 
   function reset() {
     setTitle("");
@@ -371,8 +274,7 @@ export function NewIssueDialog() {
     setAssigneeChrome(false);
   }
 
-  function discardDraft() {
-    clearDraft();
+  function handleDiscard() {
     reset();
     closeNewIssue();
   }
@@ -419,12 +321,11 @@ export function NewIssueDialog() {
     }
   }
 
-  const hasDraft = title.trim().length > 0 || description.trim().length > 0;
   const currentStatus = statuses.find((s) => s.value === status) ?? statuses[1]!;
   const currentPriority = priorities.find((p) => p.value === priority);
   const currentAssignee = (agents ?? []).find((a) => a.id === assigneeId);
   const currentProject = orderedProjects.find((project) => project.id === projectId);
-  const assigneeOptionsTitle = "Agent options";
+  const assigneeOptionsTitle = "Advanced options";
   const thinkingEffortOptions = ISSUE_THINKING_EFFORT_OPTIONS;
   const assigneeOptions = useMemo<InlineEntityOption[]>(
     () =>
@@ -557,7 +458,7 @@ export function NewIssueDialog() {
         <div className="px-4 pt-4 pb-2 shrink-0">
           <textarea
             className="w-full text-lg font-semibold bg-transparent outline-none resize-none overflow-hidden placeholder:text-muted-foreground/50"
-            placeholder="Issue title"
+            placeholder="What needs to be done?"
             rows={1}
             value={title}
             onChange={(e) => {
@@ -832,17 +733,16 @@ export function NewIssueDialog() {
             variant="ghost"
             size="sm"
             className="text-muted-foreground"
-            onClick={discardDraft}
-            disabled={!hasDraft && !loadDraft()}
+            onClick={handleDiscard}
           >
-            Discard Draft
+            Cancel
           </Button>
           <Button
             size="sm"
             disabled={!title.trim() || createIssue.isPending}
             onClick={handleSubmit}
           >
-            {createIssue.isPending ? "Creating..." : "Create Issue"}
+            {createIssue.isPending ? "Creating..." : "Create Task"}
           </Button>
         </div>
       </DialogContent>

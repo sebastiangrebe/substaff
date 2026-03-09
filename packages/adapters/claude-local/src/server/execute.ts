@@ -18,6 +18,7 @@ import {
   ensurePathInEnv,
   renderTemplate,
   runChildProcess,
+  DEFAULT_AGENT_TIMEOUT_SEC,
 } from "@substaff/adapter-utils/server-utils";
 import {
   parseClaudeStreamJson,
@@ -226,7 +227,7 @@ export async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Pro
   const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
-  const timeoutSec = asNumber(config.timeoutSec, 0);
+  const timeoutSec = asNumber(config.timeoutSec, 0) || DEFAULT_AGENT_TIMEOUT_SEC;
   const graceSec = asNumber(config.graceSec, 20);
   const extraArgs = (() => {
     const fromExtraArgs = asStringArray(config.extraArgs);

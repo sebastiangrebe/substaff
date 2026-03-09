@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import type { McpServerDefinition, CompanySecret } from "@substaff/shared";
 
 /** Slugs that support OAuth-based connection (browser redirect flow) */
-const OAUTH_SLUGS = new Set(["google-drive"]);
+const OAUTH_SLUGS = new Set(["google-drive", "meta", "tiktok"]);
 
 /** Per-env-key state: either pick an existing secret or create a new one inline */
 type KeyEntry = { mode: "select"; secretId: string } | { mode: "create"; value: string };
@@ -73,6 +73,34 @@ const SETUP_GUIDES: Record<string, { steps: string[]; linkLabel: string; linkUrl
     ],
     linkLabel: "Notion integrations",
     linkUrl: "https://www.notion.so/my-integrations",
+  },
+  meta: {
+    steps: [
+      "Go to developers.facebook.com → \"My Apps\" → \"Create App\"",
+      "Select \"Business\" app type",
+      "Add \"Facebook Login for Business\" product",
+      "Go to Settings → Basic, copy App ID and App Secret",
+      "Set server env vars: META_OAUTH_APP_ID and META_OAUTH_APP_SECRET",
+      "In Facebook Login → Settings, add OAuth redirect URI: {your-server-url}/api/integrations/oauth/meta/callback",
+      "Under App Review → Permissions, request: pages_manage_posts, instagram_content_publish, ads_management, whatsapp_business_management",
+      "Click \"Connect with Meta\" below to authorize",
+    ],
+    linkLabel: "Meta for Developers",
+    linkUrl: "https://developers.facebook.com/apps/",
+  },
+  tiktok: {
+    steps: [
+      "Go to developers.tiktok.com → \"Manage apps\" → \"Connect an app\"",
+      "Select app type and fill in app details",
+      "Add products: \"Login Kit\" and \"Content Posting API\"",
+      "In Login Kit settings, add redirect URI: {your-server-url}/api/integrations/oauth/tiktok/callback",
+      "Set server env vars: TIKTOK_CLIENT_KEY and TIKTOK_CLIENT_SECRET",
+      "Request scopes: video.publish, video.upload, user.info.basic, video.list",
+      "Submit app for audit (required for public posting — until then, posts are private only)",
+      "Click \"Connect with TikTok\" below to authorize",
+    ],
+    linkLabel: "TikTok for Developers",
+    linkUrl: "https://developers.tiktok.com/",
   },
 };
 
@@ -324,6 +352,8 @@ const SLUG_ICONS: Record<string, string> = {
   linear: "https://linear.app/favicon.ico",
   notion: "https://www.notion.so/images/favicon.ico",
   "google-drive": "https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png",
+  meta: "https://upload.wikimedia.org/wikipedia/commons/0/05/Facebook_Logo_%282019%29.png",
+  tiktok: "https://sf-tb-sg.ibytedtos.com/obj/eden-sg/uhtyvueh7nulogpoguhm/tiktok-icon2.png",
 };
 
 export function Integrations() {
@@ -497,7 +527,9 @@ export function Integrations() {
                         className="text-xs"
                         onClick={() => handleConnect(def)}
                       >
-                        {isOAuth ? "Connect with Google" : "Connect"}
+                        {isOAuth
+                          ? `Connect with ${def.slug === "google-drive" ? "Google" : def.slug === "meta" ? "Meta" : def.slug === "tiktok" ? "TikTok" : def.displayName}`
+                          : "Connect"}
                       </Button>
                     )}
                     {def.documentationUrl && (

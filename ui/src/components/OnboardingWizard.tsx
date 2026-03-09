@@ -30,11 +30,7 @@ import {
 
 type Step = 1 | 2 | 3 | 4;
 
-const DEFAULT_TASK_DESCRIPTION = `Setup yourself as the CEO. Use the ceo persona found here: [https://github.com/substaff/companies/blob/main/default/ceo/AGENTS.md](https://github.com/substaff/companies/blob/main/default/ceo/AGENTS.md)
-
-Ensure you have a folder agents/ceo and then download this AGENTS.md as well as the sibling HEARTBEAT.md, SOUL.md, and TOOLS.md. and set that AGENTS.md as the path to your agents instruction file
-
-And after you've finished that, hire yourself a Founding Engineer agent`;
+const DEFAULT_TASK_DESCRIPTION = `Introduce yourself, explore your workspace, and prepare a brief summary of what you can help with. Then suggest what the team should work on first.`;
 
 export function OnboardingWizard() {
   const { onboardingOpen, onboardingOptions, onboardingRequired, closeOnboarding, setOnboardingRequired } = useDialog();
@@ -57,7 +53,7 @@ export function OnboardingWizard() {
   const [agentName, setAgentName] = useState("CEO");
 
   // Step 3
-  const [taskTitle, setTaskTitle] = useState("Create your CEO HEARTBEAT.md");
+  const [taskTitle, setTaskTitle] = useState("Introduce yourself and get set up");
   const [taskDescription, setTaskDescription] = useState(
     DEFAULT_TASK_DESCRIPTION
   );
@@ -561,7 +557,7 @@ export function OnboardingWizard() {
                       ) : (
                         <ArrowRight className="h-3.5 w-3.5 mr-1" />
                       )}
-                      {loading ? "Opening..." : "Open Issue"}
+                      {loading ? "Opening..." : "Go to your dashboard"}
                     </Button>
                   )}
                 </div>

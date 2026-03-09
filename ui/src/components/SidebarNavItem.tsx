@@ -13,6 +13,7 @@ interface SidebarNavItemProps {
   badgeTone?: "default" | "danger";
   alert?: boolean;
   liveCount?: number;
+  id?: string;
 }
 
 export function SidebarNavItem({
@@ -25,11 +26,13 @@ export function SidebarNavItem({
   badgeTone = "default",
   alert = false,
   liveCount,
+  id,
 }: SidebarNavItemProps) {
   const { isMobile, setSidebarOpen } = useSidebar();
 
   return (
     <NavLink
+      id={id}
       to={to}
       end={end}
       onClick={() => { if (isMobile) setSidebarOpen(false); }}

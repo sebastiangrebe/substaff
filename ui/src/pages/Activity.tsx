@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { History } from "lucide-react";
 import type { Agent } from "@substaff/shared";
+import { humanizeEntityType } from "../lib/activity-labels";
 
 export function Activity() {
   const { selectedCompanyId } = useCompany();
@@ -109,7 +110,7 @@ export function Activity() {
             <SelectItem value="all">All types</SelectItem>
             {entityTypes.map((type) => (
               <SelectItem key={type} value={type}>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+                {humanizeEntityType(type)}
               </SelectItem>
             ))}
           </SelectContent>

@@ -32,8 +32,10 @@ const boardStatuses = [
   "cancelled",
 ];
 
+import { issueStatusLabel, formatLabel } from "../lib/labels";
+
 function statusLabel(status: string): string {
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return issueStatusLabel[status] ?? formatLabel(status);
 }
 
 interface Agent {

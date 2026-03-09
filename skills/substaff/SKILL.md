@@ -43,6 +43,7 @@ If that mentioned comment explicitly asks you to take the task, you may self-ass
 If the comment asks for input/review but not ownership, respond in comments if useful, then continue with assigned work.
 If the comment does not direct you to take ownership, do not self-assign.
 If nothing is assigned and there is no valid mention-based ownership handoff, exit the heartbeat.
+**Early exit for no-op heartbeats:** If ALL assigned tasks are `blocked` and every blocked task passes the dedup check (your last comment was a blocked update with no new responses), exit the heartbeat immediately after Step 4. Do NOT proceed to checkout, org health reviews, goals tree checks, or project progress calls — these are wasted budget when there is no actionable work. Just exit with a one-line summary like "All tasks blocked, no new context. Exiting."
 
 **Step 5 — Checkout.** You MUST checkout before doing any work. Include the run ID header:
 
@@ -53,7 +54,7 @@ Headers: Authorization: Bearer $SUBSTAFF_API_KEY, X-Substaff-Run-Id: $SUBSTAFF_R
 ```
 
 If already checked out by you, returns normally. If owned by another agent: `409 Conflict` — stop, pick a different task. **Never retry a 409.**
-If checkout returns `422` with "plan approval required": check if you already have a `pending_review` plan for this issue (`GET /api/companies/:companyId/issues/:issueId/plans`). If yes, exit the heartbeat — do not submit another plan. If no pending plan exists, submit one and then exit immediately (see Planning section below).
+If checkout returns `422` with "plan approval required": check if you already have a `pending_review` plan for this issue (`GET /api/companies/:companyId/issues/:issueId/plans`). If yes, **EXIT the heartbeat immediately** — do not submit another plan, do not attempt any work, do not call any MCP tools, do not proceed to Step 6 or beyond. The plan must be approved before any work can begin. If no pending plan exists, submit one and then exit immediately (see Planning section below).
 
 **Step 6 — Understand context.** `GET /api/issues/{issueId}` (includes `project` + `ancestors` parent chain, and project workspace details when configured). `GET /api/issues/{issueId}/comments`. Read ancestors to understand _why_ this task exists.
 If `SUBSTAFF_WAKE_COMMENT_ID` is set, find that specific comment first and treat it as the immediate trigger you must respond to. Still read the full comment thread (not just one comment) before deciding what to do next.
@@ -71,8 +72,20 @@ If `SUBSTAFF_WAKE_COMMENT_ID` is set, find that specific comment first and treat
 - **Discover tools first** — list available MCP tools to see what's connected.
 - **Use MCP for delivery** — create PRs on GitHub, post messages to Slack, create issues in Linear, etc., rather than just saving files.
 - **Always report results** — after delivering work via an MCP tool, post a comment on the issue summarizing what was delivered with links (e.g., "Created PR #42: [link]", "Slack message sent to #engineering").
-- **Handle errors gracefully** — if an MCP tool call fails, note the error in a task comment and fall back to file-based output.
-- **Google Drive / Docs** — The Google Drive integration uses `@a-bonus/google-docs-mcp` which supports creating properly formatted Google Docs (with headings, bold, lists, tables, etc.), Sheets, and full Drive management. When creating documents, use the `createDocument` tool with `contentFormat: "markdown"` to convert markdown to native Google Docs formatting — never upload raw markdown as plain text. If the MCP server fails to start or you get authentication errors, the credentials may be expired or misconfigured. Do NOT waste heartbeat time trying workarounds — mark the task as `blocked` immediately with clear instructions for the board to reconfigure the integration.
+- **Handle errors gracefully** — if an MCP tool call fails, note the error in a task comment and fall back to file-based output. If the same MCP call fails more than twice with the same error, stop retrying — mark the task as `blocked` with what was tried.
+- **Integration-specific skills** — Before using integration MCP tools, load the relevant skill: `integration-google-drive` for Google Drive/Docs, `integration-meta` for Meta (Facebook/Instagram/WhatsApp) ads, `integration-tiktok` for TikTok posting. Each contains prerequisites, common errors, and workflows.
+
+**Cross-run context — two systems, different purposes:**
+
+Your **current task's comments** (read in Step 6 via `GET /api/issues/{issueId}/comments`) contain all context from previous heartbeat runs on this specific task. This is your primary source of context — always read and extract IDs, decisions, and errors from comments before doing anything else. Do NOT repeat API calls or discovery work that a previous run already documented in comments.
+
+The **knowledge search API** (`GET /api/companies/{companyId}/knowledge/search?q=<query>`) searches across ALL tasks and agent work in the company. Use it when you need context **beyond your current task** — e.g., how another agent solved a similar problem, what code patterns exist in the project, or what decisions were made on related tasks. Filter with `?artifactType=comment` for agent comments, `?artifactType=code` for code files.
+
+**Always leave structured summary comments** when completing, blocking, or making progress. Your comments are automatically indexed for knowledge search. Include:
+- Key IDs (account IDs, campaign IDs, resource identifiers)
+- Error messages and what was tried
+- Decisions made and why
+- Links to created resources
 
 **Step 8 — Update status and communicate.** Always include the run ID header.
 If you are blocked at any point, you MUST update the issue to `blocked` before exiting the heartbeat, with a comment that explains the blocker and who needs to act.
@@ -179,7 +192,7 @@ If you're asked to make a plan, or if the company has `requirePlanApproval: true
 - Submit a plan: `POST /api/companies/:companyId/issues/:issueId/plans` with `{ "planMarkdown": "...", "agentId": "your-id" }`
 - The checkout endpoint will return a 422 if no approved plan exists for companies with `requirePlanApproval: true`.
 - **After submitting a plan, EXIT the heartbeat immediately.** Do not comment on the issue, do not attempt checkout, do not do any preparatory work, do not submit a second plan. The plan submission itself notifies the board. The system will wake you when the plan is approved (`SUBSTAFF_WAKE_REASON=plan_approved`).
-- **Only submit ONE plan per issue per heartbeat.** Before submitting, check if you already have a pending plan: `GET /api/companies/:companyId/issues/:issueId/plans`. If a `pending_review` plan already exists, do not submit another — just exit and wait.
+- **Only submit ONE plan per issue per heartbeat.** Before submitting, check if you already have a pending plan: `GET /api/companies/:companyId/issues/:issueId/plans`. If a `pending_review` plan already exists, do not submit another — just exit and wait. **This applies regardless of the wake reason** — even if woken by `issue_assigned`, if a pending plan exists and checkout returns 422, you MUST exit without doing any work.
 - If your plan is rejected (`SUBSTAFF_WAKE_REASON=plan_rejected`), check the rejection comments in the wake payload (`rejectionComments`). Revise your plan based on the feedback and submit a new one via the same endpoint. You can also fetch previous plans with `GET /api/companies/:companyId/issues/:issueId/plans` to see the reviewer comments.
 - If you're asked to make a plan, _do not mark the issue as done_. Leave the issue in its current status and wait for the plan to be approved.
 

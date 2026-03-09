@@ -15,6 +15,7 @@ import {
   ensurePathInEnv,
   renderTemplate,
   runChildProcess,
+  DEFAULT_AGENT_TIMEOUT_SEC,
 } from "@substaff/adapter-utils/server-utils";
 import { DEFAULT_OPENCODE_LOCAL_MODEL } from "../index.js";
 import { parseOpenCodeJsonl, isOpenCodeUnknownSessionError } from "./parse.js";
@@ -255,7 +256,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
-  const timeoutSec = asNumber(config.timeoutSec, 0);
+  const timeoutSec = asNumber(config.timeoutSec, 0) || DEFAULT_AGENT_TIMEOUT_SEC;
   const graceSec = asNumber(config.graceSec, 20);
   const extraArgs = (() => {
     const fromExtraArgs = asStringArray(config.extraArgs);

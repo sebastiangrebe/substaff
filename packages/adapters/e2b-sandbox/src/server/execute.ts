@@ -18,6 +18,7 @@ import {
   renderTemplate,
   redactEnvForLogs,
   buildSubstaffEnv,
+  DEFAULT_AGENT_TIMEOUT_SEC,
 } from "@substaff/adapter-utils/server-utils";
 import {
   buildClaudeRuntimeConfig,
@@ -70,7 +71,7 @@ function readNonEmptyString(value: unknown): string | null {
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
   const config = parseObject(ctx.config);
   const template = asString(config.template, "substaff-claude");
-  const sandboxTimeoutSec = asNumber(config.sandboxTimeoutSec, 900);
+  const timeoutSec = asNumber(config.timeoutSec, 0) || DEFAULT_AGENT_TIMEOUT_SEC;
 
   // Use claude-local's config builder to get env, args, prompt template, etc.
   const claudeInput: ClaudeExecutionInput = {
@@ -119,7 +120,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     await ctx.onLog("stdout", `[e2b] Creating sandbox from template: ${template}\n`);
 
     sandbox = await Sandbox.create(template, {
-      timeoutMs: sandboxTimeoutSec * 1000,
+      timeoutMs: timeoutSec * 1000,
     });
 
     await ctx.onLog("stdout", `[e2b] Sandbox created: ${sandbox.sandboxId}\n`);
@@ -397,10 +398,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     await ctx.onLog("stdout", `[e2b] Running Claude Code in sandbox...\n`);
 
-    const timeoutSec = runtimeConfig?.timeoutSec || asNumber(config.timeoutSec, 0);
-    const execTimeoutMs = timeoutSec > 0
-      ? timeoutSec * 1000
-      : (sandboxTimeoutSec - 60) * 1000; // leave 60s buffer
+    const execTimeoutMs = (timeoutSec - 60) * 1000; // leave 60s buffer for sandbox teardown
 
     // Use streaming callbacks so logs appear in real-time in the UI
     let stdout = "";
@@ -444,7 +442,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         exitCode: execution.exitCode,
         signal: null,
         timedOut: true,
-        errorMessage: `Timed out after ${timeoutSec || sandboxTimeoutSec}s`,
+        errorMessage: `Timed out after ${timeoutSec}s`,
         errorCode: "timeout",
       };
     }

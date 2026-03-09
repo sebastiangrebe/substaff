@@ -65,7 +65,6 @@ export function buildCursorLocalConfig(v: CreateConfigValues): Record<string, un
   ac.model = v.model || DEFAULT_CURSOR_LOCAL_MODEL;
   const mode = normalizeMode(v.thinkingEffort);
   if (mode) ac.mode = mode;
-  ac.timeoutSec = 0;
   ac.graceSec = 15;
   const env = parseEnvBindings(v.envBindings);
   const legacy = parseEnvVars(v.envVars);
