@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { filesApi, type FileEntry } from "../api/files";
 import { queryKeys } from "../lib/queryKeys";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
 // ---------------------------------------------------------------------------
@@ -294,8 +295,18 @@ export function FileBrowser({ companyId }: FileBrowserProps) {
 
         {/* Loading */}
         {isLoading && (
-          <div className="px-4 py-8 text-sm text-muted-foreground text-center">
-            Loading files...
+          <div>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="grid grid-cols-[1fr_100px_160px_36px] gap-2 px-4 py-2 border-t border-border first:border-t-0">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+                <Skeleton className="h-4 w-16 ml-auto" />
+                <Skeleton className="h-4 w-28 ml-auto" />
+                <span />
+              </div>
+            ))}
           </div>
         )}
 

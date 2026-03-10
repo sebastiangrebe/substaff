@@ -26,6 +26,8 @@ import { assetRoutes } from "./routes/assets.js";
 import { accessRoutes } from "./routes/access.js";
 import { vendorRoutes } from "./routes/vendors.js";
 import { billingRoutes } from "./routes/billing.js";
+import { stripeService } from "./services/stripe.js";
+import { logger as webhookLogger } from "./middleware/logger.js";
 import { planRoutes } from "./routes/plans.js";
 import { templateRoutes } from "./routes/templates.js";
 import { fileRoutes } from "./routes/files.js";
@@ -50,6 +52,37 @@ export async function createApp(
   },
 ) {
   const app = express();
+
+  // Stripe webhook must be mounted before any body parsers or auth middleware
+  // because it needs the raw body for signature verification.
+  {
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (stripeSecretKey && stripeWebhookSecret) {
+      app.post(
+        "/api/webhooks/stripe",
+        express.raw({ type: "application/json" }),
+        async (req, res) => {
+          const sig = req.headers["stripe-signature"];
+          if (!sig) {
+            res.status(400).json({ error: "Missing stripe-signature header" });
+            return;
+          }
+          try {
+            const Stripe = (await import("stripe")).default;
+            const stripe = new Stripe(stripeSecretKey, { apiVersion: "2025-01-27.acacia" as any });
+            const event = stripe.webhooks.constructEvent(req.body, sig as string, stripeWebhookSecret);
+            await stripeService(db).handleWebhookEvent(event);
+            res.json({ received: true });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            webhookLogger.warn({ err }, "Stripe webhook verification failed");
+            res.status(400).json({ error: `Webhook Error: ${message}` });
+          }
+        },
+      );
+    }
+  }
 
   app.use(express.json());
   app.use(httpLogger);

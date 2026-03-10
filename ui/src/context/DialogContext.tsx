@@ -7,9 +7,8 @@ interface NewIssueDefaults {
   assigneeAgentId?: string;
 }
 
-interface NewGoalDefaults {
-  parentId?: string;
-}
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+interface NewGoalDefaults {}
 
 interface OnboardingOptions {
   initialStep?: 1 | 2 | 3 | 4;

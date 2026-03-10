@@ -110,8 +110,12 @@ export {
 export {
   createCostEventSchema,
   updateBudgetSchema,
+  topUpSchema,
+  updateMarkupSchema,
   type CreateCostEvent,
   type UpdateBudget,
+  type TopUp,
+  type UpdateMarkup,
 } from "./cost.js";
 
 export {

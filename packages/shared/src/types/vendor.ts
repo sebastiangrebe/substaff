@@ -8,6 +8,10 @@ export interface Vendor {
   stripeCustomerId: string | null;
   plan: VendorPlan;
   planTokenLimit: number;
+  creditBalanceCents: number;
+  markupBasisPoints: number;
+  lowBalanceAlertCents: number;
+  lastLowBalanceAlertAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

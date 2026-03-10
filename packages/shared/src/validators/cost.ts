@@ -21,3 +21,19 @@ export const updateBudgetSchema = z.object({
 });
 
 export type UpdateBudget = z.infer<typeof updateBudgetSchema>;
+
+export const topUpSchema = z.object({
+  amountCents: z.number().int().min(500, "Minimum top-up is $5.00"),
+});
+
+export type TopUp = z.infer<typeof topUpSchema>;
+
+export const updateMarkupSchema = z.object({
+  markupBasisPoints: z
+    .number()
+    .int()
+    .min(10000, "Markup cannot be below 1.0x")
+    .max(50000, "Markup cannot exceed 5.0x"),
+});
+
+export type UpdateMarkup = z.infer<typeof updateMarkupSchema>;

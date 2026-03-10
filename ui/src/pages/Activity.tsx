@@ -5,6 +5,7 @@ import { agentsApi } from "../api/agents";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
 import { goalsApi } from "../api/goals";
+import { authApi } from "../api/auth";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -82,6 +83,17 @@ export function Activity() {
     return map;
   }, [issues]);
 
+  const { data: session } = useQuery({
+    queryKey: queryKeys.auth.session,
+    queryFn: () => authApi.getSession(),
+  });
+
+  const userNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (session?.user) map.set(session.user.id, session.user.name ?? "You");
+    return map;
+  }, [session]);
+
   if (!selectedCompanyId) {
     return <EmptyState icon={History} message="Select a company to view activity." />;
   }
@@ -101,7 +113,11 @@ export function Activity() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold">Activity</h1>
+          <p className="mt-1 text-sm text-muted-foreground">A log of everything happening across your company.</p>
+        </div>
         <Select value={filter} onValueChange={setFilter}>
           <SelectTrigger className="w-[140px] h-8 text-xs">
             <SelectValue placeholder="Filter by type" />
@@ -124,7 +140,7 @@ export function Activity() {
       )}
 
       {filtered && filtered.length > 0 && (
-        <div className="border border-border divide-y divide-border">
+        <div className="border border-border divide-y divide-border rounded-xl overflow-hidden">
           {filtered.map((event) => (
             <ActivityRow
               key={event.id}
@@ -132,6 +148,7 @@ export function Activity() {
               agentMap={agentMap}
               entityNameMap={entityNameMap}
               entityTitleMap={entityTitleMap}
+              userNameMap={userNameMap}
             />
           ))}
         </div>

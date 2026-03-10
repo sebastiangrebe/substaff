@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type UIEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Moon, Sun } from "lucide-react";
+import { HelpCircle, Moon, Sun } from "lucide-react";
 import { Outlet, useLocation, useNavigate, useParams } from "@/lib/router";
-import { CompanyRail } from "./CompanyRail";
-import { Sidebar } from "./Sidebar";
+import {
+  Sidebar,
+  SidebarFooter,
+  SidebarProvider,
+  SidebarInset,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { AppSidebar } from "./Sidebar";
 import { BreadcrumbBar } from "./BreadcrumbBar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { CommandPalette } from "./CommandPalette";
@@ -16,7 +22,6 @@ import { MobileBottomNav } from "./MobileBottomNav";
 import { useDialog } from "../context/DialogContext";
 import { usePanel } from "../context/PanelContext";
 import { useCompany } from "../context/CompanyContext";
-import { useSidebar } from "../context/SidebarContext";
 import { useTheme } from "../context/ThemeContext";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useCompanyPageMemory } from "../hooks/useCompanyPageMemory";
@@ -26,13 +31,23 @@ import { queryKeys } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
 import { useGuidedTour } from "../hooks/useGuidedTour";
+import { useTour } from "./Tour";
 
 export function Layout() {
-  const { sidebarOpen, setSidebarOpen, toggleSidebar, isMobile } = useSidebar();
-  const { openNewIssue, openOnboarding, onboardingOpen, setOnboardingRequired } = useDialog();
+  return (
+    <SidebarProvider>
+      <LayoutInner />
+    </SidebarProvider>
+  );
+}
+
+function LayoutInner() {
+  const { open, setOpen, toggleSidebar, isMobile, setOpenMobile } = useSidebar();
+  const { openNewIssue, openNewProject, openNewGoal, openNewAgent, openOnboarding, onboardingOpen, setOnboardingRequired } = useDialog();
   const { togglePanelVisible } = usePanel();
   const { companies, loading: companiesLoading, selectedCompanyId, setSelectedCompanyId } = useCompany();
   const { theme, toggleTheme } = useTheme();
+  const tour = useTour();
   const { companyPrefix } = useParams<{ companyPrefix: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -127,6 +142,9 @@ export function Layout() {
 
   useKeyboardShortcuts({
     onNewIssue: () => openNewIssue(),
+    onNewProject: () => openNewProject(),
+    onNewGoal: () => openNewGoal(),
+    onNewAgent: () => openNewAgent(),
     onToggleSidebar: toggleSidebar,
     onTogglePanel: togglePanel,
     onSwitchCompany: switchCompany,
@@ -140,51 +158,6 @@ export function Layout() {
     lastMainScrollTop.current = 0;
     setMobileNavVisible(true);
   }, [isMobile]);
-
-  // Swipe gesture to open/close sidebar on mobile
-  useEffect(() => {
-    if (!isMobile) return;
-
-    const EDGE_ZONE = 30; // px from left edge to start open-swipe
-    const MIN_DISTANCE = 50; // minimum horizontal swipe distance
-    const MAX_VERTICAL = 75; // max vertical drift before we ignore
-
-    let startX = 0;
-    let startY = 0;
-
-    const onTouchStart = (e: TouchEvent) => {
-      const t = e.touches[0]!;
-      startX = t.clientX;
-      startY = t.clientY;
-    };
-
-    const onTouchEnd = (e: TouchEvent) => {
-      const t = e.changedTouches[0]!;
-      const dx = t.clientX - startX;
-      const dy = Math.abs(t.clientY - startY);
-
-      if (dy > MAX_VERTICAL) return; // vertical scroll, ignore
-
-      // Swipe right from left edge → open
-      if (!sidebarOpen && startX < EDGE_ZONE && dx > MIN_DISTANCE) {
-        setSidebarOpen(true);
-        return;
-      }
-
-      // Swipe left when open → close
-      if (sidebarOpen && dx < -MIN_DISTANCE) {
-        setSidebarOpen(false);
-      }
-    };
-
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchend", onTouchEnd, { passive: true });
-
-    return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [isMobile, sidebarOpen, setSidebarOpen]);
 
   const handleMainScroll = useCallback(
     (event: UIEvent<HTMLElement>) => {
@@ -207,85 +180,45 @@ export function Layout() {
   );
 
   return (
-    <div className="flex h-dvh bg-background text-foreground overflow-hidden pt-[env(safe-area-inset-top)]">
+    <>
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         Skip to Main Content
       </a>
-      {/* Mobile backdrop */}
-      {isMobile && sidebarOpen && (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-black/50"
-          onClick={() => setSidebarOpen(false)}
-          aria-label="Close sidebar"
-        />
-      )}
 
-      {/* Combined sidebar area: company rail + inner sidebar + docs bar */}
-      {isMobile ? (
-        <div
-          className={cn(
-            "fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden pt-[env(safe-area-inset-top)] transition-transform duration-100 ease-out",
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          )}
-        >
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            <CompanyRail />
-            <Sidebar />
-          </div>
-          <div className="border-t border-r border-border px-3 py-2 bg-background">
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground shrink-0"
-                onClick={toggleTheme}
-                aria-label={`Switch to ${nextTheme} mode`}
-                title={`Switch to ${nextTheme} mode`}
-              >
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col shrink-0 h-full">
-          <div className="flex flex-1 min-h-0">
-            <CompanyRail />
-            <div
-              className={cn(
-                "overflow-hidden transition-[width] duration-100 ease-out",
-                sidebarOpen ? "w-60" : "w-0"
-              )}
+      <Sidebar>
+        <AppSidebar />
+        <SidebarFooter>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground shrink-0"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${nextTheme} mode`}
+              title={`Switch to ${nextTheme} mode`}
             >
-              <Sidebar />
-            </div>
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground shrink-0 gap-1.5 text-xs"
+              onClick={() => tour.startTour()}
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              Take a tour
+            </Button>
           </div>
-          <div className="border-t border-r border-border px-3 py-2">
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground shrink-0"
-                onClick={toggleTheme}
-                aria-label={`Switch to ${nextTheme} mode`}
-                title={`Switch to ${nextTheme} mode`}
-              >
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+        </SidebarFooter>
+      </Sidebar>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0 h-full">
-        <BreadcrumbBar />
+      <SidebarInset>
+        {isMobile && <BreadcrumbBar />}
         <div className="flex flex-1 min-h-0">
           <main
             id="main-content"
@@ -293,11 +226,13 @@ export function Layout() {
             className={cn("flex-1 overflow-auto p-4 md:p-6", isMobile && "pb-[calc(5rem+env(safe-area-inset-bottom))]")}
             onScroll={handleMainScroll}
           >
+            {!isMobile && <BreadcrumbBar />}
             <Outlet />
           </main>
           <PropertiesPanel />
         </div>
-      </div>
+      </SidebarInset>
+
       {isMobile && <MobileBottomNav visible={mobileNavVisible} />}
       <CommandPalette />
       <NewIssueDialog />
@@ -305,6 +240,6 @@ export function Layout() {
       <NewGoalDialog />
       <NewAgentDialog />
       <ToastViewport />
-    </div>
+    </>
   );
 }

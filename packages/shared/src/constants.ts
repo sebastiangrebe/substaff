@@ -228,3 +228,12 @@ export const PERMISSION_KEYS = [
   "joins:approve",
 ] as const;
 export type PermissionKey = (typeof PERMISSION_KEYS)[number];
+
+export const CREDIT_TRANSACTION_TYPES = ["top_up", "usage_deduction", "adjustment", "refund"] as const;
+export type CreditTransactionType = (typeof CREDIT_TRANSACTION_TYPES)[number];
+
+/** Preset top-up amounts in cents. */
+export const CREDIT_TOP_UP_AMOUNTS = [500, 1000, 2500, 5000, 10000] as const;
+
+/** Default markup factor: 15000 basis points = 1.5x raw LLM cost. */
+export const DEFAULT_MARKUP_BASIS_POINTS = 15000;

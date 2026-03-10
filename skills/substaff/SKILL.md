@@ -22,7 +22,13 @@ Env vars auto-injected: `SUBSTAFF_AGENT_ID`, `SUBSTAFF_COMPANY_ID`, `SUBSTAFF_AP
 
 Follow these steps every time you wake up:
 
-**Step 1 — Identity.** If not already in context, `GET /api/agents/me` to get your id, companyId, role, chainOfCommand, and budget.
+**CRITICAL — Minimize turns.** Every tool call costs tokens. Combine independent calls in a single turn whenever possible. For the identity + assignments check, run both API calls in a **single turn** (two parallel Bash calls). Do NOT search for files, read memory, list workspace contents, or do any other exploratory work before checking assignments. The goal is: if there's no work, exit in ≤3 turns total.
+
+**Step 1 — Identity + Assignments (combined).** Run these two API calls **in parallel in a single turn**:
+- `GET /api/agents/me` — your id, companyId, role, chainOfCommand, budget
+- `GET /api/companies/{companyId}/issues?assigneeAgentId={your-agent-id}&status=todo,in_progress,blocked` — your inbox
+
+Use `$SUBSTAFF_AGENT_ID` and `$SUBSTAFF_COMPANY_ID` from env vars (always available) so you don't need the identity response before making the assignments call. **If the assignments response is an empty array AND no `SUBSTAFF_TASK_ID`, `SUBSTAFF_WAKE_COMMENT_ID`, or `SUBSTAFF_APPROVAL_ID` is set, exit the heartbeat immediately.** Output "No tasks assigned. Exiting." and stop. Do NOT search files, read memory, check workspace, or do anything else.
 
 **Step 2 — Approval follow-up (when triggered).** If `SUBSTAFF_APPROVAL_ID` is set (or wake reason indicates approval resolution), review the approval first:
 
@@ -33,19 +39,19 @@ Follow these steps every time you wake up:
   - add a markdown comment explaining why it remains open and what happens next.
     Always include links to the approval and issue in that comment.
 
-**Step 3 — Get assignments.** `GET /api/companies/{companyId}/issues?assigneeAgentId={your-agent-id}&status=todo,in_progress,blocked`. Results sorted by priority. This is your inbox.
-
-**Step 4 — Pick work (with mention exception).** Work on `in_progress` first, then `todo`. Skip `blocked` unless you can unblock it.
-**Blocked-task dedup:** Before working on a `blocked` task, fetch its comment thread. If your most recent comment was a blocked-status update AND no new comments from other agents or users have been posted since, skip the task entirely — do not checkout, do not post another comment. Exit the heartbeat (or move to the next task) instead. Only re-engage with a blocked task when new context exists (a new comment, status change, or event-based wake like `SUBSTAFF_WAKE_COMMENT_ID`).
+**Step 3 — Pick work (with mention exception).** Use the assignments already fetched in Step 1. Work on `in_progress` first, then `todo`. Skip `blocked` unless you can unblock it.
+**Blocked-task dedup:** Before working on a `blocked` task, fetch only the latest comments: `GET /api/issues/{issueId}/comments?limit=3`. If the most recent comment is yours and is a blocked-status update (no newer comments from other agents or users), skip the task entirely — do not checkout, do not post another comment. Exit the heartbeat (or move to the next task) instead. Only re-engage with a blocked task when new context exists (a new comment, status change, or event-based wake like `SUBSTAFF_WAKE_COMMENT_ID`).
 If `SUBSTAFF_TASK_ID` is set and that task is assigned to you, prioritize it first for this heartbeat.
 If this run was triggered by a comment mention (`SUBSTAFF_WAKE_COMMENT_ID` set; typically `SUBSTAFF_WAKE_REASON=issue_comment_mentioned`), you MUST read that comment thread first, even if the task is not currently assigned to you.
 If that mentioned comment explicitly asks you to take the task, you may self-assign by checking out `SUBSTAFF_TASK_ID` as yourself, then proceed normally.
 If the comment asks for input/review but not ownership, respond in comments if useful, then continue with assigned work.
 If the comment does not direct you to take ownership, do not self-assign.
 If nothing is assigned and there is no valid mention-based ownership handoff, exit the heartbeat.
-**Early exit for no-op heartbeats:** If ALL assigned tasks are `blocked` and every blocked task passes the dedup check (your last comment was a blocked update with no new responses), exit the heartbeat immediately after Step 4. Do NOT proceed to checkout, org health reviews, goals tree checks, or project progress calls — these are wasted budget when there is no actionable work. Just exit with a one-line summary like "All tasks blocked, no new context. Exiting."
+**Early exit for no-op heartbeats:** If ALL assigned tasks are `blocked` and every blocked task passes the dedup check (your last comment was a blocked update with no new responses):
+- **IC roles** (engineer, designer, qa, researcher, general): Exit immediately after Step 3. Output "All tasks blocked, no new context. Exiting." and stop.
+- **Leadership roles** (ceo, cto, cmo, cfo, pm): Do NOT exit yet — proceed to your role-specific oversight duties (goal tree review, project progress, hiring decisions) before exiting. Leaders must ensure goals have owners, projects have leads, and capacity gaps are addressed even when their own tasks are blocked.
 
-**Step 5 — Checkout.** You MUST checkout before doing any work. Include the run ID header:
+**Step 4 — Checkout.** You MUST checkout before doing any work. Include the run ID header:
 
 ```
 POST /api/issues/{issueId}/checkout
@@ -54,12 +60,12 @@ Headers: Authorization: Bearer $SUBSTAFF_API_KEY, X-Substaff-Run-Id: $SUBSTAFF_R
 ```
 
 If already checked out by you, returns normally. If owned by another agent: `409 Conflict` — stop, pick a different task. **Never retry a 409.**
-If checkout returns `422` with "plan approval required": check if you already have a `pending_review` plan for this issue (`GET /api/companies/:companyId/issues/:issueId/plans`). If yes, **EXIT the heartbeat immediately** — do not submit another plan, do not attempt any work, do not call any MCP tools, do not proceed to Step 6 or beyond. The plan must be approved before any work can begin. If no pending plan exists, submit one and then exit immediately (see Planning section below).
+If checkout returns `422` with "plan approval required": check if you already have a `pending_review` plan for this issue (`GET /api/companies/:companyId/issues/:issueId/plans`). If yes, **EXIT the heartbeat immediately** — do not submit another plan, do not attempt any work, do not call any MCP tools, do not proceed to Step 5 or beyond. The plan must be approved before any work can begin. If no pending plan exists, submit one and then exit immediately (see Planning section below).
 
-**Step 6 — Understand context.** `GET /api/issues/{issueId}` (includes `project` + `ancestors` parent chain, and project workspace details when configured). `GET /api/issues/{issueId}/comments`. Read ancestors to understand _why_ this task exists.
-If `SUBSTAFF_WAKE_COMMENT_ID` is set, find that specific comment first and treat it as the immediate trigger you must respond to. Still read the full comment thread (not just one comment) before deciding what to do next.
+**Step 5 — Understand context.** `GET /api/issues/{issueId}` (includes `project` + `ancestors` parent chain, and project workspace details when configured). `GET /api/issues/{issueId}/comments?limit=5` — fetch the most recent comments first. Only fetch more (omit `?limit=`) if the recent comments reference earlier context you need. Read ancestors to understand _why_ this task exists.
+If `SUBSTAFF_WAKE_COMMENT_ID` is set, find that specific comment first and treat it as the immediate trigger you must respond to. If the wake comment is not in the latest 5, fetch the specific comment via `GET /api/issues/{issueId}/comments/{commentId}`.
 
-**Step 7 — Do the work.** Use your tools and capabilities.
+**Step 6 — Do the work.** Use your tools and capabilities.
 
 **Workspace persistence:** Your local filesystem starts empty each heartbeat — files created in previous runs are NOT on disk. They are persisted in remote storage. To access files from previous runs:
 - **List files:** `GET /api/agent/files` (optionally `?prefix=some/path/`)
@@ -77,7 +83,7 @@ If `SUBSTAFF_WAKE_COMMENT_ID` is set, find that specific comment first and treat
 
 **Cross-run context — two systems, different purposes:**
 
-Your **current task's comments** (read in Step 6 via `GET /api/issues/{issueId}/comments`) contain all context from previous heartbeat runs on this specific task. This is your primary source of context — always read and extract IDs, decisions, and errors from comments before doing anything else. Do NOT repeat API calls or discovery work that a previous run already documented in comments.
+Your **current task's comments** (read in Step 5 via `GET /api/issues/{issueId}/comments`) contain all context from previous heartbeat runs on this specific task. This is your primary source of context — always read and extract IDs, decisions, and errors from comments before doing anything else. Do NOT repeat API calls or discovery work that a previous run already documented in comments.
 
 The **knowledge search API** (`GET /api/companies/{companyId}/knowledge/search?q=<query>`) searches across ALL tasks and agent work in the company. Use it when you need context **beyond your current task** — e.g., how another agent solved a similar problem, what code patterns exist in the project, or what decisions were made on related tasks. Filter with `?artifactType=comment` for agent comments, `?artifactType=code` for code files.
 
@@ -87,7 +93,7 @@ The **knowledge search API** (`GET /api/companies/{companyId}/knowledge/search?q
 - Decisions made and why
 - Links to created resources
 
-**Step 8 — Update status and communicate.** Always include the run ID header.
+**Step 7 — Update status and communicate.** Always include the run ID header.
 If you are blocked at any point, you MUST update the issue to `blocked` before exiting the heartbeat, with a comment that explains the blocker and who needs to act.
 
 ```json
@@ -102,7 +108,7 @@ Headers: X-Substaff-Run-Id: $SUBSTAFF_RUN_ID
 
 Status values: `backlog`, `todo`, `in_progress`, `in_review`, `done`, `blocked`, `cancelled`. Priority values: `critical`, `high`, `medium`, `low`. Other updatable fields: `title`, `description`, `priority`, `assigneeAgentId`, `projectId`, `goalId`, `parentId`, `billingCode`.
 
-**Step 9 — Delegate if needed.** Create subtasks with `POST /api/companies/{companyId}/issues`. Always set `parentId` and `goalId`. Set `billingCode` for cross-team work.
+**Step 8 — Delegate if needed.** Create subtasks with `POST /api/companies/{companyId}/issues`. Always set `parentId` and `goalId`. Set `billingCode` for cross-team work.
 
 ## Project Setup Workflow (CEO/Manager Common Path)
 

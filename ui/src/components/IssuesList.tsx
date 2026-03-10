@@ -264,6 +264,7 @@ export function IssuesList({
 
   return (
     <div className="space-y-4">
+      <h1 className="text-lg font-semibold">Tasks</h1>
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -574,11 +575,14 @@ export function IssuesList({
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex items-center gap-2 py-2 pl-1 pr-3 text-sm border-b border-border last:border-b-0 cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit"
+                  className={cn(
+                    "flex items-center gap-2 py-2 pr-3 text-sm border-b border-border last:border-b-0 cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit",
+                    viewState.groupBy !== "none" ? "pl-1" : "pl-3"
+                  )}
                 >
                   {/* Spacer matching caret width so status icon aligns with group title (hidden on mobile) */}
-                  <div className="w-3.5 shrink-0 hidden sm:block" />
-                  <div className="shrink-0" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                  {viewState.groupBy !== "none" && <div className="w-3.5 shrink-0 hidden sm:block" />}
+                  <div className="shrink-0 flex items-center" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                     <StatusIcon
                       status={issue.status}
                       onChange={(s) => onUpdateIssue(issue.id, { status: s })}

@@ -10,6 +10,7 @@ import {
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
   ensurePathInEnv,
+  buildSafeProcessEnv,
   runChildProcess,
 } from "@substaff/adapter-utils/server-utils";
 import path from "node:path";
@@ -90,7 +91,7 @@ export async function testEnvironment(
   for (const [key, value] of Object.entries(envConfig)) {
     if (typeof value === "string") env[key] = value;
   }
-  const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
+  const runtimeEnv = ensurePathInEnv({ ...buildSafeProcessEnv(), ...env });
   try {
     await ensureCommandResolvable(command, cwd, runtimeEnv);
     checks.push({

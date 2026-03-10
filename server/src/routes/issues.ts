@@ -1,6 +1,9 @@
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
 import type { Db } from "@substaff/db";
+import { companies } from "@substaff/db";
+import { eq } from "drizzle-orm";
+import { stripeService } from "../services/stripe.js";
 import {
   addIssueCommentSchema,
   addIssueDependencySchema,
@@ -863,7 +866,12 @@ export function issueRoutes(db: Db, storage: StorageService) {
       return;
     }
     assertCompanyAccess(req, issue.companyId);
-    const comments = await svc.listComments(id);
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const since = req.query.since as string | undefined;
+    const comments = await svc.listComments(id, {
+      limit: limit && !isNaN(limit) ? limit : undefined,
+      since,
+    });
     res.json(comments);
   });
 
@@ -1012,6 +1020,26 @@ export function issueRoutes(db: Db, storage: StorageService) {
         projectId: currentIssue.projectId,
         runId: actor.runId,
       }).catch((err) => logger.warn({ err, commentId: comment.id }, "Failed to index comment"));
+    }
+
+    // Pre-check vendor budget before attempting wakeups
+    let budgetExhausted = false;
+    try {
+      const [companyForBudget] = await db
+        .select({ vendorId: companies.vendorId })
+        .from(companies)
+        .where(eq(companies.id, currentIssue.companyId));
+      if (companyForBudget?.vendorId) {
+        const budget = await stripeService(db).checkBudget(companyForBudget.vendorId);
+        budgetExhausted = !budget.allowed;
+      }
+    } catch (err) {
+      logger.warn({ err, issueId: id }, "budget pre-check failed");
+    }
+
+    if (budgetExhausted) {
+      res.status(201).json({ ...comment, warning: "Credits depleted — the agent will not be triggered. Please top up your balance." });
+      return;
     }
 
     // Merge all wakeups from this comment into one enqueue per agent to avoid duplicate runs.

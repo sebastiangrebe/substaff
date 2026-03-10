@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import {
   agents,
@@ -774,12 +774,18 @@ export function issueService(db: Db) {
         .returning()
         .then((rows) => rows[0] ?? null),
 
-    listComments: (issueId: string) =>
-      db
+    listComments: (issueId: string, opts?: { limit?: number; since?: string }) => {
+      const conditions = [eq(issueComments.issueId, issueId)];
+      if (opts?.since) {
+        conditions.push(gt(issueComments.createdAt, new Date(opts.since)));
+      }
+      return db
         .select()
         .from(issueComments)
-        .where(eq(issueComments.issueId, issueId))
-        .orderBy(desc(issueComments.createdAt)),
+        .where(and(...conditions))
+        .orderBy(desc(issueComments.createdAt))
+        .limit(opts?.limit ?? 1000);
+    },
 
     getComment: (commentId: string) =>
       db

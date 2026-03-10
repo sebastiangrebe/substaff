@@ -4,4 +4,5 @@ export interface SidebarBadges {
   pendingPlans: number;
   failedRuns: number;
   joinRequests: number;
+  blockedIssues: number;
 }

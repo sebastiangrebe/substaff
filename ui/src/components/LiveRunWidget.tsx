@@ -555,7 +555,7 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
             key={item.id}
             className={cn(
               "grid grid-cols-[auto_1fr] gap-2 items-start",
-              index === recent.length - 1 && "animate-in fade-in slide-in-from-bottom-1 duration-300",
+              index === recent.length - 1 && "transcript-entry-new",
             )}
           >
             <span className="text-[10px] text-muted-foreground">{relativeTime(item.ts)}</span>

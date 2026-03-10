@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
-import { useSidebar } from "../context/SidebarContext";
+import { useSidebar, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { agentsApi } from "../api/agents";
 import { heartbeatsApi } from "../api/heartbeats";
 import { queryKeys } from "../lib/queryKeys";
@@ -40,7 +40,7 @@ function sortByHierarchy(agents: Agent[]): Agent[] {
 export function SidebarAgents() {
   const [open, setOpen] = useState(true);
   const { selectedCompanyId } = useCompany();
-  const { isMobile, setSidebarOpen } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
 
   const { data: agents } = useQuery({
@@ -76,58 +76,53 @@ export function SidebarAgents() {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div id="tour-team" className="group">
-        <div className="flex items-center px-3 py-1.5">
-          <CollapsibleTrigger className="flex items-center gap-1 flex-1 min-w-0">
+      <SidebarGroup>
+        <SidebarGroupLabel asChild>
+          <CollapsibleTrigger id="tour-team" className="group">
             <ChevronRight
               className={cn(
-                "h-3 w-3 text-muted-foreground/60 transition-transform opacity-0 group-hover:opacity-100",
+                "h-3 w-3 transition-transform",
                 open && "rotate-90"
               )}
             />
-            <span className="text-[10px] font-medium uppercase tracking-widest font-mono text-muted-foreground/60">
-              Team
-            </span>
+            Team
           </CollapsibleTrigger>
-        </div>
-      </div>
+        </SidebarGroupLabel>
 
-      <CollapsibleContent>
-        <div className="flex flex-col gap-0.5 mt-0.5">
-          {visibleAgents.map((agent: Agent) => {
-            const runCount = liveCountByAgent.get(agent.id) ?? 0;
-            return (
-              <NavLink
-                key={agent.id}
-                to={agentUrl(agent)}
-                onClick={() => {
-                  if (isMobile) setSidebarOpen(false);
-                }}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-1.5 text-[13px] font-medium transition-colors",
-                  activeAgentId === agentRouteRef(agent)
-                    ? "bg-accent text-foreground"
-                    : "text-foreground/80 hover:bg-accent/50 hover:text-foreground"
-                )}
-              >
-                <AgentIcon icon={agent.icon} className="shrink-0 h-3.5 w-3.5 text-muted-foreground" />
-                <span className="flex-1 truncate">{agent.name}</span>
-                {runCount > 0 && (
-                  <span className="ml-auto flex items-center gap-1.5 shrink-0">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                    </span>
-                    <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400">
-                      {runCount} working
-                    </span>
-                  </span>
-                )}
-              </NavLink>
-            );
-          })}
-        </div>
-      </CollapsibleContent>
+        <CollapsibleContent>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {visibleAgents.map((agent: Agent) => {
+                const runCount = liveCountByAgent.get(agent.id) ?? 0;
+                return (
+                  <SidebarMenuItem key={agent.id}>
+                    <SidebarMenuButton asChild isActive={activeAgentId === agentRouteRef(agent)} tooltip={agent.name}>
+                      <NavLink
+                        to={agentUrl(agent)}
+                        onClick={() => { if (isMobile) setOpenMobile(false); }}
+                      >
+                        <AgentIcon icon={agent.icon} className="shrink-0 h-4 w-4 text-muted-foreground" />
+                        <span className="truncate">{agent.name}</span>
+                        {runCount > 0 && (
+                          <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                            </span>
+                            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                              {runCount} working
+                            </span>
+                          </span>
+                        )}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </CollapsibleContent>
+      </SidebarGroup>
     </Collapsible>
   );
 }

@@ -85,9 +85,9 @@ const ACTION_LABELS: Record<string, string> = {
   "secret.deleted": "removed a secret",
 
   // Integrations
-  "integration.connected": "connected an integration",
-  "integration.updated": "updated an integration",
-  "integration.disconnected": "disconnected an integration",
+  "integration.connected": "connected a service",
+  "integration.updated": "updated a connection",
+  "integration.disconnected": "disconnected a service",
 
   // Access / Invites
   "invite.created": "sent an invitation",
@@ -161,7 +161,7 @@ export const ENTITY_TYPE_LABELS: Record<string, string> = {
   company: "Workspace",
   cost: "Costs",
   secret: "Secrets",
-  integration: "Integrations",
+  integration: "Connections",
   label: "Labels",
   asset: "Files",
   invite: "Invitations",

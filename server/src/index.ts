@@ -126,6 +126,16 @@ const startupDbInfo = { mode: "external-postgres" as const, connectionString: co
 if (config.redisUrl) {
   const { initRedis } = await import("./services/redis.js");
   await initRedis(config.redisUrl);
+
+  // Initialize BullMQ queues and workers (requires Redis)
+  const { initQueues } = await import("./queues/index.js");
+  await initQueues(config.redisUrl, db as any);
+}
+
+// Initialize email service if configured
+if (process.env.RESEND_API_KEY) {
+  const { initEmail } = await import("./services/email.js");
+  initEmail(process.env.RESEND_API_KEY, process.env.EMAIL_FROM);
 }
 
 // Initialize Qdrant vector search if configured

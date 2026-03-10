@@ -93,8 +93,8 @@ export const agentRoleLabel: Record<string, string> = {
   engineer: "Engineer",
   designer: "Designer",
   pm: "Project Manager",
-  qa: "QA Specialist",
-  devops: "DevOps",
+  qa: "Quality Assurance",
+  devops: "Operations",
   researcher: "Researcher",
   general: "General",
 };

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useSidebar } from "../context/SidebarContext";
+import { useSidebar } from "@/components/ui/sidebar";
 
 export interface PageTabItem {
   value: string;

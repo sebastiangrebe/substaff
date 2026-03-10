@@ -98,6 +98,10 @@ export function Costs() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-lg font-semibold">Spending</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Cost breakdown by agent and time period.</p>
+      </div>
       {/* Date range selector */}
       <div className="flex flex-wrap items-center gap-2">
         {presetKeys.map((p) => (

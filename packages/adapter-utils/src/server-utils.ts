@@ -27,6 +27,33 @@ export const MAX_CAPTURE_BYTES = 4 * 1024 * 1024;
 export const MAX_EXCERPT_BYTES = 32 * 1024;
 const SENSITIVE_ENV_KEY = /(key|token|secret|password|passwd|authorization|cookie)/i;
 
+/**
+ * Allowlist of our own env keys that are safe to forward to agent subprocesses.
+ * Everything else (DATABASE_URL, QDRANT_*, STRIPE_*, REDIS_URL, etc.) is excluded.
+ * SUBSTAFF_* context vars are injected separately via buildSubstaffEnv / adapter logic.
+ */
+const AGENT_ENV_ALLOWLIST = new Set([
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+  "MANAGED_ANTHROPIC_API_KEY",
+  "MANAGED_OPENAI_API_KEY",
+]);
+
+/**
+ * Build a safe subset of process.env for agent subprocesses.
+ * Only copies allowlisted keys — server secrets are never forwarded.
+ */
+export function buildSafeProcessEnv(): Record<string, string> {
+  const safe: Record<string, string> = {};
+  for (const key of AGENT_ENV_ALLOWLIST) {
+    const value = process.env[key];
+    if (typeof value === "string") {
+      safe[key] = value;
+    }
+  }
+  return safe;
+}
+
 export function parseObject(value: unknown): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {};
@@ -220,7 +247,7 @@ export async function runChildProcess(
   const onLogError = opts.onLogError ?? ((err, id, msg) => console.warn({ err, runId: id }, msg));
 
   return new Promise<RunProcessResult>((resolve, reject) => {
-    const mergedEnv = ensurePathInEnv({ ...process.env, ...opts.env });
+    const mergedEnv = ensurePathInEnv({ ...buildSafeProcessEnv(), ...opts.env });
     const child = spawn(command, args, {
       cwd: opts.cwd,
       env: mergedEnv,

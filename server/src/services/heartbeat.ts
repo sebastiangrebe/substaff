@@ -613,18 +613,22 @@ export function heartbeatService(db: Db) {
     const cwd = resolveDefaultAgentWorkspaceDir(agent.id);
     await fs.mkdir(cwd, { recursive: true });
     const warnings: string[] = [];
-    if (sessionCwd) {
-      warnings.push(
-        `Saved session workspace "${sessionCwd}" is not available. Using fallback workspace "${cwd}" for this run.`,
-      );
-    } else if (resolvedProjectId) {
-      warnings.push(
-        `No project workspace directory is currently available for this issue. Using fallback workspace "${cwd}" for this run.`,
-      );
-    } else {
-      warnings.push(
-        `No project or prior session workspace was available. Using fallback workspace "${cwd}" for this run.`,
-      );
+    // Suppress fallback workspace warnings for sandbox adapters — they create
+    // their own filesystem so the host-side cwd is irrelevant.
+    if (!isSandboxAdapter) {
+      if (sessionCwd) {
+        warnings.push(
+          `Saved session workspace "${sessionCwd}" is not available. Using fallback workspace "${cwd}" for this run.`,
+        );
+      } else if (resolvedProjectId) {
+        warnings.push(
+          `No project workspace directory is currently available for this issue. Using fallback workspace "${cwd}" for this run.`,
+        );
+      } else {
+        warnings.push(
+          `No project or prior session workspace was available. Using fallback workspace "${cwd}" for this run.`,
+        );
+      }
     }
     return {
       cwd,
@@ -1080,8 +1084,11 @@ export function heartbeatService(db: Db) {
         .from(companies)
         .where(eq(companies.id, agent.companyId))
         .limit(1);
-      await db.insert(costEvents).values({
-        vendorId: company?.vendorId ?? agent.companyId,
+      const vendorId = company?.vendorId ?? agent.companyId;
+
+      // Insert cost event synchronously (need the ID), then enqueue async processing
+      const [costEvent] = await db.insert(costEvents).values({
+        vendorId,
         companyId: agent.companyId,
         agentId: agent.id,
         provider: result.provider ?? "unknown",
@@ -1090,17 +1097,30 @@ export function heartbeatService(db: Db) {
         outputTokens,
         costCents: additionalCostCents,
         occurredAt: new Date(),
-      });
-    }
+      }).returning();
 
-    if (additionalCostCents > 0) {
-      await db
-        .update(agents)
-        .set({
-          spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${additionalCostCents}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(agents.id, agent.id));
+      // Enqueue async processing: markup calculation, credit deduction, budget checks
+      const { enqueueCostProcessing } = await import("../queues/index.js");
+      const enqueued = enqueueCostProcessing({
+        costEventId: costEvent.id,
+        vendorId,
+        companyId: agent.companyId,
+        agentId: agent.id,
+        rawCostCents: additionalCostCents,
+      });
+
+      // Fallback: if queue is unavailable, do inline budget update
+      if (!enqueued) {
+        if (additionalCostCents > 0) {
+          await db
+            .update(agents)
+            .set({
+              spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${additionalCostCents}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(agents.id, agent.id));
+        }
+      }
     }
   }
 
@@ -1226,13 +1246,6 @@ export function heartbeatService(db: Db) {
     const runtimeWorkspaceWarnings = [
       ...resolvedWorkspace.warnings,
       ...(runtimeSessionResolution.warning ? [runtimeSessionResolution.warning] : []),
-      ...(resetTaskSession && sessionResetReason
-        ? [
-            taskKey
-              ? `Skipping saved session resume for task "${taskKey}" because ${sessionResetReason}.`
-              : `Skipping saved session resume because ${sessionResetReason}.`,
-          ]
-        : []),
     ];
     context.substaffWorkspace = {
       cwd: resolvedWorkspace.cwd,
@@ -1425,13 +1438,25 @@ export function heartbeatService(db: Db) {
         // Storage may not be configured — proceed without file sync
       }
 
-      // Resolve MCP integrations for the company
+      // Resolve MCP integrations for the company, filtered by agent's integrations list.
+      // Agents with no integrations set get NO MCP servers (safe default to save tokens).
+      // Only the root agent (no reportsTo, typically CEO) gets all integrations when unset.
       let mcpConfig: Record<string, unknown> | undefined;
       try {
-        const integrations = integrationService(db);
-        const resolved = await integrations.resolveCompanyMcpConfig(agent.companyId);
-        if (resolved) {
-          mcpConfig = resolved;
+        const agentIntegrations = (agent as Record<string, unknown>).integrations as string[] | null | undefined;
+        const agentReportsTo = (agent as Record<string, unknown>).reportsTo as string | null | undefined;
+        const isRootAgent = !agentReportsTo;
+        const hasExplicitIntegrations = agentIntegrations && agentIntegrations.length > 0;
+
+        if (hasExplicitIntegrations || isRootAgent) {
+          const integrations = integrationService(db);
+          const resolved = await integrations.resolveCompanyMcpConfig(
+            agent.companyId,
+            hasExplicitIntegrations ? agentIntegrations : undefined,
+          );
+          if (resolved) {
+            mcpConfig = resolved;
+          }
         }
       } catch (err) {
         logger.warn({ err, companyId: agent.companyId, runId }, "Failed to resolve MCP config, continuing without");
@@ -2425,20 +2450,29 @@ export function heartbeatService(db: Db) {
         const elapsedMs = now.getTime() - baseline;
         if (elapsedMs < policy.intervalSec * 1000) continue;
 
-        const run = await enqueueWakeup(agent.id, {
-          source: "timer",
-          triggerDetail: "system",
-          reason: "heartbeat_timer",
-          requestedByActorType: "system",
-          requestedByActorId: "heartbeat_scheduler",
-          contextSnapshot: {
-            source: "scheduler",
-            reason: "interval_elapsed",
-            now: now.toISOString(),
-          },
-        });
-        if (run) enqueued += 1;
-        else skipped += 1;
+        try {
+          const run = await enqueueWakeup(agent.id, {
+            source: "timer",
+            triggerDetail: "system",
+            reason: "heartbeat_timer",
+            requestedByActorType: "system",
+            requestedByActorId: "heartbeat_scheduler",
+            contextSnapshot: {
+              source: "scheduler",
+              reason: "interval_elapsed",
+              now: now.toISOString(),
+            },
+          });
+          if (run) enqueued += 1;
+          else skipped += 1;
+        } catch (err: any) {
+          if (err?.status === 409 && err?.message?.includes("budget exhausted")) {
+            skipped += 1;
+            logger.debug({ agentId: agent.id }, "skipping agent wakeup — vendor budget exhausted");
+          } else {
+            throw err;
+          }
+        }
       }
 
       return { checked, enqueued, skipped };

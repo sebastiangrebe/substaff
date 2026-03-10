@@ -1,79 +1,125 @@
-import { ChevronsUpDown, Plus, Settings } from "lucide-react";
-import { Link } from "@/lib/router";
+import { useMemo } from "react";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
+import { useDialog } from "../context/DialogContext";
+import { cn } from "../lib/utils";
+import { CompanyPatternIcon } from "./CompanyPatternIcon";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-
-function statusDotColor(status?: string): string {
-  switch (status) {
-    case "active":
-      return "bg-green-400";
-    case "paused":
-      return "bg-yellow-400";
-    case "archived":
-      return "bg-neutral-400";
-    default:
-      return "bg-green-400";
-  }
-}
+import { useQueries } from "@tanstack/react-query";
+import { queryKeys } from "../lib/queryKeys";
+import { heartbeatsApi } from "../api/heartbeats";
+import { sidebarBadgesApi } from "../api/sidebarBadges";
+import type { Company } from "@substaff/shared";
 
 export function CompanySwitcher() {
-  const { companies, selectedCompany, setSelectedCompanyId } = useCompany();
-  const sidebarCompanies = companies.filter((company) => company.status !== "archived");
+  const { companies, selectedCompanyId, setSelectedCompanyId, selectedCompany } = useCompany();
+  const { openOnboarding } = useDialog();
+
+  const sidebarCompanies = useMemo(
+    () => companies.filter((c) => c.status !== "archived"),
+    [companies],
+  );
+  const companyIds = useMemo(() => sidebarCompanies.map((c) => c.id), [sidebarCompanies]);
+
+  const liveRunsQueries = useQueries({
+    queries: companyIds.map((companyId) => ({
+      queryKey: queryKeys.liveRuns(companyId),
+      queryFn: () => heartbeatsApi.liveRunsForCompany(companyId),
+      refetchInterval: 10_000,
+    })),
+  });
+  const sidebarBadgeQueries = useQueries({
+    queries: companyIds.map((companyId) => ({
+      queryKey: queryKeys.sidebarBadges(companyId),
+      queryFn: () => sidebarBadgesApi.get(companyId),
+      refetchInterval: 15_000,
+    })),
+  });
+
+  const liveByCompany = useMemo(() => {
+    const m = new Map<string, number>();
+    companyIds.forEach((id, i) => m.set(id, liveRunsQueries[i]?.data?.length ?? 0));
+    return m;
+  }, [companyIds, liveRunsQueries]);
+
+  const inboxByCompany = useMemo(() => {
+    const m = new Map<string, number>();
+    companyIds.forEach((id, i) => m.set(id, sidebarBadgeQueries[i]?.data?.inbox ?? 0));
+    return m;
+  }, [companyIds, sidebarBadgeQueries]);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          className="w-full justify-between px-2 py-1.5 h-auto text-left"
+        <button
+          className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-accent/60 transition-colors text-left outline-none"
+          aria-label="Switch workspace"
         >
-          <div className="flex items-center gap-2 min-w-0">
-            {selectedCompany && (
-              <span className={`h-2 w-2 rounded-full shrink-0 ${statusDotColor(selectedCompany.status)}`} />
-            )}
-            <span className="text-sm font-medium truncate">
-              {selectedCompany?.name ?? "Select company"}
-            </span>
+          {selectedCompany && (
+            <CompanyPatternIcon
+              companyName={selectedCompany.name}
+              brandColor={selectedCompany.brandColor}
+              className="w-8 h-8 rounded-lg text-sm shrink-0"
+            />
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-foreground truncate">
+              {selectedCompany?.name ?? "Select workspace"}
+            </div>
           </div>
-          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        </Button>
+          <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+        </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[220px]">
-        <DropdownMenuLabel>Companies</DropdownMenuLabel>
+      <DropdownMenuContent align="start" className="w-64" sideOffset={4}>
+        {sidebarCompanies.map((company: Company) => {
+          const isSelected = company.id === selectedCompanyId;
+          const liveCount = liveByCompany.get(company.id) ?? 0;
+          const inboxCount = inboxByCompany.get(company.id) ?? 0;
+          return (
+            <DropdownMenuItem
+              key={company.id}
+              onClick={() => setSelectedCompanyId(company.id)}
+              className={cn(
+                "flex items-center gap-2.5 px-2.5 py-2 cursor-pointer",
+                isSelected && "bg-accent",
+              )}
+            >
+              <CompanyPatternIcon
+                companyName={company.name}
+                brandColor={company.brandColor}
+                className="w-7 h-7 rounded-md text-xs shrink-0"
+              />
+              <span className="flex-1 truncate font-medium">{company.name}</span>
+              {liveCount > 0 && (
+                <span className="flex items-center gap-1 shrink-0">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                  </span>
+                </span>
+              )}
+              {inboxCount > 0 && (
+                <span className="rounded-full bg-red-500 text-white text-[10px] leading-none px-1.5 py-0.5 shrink-0">
+                  {inboxCount > 99 ? "99+" : inboxCount}
+                </span>
+              )}
+              {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
+            </DropdownMenuItem>
+          );
+        })}
         <DropdownMenuSeparator />
-        {sidebarCompanies.map((company) => (
-          <DropdownMenuItem
-            key={company.id}
-            onClick={() => setSelectedCompanyId(company.id)}
-            className={company.id === selectedCompany?.id ? "bg-accent" : ""}
-          >
-            <span className={`h-2 w-2 rounded-full shrink-0 mr-2 ${statusDotColor(company.status)}`} />
-            <span className="truncate">{company.name}</span>
-          </DropdownMenuItem>
-        ))}
-        {sidebarCompanies.length === 0 && (
-          <DropdownMenuItem disabled>No companies</DropdownMenuItem>
-        )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link to="/company/settings" className="no-underline text-inherit">
-            <Settings className="h-4 w-4 mr-2" />
-            Company Settings
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to="/companies" className="no-underline text-inherit">
-            <Plus className="h-4 w-4 mr-2" />
-            Manage Companies
-          </Link>
+        <DropdownMenuItem
+          onClick={() => openOnboarding()}
+          className="flex items-center gap-2.5 px-2.5 py-2 text-muted-foreground cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Add workspace</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

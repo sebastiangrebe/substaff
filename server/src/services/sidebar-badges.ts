@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { agents, approvals, heartbeatRuns, taskPlans } from "@substaff/db";
+import { agents, approvals, heartbeatRuns, issues, taskPlans } from "@substaff/db";
 import type { SidebarBadges } from "@substaff/shared";
 
 const ACTIONABLE_APPROVAL_STATUSES = ["pending", "revision_requested"];
@@ -53,14 +53,26 @@ export function sidebarBadgeService(db: Db) {
         )
         .then((rows) => Number(rows[0]?.count ?? 0));
 
+      const blockedIssues = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(issues)
+        .where(
+          and(
+            eq(issues.companyId, companyId),
+            eq(issues.status, "blocked"),
+          ),
+        )
+        .then((rows) => Number(rows[0]?.count ?? 0));
+
       const joinRequests = extra?.joinRequests ?? 0;
       const assignedIssues = extra?.assignedIssues ?? 0;
       return {
-        inbox: actionableApprovals + pendingPlans + failedRuns + joinRequests + assignedIssues,
+        inbox: actionableApprovals + pendingPlans + failedRuns + joinRequests + assignedIssues + blockedIssues,
         approvals: actionableApprovals,
         pendingPlans,
         failedRuns,
         joinRequests,
+        blockedIssues,
       };
     },
   };

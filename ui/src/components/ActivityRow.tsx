@@ -21,10 +21,11 @@ interface ActivityRowProps {
   agentMap: Map<string, Agent>;
   entityNameMap: Map<string, string>;
   entityTitleMap?: Map<string, string>;
+  userNameMap?: Map<string, string>;
   className?: string;
 }
 
-export function ActivityRow({ event, agentMap, entityNameMap, entityTitleMap, className }: ActivityRowProps) {
+export function ActivityRow({ event, agentMap, entityNameMap, entityTitleMap, userNameMap, className }: ActivityRowProps) {
   const verb = formatActivityVerb(event.action, event.details);
 
   const isHeartbeatEvent = event.entityType === "heartbeat_run";
@@ -43,7 +44,8 @@ export function ActivityRow({ event, agentMap, entityNameMap, entityTitleMap, cl
     : entityLink(event.entityType, event.entityId, name);
 
   const actor = event.actorType === "agent" ? agentMap.get(event.actorId) : null;
-  const actorName = actor?.name ?? humanizeActorName(event.actorType, event.actorId || null);
+  const resolvedUserName = event.actorType === "user" ? userNameMap?.get(event.actorId) : undefined;
+  const actorName = actor?.name ?? resolvedUserName ?? humanizeActorName(event.actorType);
 
   const inner = (
     <div className="flex gap-3">

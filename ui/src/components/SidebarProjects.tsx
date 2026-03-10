@@ -14,7 +14,7 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
-import { useSidebar } from "../context/SidebarContext";
+import { useSidebar, SidebarMenuButton, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { authApi } from "../api/auth";
 import { projectsApi } from "../api/projects";
 import { queryKeys } from "../lib/queryKeys";
@@ -31,12 +31,12 @@ function SortableProjectItem({
   activeProjectRef,
   isMobile,
   project,
-  setSidebarOpen,
+  setOpenMobile,
 }: {
   activeProjectRef: string | null;
   isMobile: boolean;
   project: Project;
-  setSidebarOpen: (open: boolean) => void;
+  setOpenMobile: (open: boolean) => void;
 }) {
   const {
     attributes,
@@ -50,7 +50,7 @@ function SortableProjectItem({
   const routeRef = projectRouteRef(project);
 
   return (
-    <div
+    <SidebarMenuSubItem
       ref={setNodeRef}
       style={{
         transform: CSS.Transform.toString(transform),
@@ -61,25 +61,19 @@ function SortableProjectItem({
       {...attributes}
       {...listeners}
     >
-      <NavLink
-        to={`/projects/${routeRef}/issues`}
-        onClick={() => {
-          if (isMobile) setSidebarOpen(false);
-        }}
-        className={cn(
-          "flex items-center gap-2.5 px-3 py-1.5 text-[13px] font-medium transition-colors",
-          activeProjectRef === routeRef || activeProjectRef === project.id
-            ? "bg-accent text-foreground"
-            : "text-foreground/80 hover:bg-accent/50 hover:text-foreground",
-        )}
-      >
-        <span
-          className="shrink-0 h-3.5 w-3.5 rounded-sm"
-          style={{ backgroundColor: project.color ?? "#6366f1" }}
-        />
-        <span className="flex-1 truncate">{project.name}</span>
-      </NavLink>
-    </div>
+      <SidebarMenuSubButton asChild isActive={activeProjectRef === routeRef || activeProjectRef === project.id}>
+        <NavLink
+          to={`/projects/${routeRef}/issues`}
+          onClick={() => { if (isMobile) setOpenMobile(false); }}
+        >
+          <span
+            className="shrink-0 h-3.5 w-3.5 rounded-sm"
+            style={{ backgroundColor: project.color ?? "#6366f1" }}
+          />
+          <span className="truncate">{project.name}</span>
+        </NavLink>
+      </SidebarMenuSubButton>
+    </SidebarMenuSubItem>
   );
 }
 
@@ -87,7 +81,7 @@ export function SidebarProjects() {
   const [open, setOpen] = useState(false);
   const { selectedCompanyId } = useCompany();
   const { openNewProject } = useDialog();
-  const { isMobile, setSidebarOpen } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
 
   const { data: projects } = useQuery({
@@ -140,19 +134,15 @@ export function SidebarProjects() {
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="flex items-center">
-        <NavLink
-          to="/projects"
-          onClick={() => { if (isMobile) setSidebarOpen(false); }}
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors flex-1 min-w-0",
-            projectsActive
-              ? "bg-accent text-foreground"
-              : "text-foreground/80 hover:bg-accent/50 hover:text-foreground",
-          )}
-        >
-          <FolderKanban className="h-4 w-4 shrink-0" />
-          <span className="flex-1 truncate">Projects</span>
-        </NavLink>
+        <SidebarMenuButton asChild tooltip="Projects" className="flex-1 min-w-0">
+          <NavLink
+            to="/projects"
+            onClick={() => { if (isMobile) setOpenMobile(false); }}
+          >
+            <FolderKanban className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">Projects</span>
+          </NavLink>
+        </SidebarMenuButton>
         <CollapsibleTrigger className="flex items-center justify-center h-8 w-8 shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors">
           <ChevronRight
             className={cn(
@@ -173,24 +163,28 @@ export function SidebarProjects() {
             items={orderedProjects.map((project) => project.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="flex flex-col gap-0.5 mt-0.5 pl-4">
+            <SidebarMenuSub>
               {orderedProjects.map((project: Project) => (
                 <SortableProjectItem
                   key={project.id}
                   activeProjectRef={activeProjectRef}
                   isMobile={isMobile}
                   project={project}
-                  setSidebarOpen={setSidebarOpen}
+                  setOpenMobile={setOpenMobile}
                 />
               ))}
-              <button
-                onClick={() => openNewProject()}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">New Project</span>
-              </button>
-            </div>
+              <SidebarMenuSubItem>
+                <SidebarMenuSubButton asChild>
+                  <button
+                    onClick={() => openNewProject()}
+                    className="text-muted-foreground"
+                  >
+                    <Plus className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">New Project</span>
+                  </button>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            </SidebarMenuSub>
           </SortableContext>
         </DndContext>
       </CollapsibleContent>

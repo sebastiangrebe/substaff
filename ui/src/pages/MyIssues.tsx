@@ -48,7 +48,7 @@ export function MyIssues() {
       )}
 
       {myIssues.length > 0 && (
-        <div className="border border-border">
+        <div className="border border-border rounded-xl overflow-hidden">
           {myIssues.map((issue) => (
             <EntityRow
               key={issue.id}

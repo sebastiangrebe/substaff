@@ -47,8 +47,10 @@ curl -sS "$SUBSTAFF_API_URL/llms/agent-icons.txt" \
 - adapter type
 - adapter and runtime config aligned to this environment
 - capabilities
+- **integrations** — array of provider slugs this agent needs (e.g., `["meta"]`, `["google-drive"]`, or `["meta", "google-drive"]`). Only include integrations the role actually requires. Agents without integrations get no MCP tools. Available providers match those connected on the Integrations page.
 - run prompt in adapter config (`promptTemplate` where applicable)
 - source issue linkage (`sourceIssueId` or `sourceIssueIds`) when this hire came from an issue
+- **heartbeat.enabled must be `false`** — the agent should not start until persona files are written (see step 6)
 
 4. Submit hire request.
 
@@ -65,7 +67,8 @@ curl -sS -X POST "$SUBSTAFF_API_URL/api/companies/$SUBSTAFF_COMPANY_ID/agent-hir
     "capabilities": "Owns technical roadmap, architecture, staffing, execution",
     "adapterType": "e2b_sandbox",
     "adapterConfig": {"template": "substaff-claude", "model": "claude-sonnet-4-6", "timeoutSec": 600},
-    "runtimeConfig": {"heartbeat": {"enabled": true, "intervalSec": 300, "wakeOnDemand": true}},
+    "runtimeConfig": {"heartbeat": {"enabled": false, "intervalSec": 300, "wakeOnDemand": true, "maxConcurrentRuns": 1}},
+    "integrations": ["meta", "google-drive"],
     "sourceIssueId": "<issue-id>"
   }'
 ```
@@ -76,6 +79,11 @@ curl -sS -X POST "$SUBSTAFF_API_URL/api/companies/$SUBSTAFF_COMPANY_ID/agent-hir
 - if response has `approval`, hire is `pending_approval`
 - monitor and discuss on approval thread
 - when the board approves, you will be woken with `SUBSTAFF_APPROVAL_ID`; read linked issues and close/comment follow-up
+
+6. **Onboard the new agent** (after approval is granted):
+- Use the `onboard-agent` skill to write persona files (AGENTS.md, HEARTBEAT.md, SOUL.md, TOOLS.md) for the new hire
+- The agent's heartbeat is disabled until you activate it — the new agent will NOT start working until you complete onboarding
+- **Do NOT skip this step.** An agent without persona files has no role guidance and will waste budget
 
 **Approval linking:** If you included `sourceIssueId` in your `POST /api/companies/.../agent-hires` payload, the approval is **automatically linked** to the issue. Do **not** fire a manual `POST /api/issues/<issue-id>/approvals` request. Only use the manual linking endpoint if `sourceIssueId` was omitted from the original hire request.
 

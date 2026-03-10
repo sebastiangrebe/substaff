@@ -19,6 +19,10 @@ export function Files() {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h1 className="text-lg font-semibold">Files</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Browse and manage files shared across your workspace.</p>
+      </div>
       <FileBrowser companyId={selectedCompanyId} />
     </div>
   );

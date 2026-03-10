@@ -197,6 +197,10 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-lg font-semibold">Home</h1>
+        <p className="mt-1 text-sm text-muted-foreground">An overview of your team's progress and recent activity.</p>
+      </div>
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 
       {hasNoAgents && (

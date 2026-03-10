@@ -25,7 +25,8 @@ import {
   Sparkles,
   Check,
   Loader2,
-  X
+  X,
+  Wallet,
 } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4;
@@ -446,7 +447,7 @@ export function OnboardingWizard() {
                       </p>
                     </div>
                   </div>
-                  <div className="border border-border divide-y divide-border">
+                  <div className="border border-border divide-y divide-border rounded-xl overflow-hidden">
                     <div className="flex items-center gap-3 px-3 py-2.5">
                       <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -478,6 +479,25 @@ export function OnboardingWizard() {
                         <p className="text-xs text-muted-foreground">Task</p>
                       </div>
                       <Check className="h-4 w-4 text-green-500 shrink-0" />
+                    </div>
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <Wallet className="h-4 w-4 text-yellow-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">Add credits</p>
+                        <p className="text-xs text-muted-foreground">
+                          Agents need credits to run. Top up on the Billing page.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          closeOnboarding();
+                          navigate("/billing");
+                        }}
+                      >
+                        Top up
+                      </Button>
                     </div>
                   </div>
                 </div>

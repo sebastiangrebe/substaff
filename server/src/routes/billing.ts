@@ -1,9 +1,12 @@
-import express, { Router } from "express";
+import { Router } from "express";
 import { eq } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { vendors } from "@substaff/db";
-import { assertBoard, assertVendorAccess } from "./authz.js";
+import { topUpSchema, updateMarkupSchema } from "@substaff/shared";
+import { assertBoard, assertVendorAccess, getActorVendorId } from "./authz.js";
+import { validate } from "../middleware/validate.js";
 import { stripeService, initStripe } from "../services/stripe.js";
+import { logActivity, type LogActivityInput } from "../services/activity-log.js";
 import { logger } from "../middleware/logger.js";
 
 export function billingRoutes(db: Db) {
@@ -16,86 +19,126 @@ export function billingRoutes(db: Db) {
     initStripe(stripeSecretKey);
   }
 
-  // GET /api/vendors/:vendorId/billing — get billing info
-  router.get("/vendors/:vendorId/billing", async (req, res) => {
+  // GET /api/billing/me — resolve billing info from current user's vendor
+  router.get("/billing/me", async (req, res) => {
     assertBoard(req);
-    assertVendorAccess(req, req.params.vendorId!);
+    const vendorId = getActorVendorId(req);
 
     const [vendor] = await db
       .select()
       .from(vendors)
-      .where(eq(vendors.id, req.params.vendorId!));
+      .where(eq(vendors.id, vendorId));
 
     if (!vendor) {
       res.status(404).json({ error: "Vendor not found" });
       return;
     }
 
-    const budget = await billing.checkBudget(req.params.vendorId!);
+    const balance = await billing.getBalance(vendorId);
 
     res.json({
-      plan: vendor.plan,
-      stripeCustomerId: vendor.stripeCustomerId,
+      vendorId: vendor.id,
+      creditBalanceCents: balance.creditBalanceCents,
+      markupBasisPoints: balance.markupBasisPoints,
       billingEmail: vendor.billingEmail,
-      planTokenLimit: vendor.planTokenLimit,
-      usedTokens: budget.usedTokens,
-      budgetRemaining: budget.limit - budget.usedTokens,
+      stripeCustomerId: vendor.stripeCustomerId,
+      usedCostCents: balance.monthlyLlmCostCents,
+      platformCostCents: balance.monthlyPlatformCostCents,
     });
   });
 
-  // POST /api/vendors/:vendorId/billing/subscribe — create or change subscription
-  router.post("/vendors/:vendorId/billing/subscribe", async (req, res) => {
+  // GET /api/vendors/:vendorId/billing — get billing info
+  router.get("/vendors/:vendorId/billing", async (req, res) => {
     assertBoard(req);
-    assertVendorAccess(req, req.params.vendorId!);
+    assertVendorAccess(req, req.params.vendorId as string);
+
+    const [vendor] = await db
+      .select()
+      .from(vendors)
+      .where(eq(vendors.id, req.params.vendorId as string));
+
+    if (!vendor) {
+      res.status(404).json({ error: "Vendor not found" });
+      return;
+    }
+
+    const balance = await billing.getBalance(req.params.vendorId as string);
+
+    res.json({
+      creditBalanceCents: balance.creditBalanceCents,
+      markupBasisPoints: balance.markupBasisPoints,
+      billingEmail: vendor.billingEmail,
+      stripeCustomerId: vendor.stripeCustomerId,
+      usedCostCents: balance.monthlyLlmCostCents,
+      platformCostCents: balance.monthlyPlatformCostCents,
+    });
+  });
+
+  // GET /api/vendors/:vendorId/billing/balance — credit balance and month-to-date usage
+  router.get("/vendors/:vendorId/billing/balance", async (req, res) => {
+    assertBoard(req);
+    assertVendorAccess(req, req.params.vendorId as string);
+
+    const balance = await billing.getBalance(req.params.vendorId as string);
+    res.json(balance);
+  });
+
+  // GET /api/vendors/:vendorId/billing/credits — paginated credit transaction history
+  router.get("/vendors/:vendorId/billing/credits", async (req, res) => {
+    assertBoard(req);
+    assertVendorAccess(req, req.params.vendorId as string);
+
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+
+    const rows = await billing.getCreditHistory(req.params.vendorId as string, limit, offset);
+    res.json(rows);
+  });
+
+  // POST /api/vendors/:vendorId/billing/top-up — create Stripe Checkout session for credit top-up
+  router.post("/vendors/:vendorId/billing/top-up", validate(topUpSchema), async (req, res) => {
+    assertBoard(req);
+    assertVendorAccess(req, req.params.vendorId as string);
 
     if (!stripeSecretKey) {
       res.status(501).json({ error: "Stripe not configured" });
       return;
     }
 
-    const { priceId } = req.body as { priceId: string };
-    if (!priceId) {
-      res.status(400).json({ error: "priceId is required" });
+    const { amountCents } = req.body as { amountCents: number };
+    const result = await billing.createTopUpSession(req.params.vendorId as string, amountCents);
+
+    res.json(result);
+  });
+
+  // PATCH /api/vendors/:vendorId/billing/markup — update markup factor
+  router.patch("/vendors/:vendorId/billing/markup", validate(updateMarkupSchema), async (req, res) => {
+    assertBoard(req);
+    assertVendorAccess(req, req.params.vendorId as string);
+
+    const { markupBasisPoints } = req.body as { markupBasisPoints: number };
+
+    const [vendor] = await db
+      .update(vendors)
+      .set({ markupBasisPoints, updatedAt: new Date() })
+      .where(eq(vendors.id, req.params.vendorId as string))
+      .returning();
+
+    if (!vendor) {
+      res.status(404).json({ error: "Vendor not found" });
       return;
     }
 
-    const subscription = await billing.createSubscription(req.params.vendorId!, priceId);
-    res.json({ subscription: { id: subscription.id, status: subscription.status } });
+    res.json({ markupBasisPoints: vendor.markupBasisPoints });
   });
 
   // POST /api/vendors/:vendorId/billing/sync — sync usage from cost events
   router.post("/vendors/:vendorId/billing/sync", async (req, res) => {
     assertBoard(req);
-    assertVendorAccess(req, req.params.vendorId!);
+    assertVendorAccess(req, req.params.vendorId as string);
 
-    const usage = await billing.syncUsage(req.params.vendorId!);
+    const usage = await billing.syncUsage(req.params.vendorId as string);
     res.json({ usage });
-  });
-
-  // POST /api/webhooks/stripe — Stripe webhook endpoint
-  router.post("/webhooks/stripe", express.raw({ type: "application/json" }), async (req, res) => {
-    if (!stripeSecretKey || !stripeWebhookSecret) {
-      res.status(501).json({ error: "Stripe not configured" });
-      return;
-    }
-
-    const sig = req.headers["stripe-signature"];
-    if (!sig) {
-      res.status(400).json({ error: "Missing stripe-signature header" });
-      return;
-    }
-
-    try {
-      const Stripe = (await import("stripe")).default;
-      const stripe = new Stripe(stripeSecretKey, { apiVersion: "2025-01-27.acacia" as any });
-      const event = stripe.webhooks.constructEvent(req.body, sig as string, stripeWebhookSecret);
-      await billing.handleWebhookEvent(event);
-      res.json({ received: true });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn({ err }, "Stripe webhook verification failed");
-      res.status(400).json({ error: `Webhook Error: ${message}` });
-    }
   });
 
   return router;

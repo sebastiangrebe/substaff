@@ -1,13 +1,5 @@
-import type { CostSummary, CostByAgent } from "@substaff/shared";
+import type { CostSummary, CostByAgent, CostByProject } from "@substaff/shared";
 import { api } from "./client";
-
-export interface CostByProject {
-  projectId: string | null;
-  projectName: string | null;
-  costCents: number;
-  inputTokens: number;
-  outputTokens: number;
-}
 
 function dateParams(from?: string, to?: string): string {
   const params = new URLSearchParams();

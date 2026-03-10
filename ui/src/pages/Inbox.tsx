@@ -9,6 +9,7 @@ import { dashboardApi } from "../api/dashboard";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { heartbeatsApi } from "../api/heartbeats";
+import { billingApi } from "../api/billing";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
@@ -54,6 +55,7 @@ type InboxTab = "new" | "all";
 type InboxCategoryFilter =
   | "everything"
   | "assigned_to_me"
+  | "blocked"
   | "join_requests"
   | "approvals"
   | "pending_plans"
@@ -63,6 +65,7 @@ type InboxCategoryFilter =
 type InboxApprovalFilter = "all" | "actionable" | "resolved";
 type SectionKey =
   | "assigned_to_me"
+  | "blocked"
   | "join_requests"
   | "approvals"
   | "pending_plans"
@@ -309,6 +312,12 @@ export function Inbox() {
     enabled: !!selectedCompanyId,
   });
 
+  const { data: billingInfo } = useQuery({
+    queryKey: queryKeys.billing.me,
+    queryFn: () => billingApi.getMyBilling(),
+  });
+  const creditsDepleted = (billingInfo?.creditBalanceCents ?? 1) <= 0;
+
   const { data: issues, isLoading: isIssuesLoading } = useQuery({
     queryKey: queryKeys.issues.list(selectedCompanyId!),
     queryFn: () => issuesApi.list(selectedCompanyId!),
@@ -326,6 +335,19 @@ export function Inbox() {
       }),
     enabled: !!selectedCompanyId,
   });
+
+  const { data: blockedIssuesRaw = [] } = useQuery({
+    queryKey: [...queryKeys.issues.list(selectedCompanyId!), "blocked"] as const,
+    queryFn: () => issuesApi.list(selectedCompanyId!, { status: "blocked" }),
+    enabled: !!selectedCompanyId,
+  });
+  const blockedIssues = useMemo(
+    () =>
+      [...blockedIssuesRaw].sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      ),
+    [blockedIssuesRaw],
+  );
 
   const { data: heartbeatRuns, isLoading: isRunsLoading } = useQuery({
     queryKey: queryKeys.heartbeats(selectedCompanyId!),
@@ -479,7 +501,8 @@ export function Inbox() {
     !!dashboard &&
     dashboard.costs.monthBudgetCents > 0 &&
     dashboard.costs.monthUtilizationPercent >= 80;
-  const hasAlerts = showAggregateAgentError || showBudgetAlert;
+  const hasAlerts = showAggregateAgentError || showBudgetAlert || creditsDepleted;
+  const hasBlocked = blockedIssues.length > 0;
   const hasStale = staleIssues.length > 0;
   const hasJoinRequests = joinRequests.length > 0;
   const hasAssignedToMe = assignedToMeIssues.length > 0;
@@ -487,13 +510,15 @@ export function Inbox() {
 
   const newItemCount =
     assignedToMeIssues.length +
+    blockedIssues.length +
     joinRequests.length +
     actionableApprovals.length +
     pendingPlans.length +
     failedRuns.length +
     staleIssues.length +
     (showAggregateAgentError ? 1 : 0) +
-    (showBudgetAlert ? 1 : 0);
+    (showBudgetAlert ? 1 : 0) +
+    (creditsDepleted ? 1 : 0);
 
   const showJoinRequestsCategory =
     allCategoryFilter === "everything" || allCategoryFilter === "join_requests";
@@ -502,6 +527,8 @@ export function Inbox() {
   const showApprovalsCategory = allCategoryFilter === "everything" || allCategoryFilter === "approvals";
   const showPendingPlansCategory =
     allCategoryFilter === "everything" || allCategoryFilter === "pending_plans";
+  const showBlockedCategory =
+    allCategoryFilter === "everything" || allCategoryFilter === "blocked";
   const showFailedRunsCategory =
     allCategoryFilter === "everything" || allCategoryFilter === "failed_runs";
   const showAlertsCategory = allCategoryFilter === "everything" || allCategoryFilter === "alerts";
@@ -517,6 +544,8 @@ export function Inbox() {
       : showApprovalsCategory && filteredAllApprovals.length > 0;
   const showPendingPlansSection =
     tab === "new" ? hasPendingPlans : showPendingPlansCategory && hasPendingPlans;
+  const showBlockedSection =
+    tab === "new" ? hasBlocked : showBlockedCategory && hasBlocked;
   const showFailedRunsSection =
     tab === "new" ? hasRunFailures : showFailedRunsCategory && hasRunFailures;
   const showAlertsSection = tab === "new" ? hasAlerts : showAlertsCategory && hasAlerts;
@@ -524,6 +553,7 @@ export function Inbox() {
 
   const visibleSections = [
     showAssignedSection ? "assigned_to_me" : null,
+    showBlockedSection ? "blocked" : null,
     showApprovalsSection ? "approvals" : null,
     showPendingPlansSection ? "pending_plans" : null,
     showJoinRequestsSection ? "join_requests" : null,
@@ -545,6 +575,10 @@ export function Inbox() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-lg font-semibold">My Work</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Tasks, notifications, and items that need your attention.</p>
+      </div>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs value={tab} onValueChange={(value) => navigate(`/inbox/${value === "all" ? "all" : "new"}`)}>
           <PageTabBar
@@ -579,6 +613,7 @@ export function Inbox() {
               <SelectContent>
                 <SelectItem value="everything">All categories</SelectItem>
                 <SelectItem value="assigned_to_me">My tasks</SelectItem>
+                <SelectItem value="blocked">Blocked tasks</SelectItem>
                 <SelectItem value="join_requests">Join requests</SelectItem>
                 <SelectItem value="approvals">Reviews</SelectItem>
                 <SelectItem value="pending_plans">Plans to review</SelectItem>
@@ -628,7 +663,7 @@ export function Inbox() {
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               My Tasks
             </h3>
-            <div className="divide-y divide-border border border-border">
+            <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
               {assignedToMeIssues.map((issue) => (
                 <Link
                   key={issue.id}
@@ -644,6 +679,44 @@ export function Inbox() {
                   <span className="flex-1 truncate text-sm">{issue.title}</span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     updated {timeAgo(issue.updatedAt)}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {showBlockedSection && (
+        <>
+          {showSeparatorBefore("blocked") && <Separator />}
+          <div>
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Blocked Tasks
+              <span className="ml-2 text-xs font-normal normal-case text-destructive">
+                {blockedIssues.length}
+              </span>
+            </h3>
+            <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
+              {blockedIssues.map((issue) => (
+                <Link
+                  key={issue.id}
+                  to={`/issues/${issue.identifier ?? issue.id}`}
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
+                >
+                  <StatusIcon status="blocked" />
+                  <PriorityIcon priority={issue.priority} />
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {issue.identifier ?? issue.id.slice(0, 8)}
+                  </span>
+                  <span className="flex-1 truncate text-sm">{issue.title}</span>
+                  {issue.assigneeAgentId && (
+                    <span className="text-xs text-muted-foreground truncate max-w-[120px]">
+                      {agentById.get(issue.assigneeAgentId) ?? issue.assigneeAgentId.slice(0, 8)}
+                    </span>
+                  )}
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {timeAgo(issue.updatedAt)}
                   </span>
                 </Link>
               ))}
@@ -829,7 +902,7 @@ export function Inbox() {
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Alerts
             </h3>
-            <div className="divide-y divide-border border border-border">
+            <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
               {showAggregateAgentError && (
                 <Link
                   to="/agents"
@@ -842,9 +915,20 @@ export function Inbox() {
                   </span>
                 </Link>
               )}
+              {creditsDepleted && (
+                <Link
+                  to="/billing"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
+                >
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                  <span className="text-sm">
+                    <span className="font-medium">Credits depleted</span> — agents are blocked. Top up your balance to continue.
+                  </span>
+                </Link>
+              )}
               {showBudgetAlert && (
                 <Link
-                  to="/costs"
+                  to="/billing"
                   className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
                 >
                   <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-400" />
@@ -867,7 +951,7 @@ export function Inbox() {
             <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Needs Attention
             </h3>
-            <div className="divide-y divide-border border border-border">
+            <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
               {staleIssues.map((issue) => (
                 <Link
                   key={issue.id}

@@ -1,77 +1,21 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation, Navigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { PROJECT_COLORS, isUuidLike } from "@substaff/shared";
+import { PROJECT_COLORS, isUuidLike, type ProjectProgress } from "@substaff/shared";
 import { projectsApi } from "../api/projects";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
 import { heartbeatsApi } from "../api/heartbeats";
 import { assetsApi } from "../api/assets";
-import { usePanel } from "../context/PanelContext";
+
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { ProjectProperties } from "../components/ProjectProperties";
 import { InlineEditor } from "../components/InlineEditor";
-import { StatusBadge } from "../components/StatusBadge";
 import { IssuesList } from "../components/IssuesList";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { projectRouteRef } from "../lib/utils";
-
-/* ── Top-level tab types ── */
-
-type ProjectTab = "overview" | "list";
-
-function resolveProjectTab(pathname: string, projectId: string): ProjectTab | null {
-  const segments = pathname.split("/").filter(Boolean);
-  const projectsIdx = segments.indexOf("projects");
-  if (projectsIdx === -1 || segments[projectsIdx + 1] !== projectId) return null;
-  const tab = segments[projectsIdx + 2];
-  if (tab === "overview") return "overview";
-  if (tab === "issues") return "list";
-  return null;
-}
-
-/* ── Overview tab content ── */
-
-function OverviewContent({
-  project,
-  onUpdate,
-  imageUploadHandler,
-}: {
-  project: { description: string | null; status: string; targetDate: string | null };
-  onUpdate: (data: Record<string, unknown>) => void;
-  imageUploadHandler?: (file: File) => Promise<string>;
-}) {
-  return (
-    <div className="space-y-6">
-      <InlineEditor
-        value={project.description ?? ""}
-        onSave={(description) => onUpdate({ description })}
-        as="p"
-        className="text-sm text-muted-foreground"
-        placeholder="Add a description..."
-        multiline
-        imageUploadHandler={imageUploadHandler}
-      />
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-        <div>
-          <span className="text-muted-foreground">Status</span>
-          <div className="mt-1">
-            <StatusBadge status={project.status} />
-          </div>
-        </div>
-        {project.targetDate && (
-          <div>
-            <span className="text-muted-foreground">Target Date</span>
-            <p>{project.targetDate}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 /* ── Color picker popover ── */
 
@@ -130,7 +74,7 @@ function ColorPicker({
   );
 }
 
-/* ── List (issues) tab content ── */
+/* ── Issues list with inline mutation ── */
 
 function ProjectIssuesList({ projectId, companyId }: { projectId: string; companyId: string }) {
   const queryClient = useQueryClient();
@@ -185,6 +129,49 @@ function ProjectIssuesList({ projectId, companyId }: { projectId: string; compan
   );
 }
 
+/* ── Progress section ── */
+
+function ProgressSection({ progress }: { progress: ProjectProgress }) {
+  const { issues, completionPercent } = progress;
+  const pct = Math.round(completionPercent);
+  const barColor = pct >= 85 ? "bg-green-400" : pct >= 50 ? "bg-yellow-400" : "bg-blue-400";
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold">Progress</h3>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            {issues.done} of {issues.total} tasks complete
+          </span>
+          <span className="text-xs font-medium">{pct}%</span>
+        </div>
+        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${barColor}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        <CountChip label="Done" count={issues.done} colorClass="text-green-500" />
+        <CountChip label="In Progress" count={issues.inProgress} colorClass="text-blue-500" />
+        <CountChip label="Blocked" count={issues.blocked} colorClass="text-red-500" />
+        <CountChip label="Open" count={issues.open} colorClass="text-muted-foreground" />
+      </div>
+    </div>
+  );
+}
+
+function CountChip({ label, count, colorClass }: { label: string; count: number; colorClass: string }) {
+  return (
+    <div className="text-center">
+      <p className={`text-lg font-bold ${colorClass}`}>{count}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
 /* ── Main project page ── */
 
 export function ProjectDetail() {
@@ -194,7 +181,7 @@ export function ProjectDetail() {
     filter?: string;
   }>();
   const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
-  const { openPanel, closePanel } = usePanel();
+
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -208,7 +195,13 @@ export function ProjectDetail() {
   const lookupCompanyId = routeCompanyId ?? selectedCompanyId ?? undefined;
   const canFetchProject = routeProjectRef.length > 0 && (isUuidLike(routeProjectRef) || Boolean(lookupCompanyId));
 
-  const activeTab = routeProjectRef ? resolveProjectTab(location.pathname, routeProjectRef) : null;
+  // Check if route points to /issues sub-path
+  const isIssuesRoute = useMemo(() => {
+    const segments = location.pathname.split("/").filter(Boolean);
+    const projectsIdx = segments.indexOf("projects");
+    if (projectsIdx === -1 || segments[projectsIdx + 1] !== routeProjectRef) return false;
+    return segments[projectsIdx + 2] === "issues";
+  }, [location.pathname, routeProjectRef]);
 
   const { data: project, isLoading, error } = useQuery({
     queryKey: [...queryKeys.projects.detail(routeProjectRef), lookupCompanyId ?? null],
@@ -218,6 +211,12 @@ export function ProjectDetail() {
   const canonicalProjectRef = project ? projectRouteRef(project) : routeProjectRef;
   const projectLookupRef = project?.id ?? routeProjectRef;
   const resolvedCompanyId = project?.companyId ?? selectedCompanyId;
+
+  const { data: progress } = useQuery({
+    queryKey: queryKeys.projects.progress(projectLookupRef),
+    queryFn: () => projectsApi.progress(projectLookupRef, resolvedCompanyId ?? undefined),
+    enabled: !!projectLookupRef && !!resolvedCompanyId,
+  });
 
   useEffect(() => {
     if (!project?.companyId || project.companyId === selectedCompanyId) return;
@@ -252,14 +251,11 @@ export function ProjectDetail() {
     ]);
   }, [setBreadcrumbs, project, routeProjectRef]);
 
+  // Canonical URL redirect
   useEffect(() => {
     if (!project) return;
     if (routeProjectRef === canonicalProjectRef) return;
-    if (activeTab === "overview") {
-      navigate(`/projects/${canonicalProjectRef}/overview`, { replace: true });
-      return;
-    }
-    if (activeTab === "list") {
+    if (isIssuesRoute) {
       if (filter) {
         navigate(`/projects/${canonicalProjectRef}/issues/${filter}`, { replace: true });
         return;
@@ -268,31 +264,16 @@ export function ProjectDetail() {
       return;
     }
     navigate(`/projects/${canonicalProjectRef}`, { replace: true });
-  }, [project, routeProjectRef, canonicalProjectRef, activeTab, filter, navigate]);
-
-  useEffect(() => {
-    if (project) {
-      openPanel(<ProjectProperties project={project} onUpdate={(data) => updateProject.mutate(data)} />);
-    }
-    return () => closePanel();
-  }, [project]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [project, routeProjectRef, canonicalProjectRef, isIssuesRoute, filter, navigate]);
 
   // Redirect bare /projects/:id to /projects/:id/issues
-  if (routeProjectRef && activeTab === null) {
+  if (routeProjectRef && !isIssuesRoute) {
     return <Navigate to={`/projects/${canonicalProjectRef}/issues`} replace />;
   }
 
   if (isLoading) return <PageSkeleton variant="detail" />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!project) return null;
-
-  const handleTabChange = (tab: ProjectTab) => {
-    if (tab === "overview") {
-      navigate(`/projects/${canonicalProjectRef}/overview`);
-    } else {
-      navigate(`/projects/${canonicalProjectRef}/issues`);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -307,47 +288,35 @@ export function ProjectDetail() {
           value={project.name}
           onSave={(name) => updateProject.mutate({ name })}
           as="h2"
-          className="text-xl font-bold"
+          className="text-lg font-semibold"
         />
       </div>
 
-      {/* Top-level project tabs */}
-      <div className="flex items-center gap-1 border-b border-border">
-        <button
-          className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 ${
-            activeTab === "overview"
-              ? "border-foreground text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => handleTabChange("overview")}
-        >
-          Overview
-        </button>
-        <button
-          className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 ${
-            activeTab === "list"
-              ? "border-foreground text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => handleTabChange("list")}
-        >
-          List
-        </button>
-      </div>
+      <InlineEditor
+        value={project.description ?? ""}
+        onSave={(description) => updateProject.mutate({ description })}
+        as="p"
+        className="text-sm text-muted-foreground"
+        placeholder="Add a description..."
+        multiline
+        imageUploadHandler={async (file) => {
+          const asset = await uploadImage.mutateAsync(file);
+          return asset.contentPath;
+        }}
+      />
 
-      {/* Tab content */}
-      {activeTab === "overview" && (
-        <OverviewContent
-          project={project}
-          onUpdate={(data) => updateProject.mutate(data)}
-          imageUploadHandler={async (file) => {
-            const asset = await uploadImage.mutateAsync(file);
-            return asset.contentPath;
-          }}
-        />
+      <ProjectProperties
+        project={project}
+        onUpdate={(data) => updateProject.mutate(data)}
+      />
+
+      {/* Progress */}
+      {progress && progress.issues.total > 0 && (
+        <ProgressSection progress={progress} />
       )}
 
-      {activeTab === "list" && project?.id && resolvedCompanyId && (
+      {/* Tasks */}
+      {project.id && resolvedCompanyId && (
         <ProjectIssuesList projectId={project.id} companyId={resolvedCompanyId} />
       )}
     </div>

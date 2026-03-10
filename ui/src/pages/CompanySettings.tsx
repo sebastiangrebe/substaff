@@ -7,12 +7,13 @@ import { accessApi } from "../api/access";
 import { api } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { Settings } from "lucide-react";
-import { CompanyPatternIcon } from "../components/CompanyPatternIcon";
-import { Field, ToggleField, HintIcon } from "../components/agent-config-primitives";
+import { HintIcon } from "../components/agent-config-primitives";
+import { cn } from "../lib/utils";
 
 export function CompanySettings() {
-  const { companies, selectedCompany, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedCompany, selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
 
@@ -86,28 +87,9 @@ export function CompanySettings() {
       api.post(`/companies/${selectedCompanyId}/knowledge/reindex-all`, {}),
   });
 
-  const archiveMutation = useMutation({
-    mutationFn: ({
-      companyId,
-      nextCompanyId,
-    }: {
-      companyId: string;
-      nextCompanyId: string | null;
-    }) => companiesApi.archive(companyId).then(() => ({ nextCompanyId })),
-    onSuccess: async ({ nextCompanyId }) => {
-      if (nextCompanyId) {
-        setSelectedCompanyId(nextCompanyId);
-      }
-      await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.companies.stats });
-    },
-  });
 
   useEffect(() => {
-    setBreadcrumbs([
-      { label: selectedCompany?.name ?? "Company", href: "/dashboard" },
-      { label: "Settings" },
-    ]);
+    setBreadcrumbs([{ label: "Settings" }]);
   }, [setBreadcrumbs, selectedCompany?.name]);
 
   if (!selectedCompany) {
@@ -127,87 +109,66 @@ export function CompanySettings() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <div className="flex items-center gap-2">
-        <Settings className="h-5 w-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Company Settings</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-lg font-semibold">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Manage your company profile, approvals, and preferences.</p>
       </div>
 
       {/* General */}
-      <div className="space-y-4">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           General
-        </div>
-        <div className="space-y-3 rounded-md border border-border px-4 py-4">
-          <Field label="Company name" hint="The display name for your company.">
+        </h2>
+        <div className="space-y-4 rounded-xl border border-border px-4 py-4">
+          <SettingsField label="Company name" hint="The display name for your company.">
             <input
-              className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
+              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
               type="text"
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
             />
-          </Field>
-          <Field label="Description" hint="Optional description shown in the company profile.">
+          </SettingsField>
+          <SettingsField label="Description" hint="Optional description shown in the company profile.">
             <input
-              className="w-full rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm outline-none"
+              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
               type="text"
               value={description}
               placeholder="Optional company description"
               onChange={(e) => setDescription(e.target.value)}
             />
-          </Field>
-        </div>
-      </div>
-
-      {/* Appearance */}
-      <div className="space-y-4">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Appearance
-        </div>
-        <div className="space-y-3 rounded-md border border-border px-4 py-4">
-          <div className="flex items-start gap-4">
-            <div className="shrink-0">
-              <CompanyPatternIcon
-                companyName={companyName || selectedCompany.name}
-                brandColor={brandColor || null}
-                className="rounded-[14px]"
+          </SettingsField>
+          <SettingsField label="Color" hint="Sets the hue for the company icon. Leave empty for auto-generated color.">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={brandColor || "#6366f1"}
+                onChange={(e) => setBrandColor(e.target.value)}
+                className="h-8 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
               />
+              <input
+                type="text"
+                value={brandColor}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "" || /^#[0-9a-fA-F]{0,6}$/.test(v)) {
+                    setBrandColor(v);
+                  }
+                }}
+                placeholder="Auto"
+                className="w-28 rounded-md border border-border bg-transparent px-3 py-2 text-sm font-mono outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
+              />
+              {brandColor && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setBrandColor("")}
+                >
+                  Clear
+                </Button>
+              )}
             </div>
-            <div className="flex-1 space-y-2">
-              <Field label="Brand color" hint="Sets the hue for the company icon. Leave empty for auto-generated color.">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={brandColor || "#6366f1"}
-                    onChange={(e) => setBrandColor(e.target.value)}
-                    className="h-8 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
-                  />
-                  <input
-                    type="text"
-                    value={brandColor}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (v === "" || /^#[0-9a-fA-F]{0,6}$/.test(v)) {
-                        setBrandColor(v);
-                      }
-                    }}
-                    placeholder="Auto"
-                    className="w-28 rounded-md border border-border bg-transparent px-2.5 py-1.5 text-sm font-mono outline-none"
-                  />
-                  {brandColor && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setBrandColor("")}
-                      className="text-xs text-muted-foreground"
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-              </Field>
-            </div>
-          </div>
+          </SettingsField>
         </div>
       </div>
 
@@ -222,10 +183,10 @@ export function CompanySettings() {
             {generalMutation.isPending ? "Saving..." : "Save changes"}
           </Button>
           {generalMutation.isSuccess && (
-            <span className="text-xs text-muted-foreground">Saved</span>
+            <span className="text-sm text-muted-foreground">Saved</span>
           )}
           {generalMutation.isError && (
-            <span className="text-xs text-destructive">
+            <span className="text-sm text-destructive">
               {generalMutation.error instanceof Error
                 ? generalMutation.error.message
                 : "Failed to save"}
@@ -234,28 +195,19 @@ export function CompanySettings() {
         </div>
       )}
 
-      {/* Hiring */}
-      <div className="space-y-4">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Hiring
-        </div>
-        <div className="rounded-md border border-border px-4 py-3">
-          <ToggleField
+      {/* Approvals */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Approvals
+        </h2>
+        <div className="space-y-4 rounded-xl border border-border px-4 py-4">
+          <SettingsToggle
             label="Require board approval for new hires"
             hint="New agent hires stay pending until approved by board."
             checked={!!selectedCompany.requireHireApproval}
             onChange={(v) => hireApprovalMutation.mutate(v)}
           />
-        </div>
-      </div>
-
-      {/* Governance */}
-      <div className="space-y-4">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Governance
-        </div>
-        <div className="rounded-md border border-border px-4 py-3">
-          <ToggleField
+          <SettingsToggle
             label="Require plan approval before execution"
             hint="Agents must submit a plan and get board approval before executing tasks."
             checked={!!selectedCompany.requirePlanApproval}
@@ -265,15 +217,14 @@ export function CompanySettings() {
       </div>
 
       {/* Invites */}
-      <div className="space-y-4">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           Invites
-        </div>
-        <div className="space-y-3 rounded-md border border-border px-4 py-4">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Generate a link to invite humans or agents to this company.</span>
-            <HintIcon text="Invite links expire after 72 hours and allow both human and agent joins." />
-          </div>
+        </h2>
+        <div className="space-y-3 rounded-xl border border-border px-4 py-4">
+          <p className="text-sm text-muted-foreground">
+            Generate a link to invite humans or agents to this company. Links expire after 72 hours.
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending}>
               {inviteMutation.isPending ? "Creating..." : "Create invite link"}
@@ -292,24 +243,24 @@ export function CompanySettings() {
           </div>
           {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
           {inviteLink && (
-            <div className="rounded-md border border-border bg-muted/30 p-2">
-              <div className="text-xs text-muted-foreground">Share link</div>
-              <div className="mt-1 break-all font-mono text-xs">{inviteLink}</div>
+            <div className="rounded-md border border-border bg-muted/30 p-3">
+              <span className="text-sm text-muted-foreground">Share link</span>
+              <p className="mt-1 break-all font-mono text-sm">{inviteLink}</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Knowledge */}
-      <div className="space-y-4">
-        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           Knowledge
-        </div>
-        <div className="space-y-3 rounded-md border border-border px-4 py-4">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Re-embed all agent comments and workspace files into the vector knowledge base.</span>
-            <HintIcon text="This clears existing vectors and re-indexes everything. Runs in the background — it may take a few minutes for large companies." />
-          </div>
+        </h2>
+        <div className="space-y-3 rounded-xl border border-border px-4 py-4">
+          <p className="text-sm text-muted-foreground">
+            Rebuild what your agents know by re-processing all comments and files.
+            Runs in the background — may take a few minutes for larger workspaces.
+          </p>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -317,63 +268,68 @@ export function CompanySettings() {
               onClick={() => reindexMutation.mutate()}
               disabled={reindexMutation.isPending}
             >
-              {reindexMutation.isPending ? "Re-embedding..." : "Re-embed all knowledge"}
+              {reindexMutation.isPending ? "Refreshing..." : "Refresh agent knowledge"}
             </Button>
             {reindexMutation.isSuccess && (
-              <span className="text-xs text-muted-foreground">Started — running in background</span>
+              <span className="text-sm text-muted-foreground">Refreshing — this may take a few minutes</span>
             )}
             {reindexMutation.isError && (
-              <span className="text-xs text-destructive">
+              <span className="text-sm text-destructive">
                 {reindexMutation.error instanceof Error
                   ? reindexMutation.error.message
-                  : "Failed to start re-embedding"}
+                  : "Something went wrong — please try again"}
               </span>
             )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Archive */}
-      <div className="space-y-4">
-        <div className="text-xs font-medium text-amber-700 uppercase tracking-wide">
-          Archive
-        </div>
-        <div className="space-y-3 rounded-md border border-amber-300/60 bg-amber-100/30 px-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            Archive this company to hide it from the sidebar. This persists in the database.
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={archiveMutation.isPending || selectedCompany.status === "archived"}
-              onClick={() => {
-                if (!selectedCompanyId) return;
-                const confirmed = window.confirm(
-                  `Archive company "${selectedCompany.name}"? It will be hidden from the sidebar.`,
-                );
-                if (!confirmed) return;
-                const nextCompanyId = companies.find((company) =>
-                  company.id !== selectedCompanyId && company.status !== "archived")?.id ?? null;
-                archiveMutation.mutate({ companyId: selectedCompanyId, nextCompanyId });
-              }}
-            >
-              {archiveMutation.isPending
-                ? "Archiving..."
-                : selectedCompany.status === "archived"
-                  ? "Already archived"
-                  : "Archive company"}
-            </Button>
-            {archiveMutation.isError && (
-              <span className="text-xs text-destructive">
-                {archiveMutation.error instanceof Error
-                  ? archiveMutation.error.message
-                  : "Failed to archive company"}
-              </span>
-            )}
-          </div>
-        </div>
+function SettingsField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <label className="text-sm font-medium">{label}</label>
+        {hint && <HintIcon text={hint} />}
       </div>
+      {children}
+    </div>
+  );
+}
+
+function SettingsToggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm">{label}</span>
+        {hint && <HintIcon text={hint} />}
+      </div>
+      <button
+        className={cn(
+          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+          checked ? "bg-green-600" : "bg-muted"
+        )}
+        onClick={() => onChange(!checked)}
+      >
+        <span
+          className={cn(
+            "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
+            checked ? "translate-x-4.5" : "translate-x-0.5"
+          )}
+        />
+      </button>
     </div>
   );
 }

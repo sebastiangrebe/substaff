@@ -6,7 +6,7 @@ import { heartbeatsApi } from "../api/heartbeats";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { useSidebar } from "../context/SidebarContext";
+import { useSidebar } from "@/components/ui/sidebar";
 import { queryKeys } from "../lib/queryKeys";
 import { StatusBadge } from "../components/StatusBadge";
 import { agentStatusDot, agentStatusDotDefault } from "../lib/status-colors";
@@ -118,6 +118,10 @@ export function Agents() {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h1 className="text-lg font-semibold">Team</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Your AI agents and their current status.</p>
+      </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Tabs value={tab} onValueChange={(v) => navigate(`/agents/${v}`)}>
           <PageTabBar
@@ -164,7 +168,7 @@ export function Agents() {
           </div>
           {/* View toggle */}
           {!forceListView && (
-            <div className="flex items-center border border-border">
+            <div className="flex items-center border border-border rounded-lg overflow-hidden">
               <button
                 className={cn(
                   "p-1.5 transition-colors",
@@ -209,7 +213,7 @@ export function Agents() {
 
       {/* List view */}
       {effectiveView === "list" && filtered.length > 0 && (
-        <div className="border border-border stagger-children">
+        <div className="border border-border rounded-xl overflow-hidden stagger-children">
           {filtered.map((agent) => {
             return (
               <EntityRow
@@ -265,7 +269,7 @@ export function Agents() {
 
       {/* Org chart view */}
       {effectiveView === "org" && filteredOrg.length > 0 && (
-        <div className="border border-border py-1">
+        <div className="border border-border rounded-xl overflow-hidden py-1">
           {filteredOrg.map((node) => (
             <OrgTreeNode key={node.id} node={node} depth={0} agentMap={agentMap} liveRunByAgent={liveRunByAgent} />
           ))}

@@ -185,7 +185,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     await sandbox.commands.run(`mkdir -p ${sandboxWorkDir}`);
 
     // Upload skills into sandbox so Claude Code discovers them via --add-dir
+    // Also read the core "substaff" skill content to inject into the system prompt
+    // so the agent has the heartbeat procedure from turn 1 (no need to invoke /substaff).
     let skillsUploaded = false;
+    let substaffSkillContent: string | null = null;
     const localSkillsDir = await resolveSubstaffSkillsDir();
     if (localSkillsDir) {
       try {
@@ -205,6 +208,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
             if (!stat.isFile()) continue;
             const content = await fs.readFile(filePath, "utf-8");
             await sandbox.files.write(`${targetSkillsPath}/${entry.name}/${file}`, content);
+            // Capture the core substaff skill for system prompt injection
+            if (entry.name === "substaff" && file === "SKILL.md") {
+              substaffSkillContent = content;
+            }
           }
           // Also copy references/ subdirectory if present
           const refsDir = path.join(skillDir, "references");
@@ -231,31 +238,71 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     // Upload company template files (agent persona files) into the workspace
     // Also collect persona content to inject into system prompt (saves agent reading time)
+    // Source 1 (priority): storage at agents/{role}/ (written by hiring agent via files API, company-scoped)
+    // Source 2 (fallback): repo-local templates at companies/default/{role}/
     const personaContents: Record<string, string> = {};
-    const companiesDir = await resolveCompaniesDir();
-    if (companiesDir) {
+    const agentRole = (ctx.agent as unknown as Record<string, unknown>).role;
+    const role = typeof agentRole === "string" && agentRole ? agentRole : "ceo";
+    const targetDir = `${sandboxWorkDir}/agents/${role}`;
+    let personaFound = false;
+
+    // Source 1: storage-based persona files (written by hiring agent, company-scoped)
+    if (ctx.storageService) {
       try {
-        const agentRole = (ctx.agent as unknown as Record<string, unknown>).role;
-        const role = typeof agentRole === "string" && agentRole ? agentRole : "ceo";
-        const roleDir = path.join(companiesDir, "default", role);
-        const roleDirExists = await fs.stat(roleDir).then((s) => s.isDirectory()).catch(() => false);
-        if (roleDirExists) {
-          const targetDir = `${sandboxWorkDir}/agents/${role}`;
+        const personaPrefix = `${storageNamespace}/agents/${role}/`;
+        const listing = await ctx.storageService.listObjects(ctx.agent.companyId, personaPrefix);
+        if (listing.objects.length > 0) {
           await sandbox.commands.run(`mkdir -p ${targetDir}`);
-          const files = await fs.readdir(roleDir);
-          for (const file of files) {
-            const filePath = path.join(roleDir, file);
-            const stat = await fs.stat(filePath);
-            if (!stat.isFile()) continue;
-            const content = await fs.readFile(filePath, "utf-8");
-            await sandbox.files.write(`${targetDir}/${file}`, content);
-            personaContents[file] = content;
+          for (const obj of listing.objects) {
+            const fileName = obj.key.split("/").pop();
+            if (!fileName || !fileName.endsWith(".md")) continue;
+            const fileObj = await ctx.storageService.getObject(ctx.agent.companyId, obj.key);
+            let content = "";
+            for await (const chunk of fileObj.stream) {
+              content += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf-8");
+            }
+            if (!content.trim()) continue;
+            await sandbox.files.write(`${targetDir}/${fileName}`, content);
+            personaContents[fileName] = content;
           }
-          await ctx.onLog("stdout", `[e2b] Agent persona files uploaded (${role})\n`);
+          personaFound = Object.keys(personaContents).length > 0;
+          if (personaFound) {
+            await ctx.onLog("stdout", `[e2b] Agent persona files loaded from storage (${role})\n`);
+          }
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        await ctx.onLog("stderr", `[e2b] Warning: Failed to upload company templates: ${msg}\n`);
+        await ctx.onLog("stderr", `[e2b] Warning: Failed to load persona files from storage: ${msg}\n`);
+      }
+    }
+
+    // Source 2: repo-local templates (fallback when no company-scoped personas exist)
+    if (!personaFound) {
+      const companiesDir = await resolveCompaniesDir();
+      if (companiesDir) {
+        try {
+          const roleDir = path.join(companiesDir, "default", role);
+          const roleDirExists = await fs.stat(roleDir).then((s) => s.isDirectory()).catch(() => false);
+          if (roleDirExists) {
+            await sandbox.commands.run(`mkdir -p ${targetDir}`);
+            const files = await fs.readdir(roleDir);
+            for (const file of files) {
+              const filePath = path.join(roleDir, file);
+              const stat = await fs.stat(filePath);
+              if (!stat.isFile()) continue;
+              const content = await fs.readFile(filePath, "utf-8");
+              await sandbox.files.write(`${targetDir}/${file}`, content);
+              personaContents[file] = content;
+            }
+            personaFound = Object.keys(personaContents).length > 0;
+            if (personaFound) {
+              await ctx.onLog("stdout", `[e2b] Agent persona files uploaded from templates (${role})\n`);
+            }
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await ctx.onLog("stderr", `[e2b] Warning: Failed to upload company templates: ${msg}\n`);
+        }
       }
     }
 
@@ -344,7 +391,24 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (model) claudeArgs.push("--model", model);
     if (effort) claudeArgs.push("--effort", effort);
     if (maxTurns > 0) claudeArgs.push("--max-turns", String(maxTurns));
-    if (sandboxInstructionsPath) claudeArgs.push("--append-system-prompt-file", sandboxInstructionsPath);
+    // Build a single combined system prompt file with agent instructions + substaff skill.
+    // Claude CLI only allows one --append-system-prompt-file.
+    {
+      const systemPromptParts: string[] = [];
+      if (sandboxInstructionsPath) {
+        const instructionsContent = await sandbox.files.read(sandboxInstructionsPath);
+        systemPromptParts.push(instructionsContent);
+      }
+      if (substaffSkillContent) {
+        const stripped = substaffSkillContent.replace(/^---[\s\S]*?---\s*/, "");
+        systemPromptParts.push("\n\n--- SUBSTAFF HEARTBEAT SKILL (pre-loaded, do NOT invoke /substaff) ---\n" + stripped + "\n--- END SUBSTAFF HEARTBEAT SKILL ---");
+      }
+      if (systemPromptParts.length > 0) {
+        const combinedPath = "/home/user/.substaff-system-prompt.md";
+        await sandbox.files.write(combinedPath, systemPromptParts.join("\n"));
+        claudeArgs.push("--append-system-prompt-file", combinedPath);
+      }
+    }
     if (skillsUploaded) claudeArgs.push("--add-dir", sandboxSkillsDir);
     if (extraArgs.length > 0) claudeArgs.push(...extraArgs);
 
@@ -370,6 +434,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         const mcpConfigPath = "/home/user/.mcp-config.json";
         await sandbox.files.write(mcpConfigPath, JSON.stringify({ mcpServers }, null, 2));
         claudeArgs.push("--mcp-config", mcpConfigPath);
+
+        // Also expose MCP credential env vars to the agent's shell so agents
+        // can make direct API calls (e.g., Graph API for page discovery).
+        for (const server of Object.values(mcpServers)) {
+          if (server.env) {
+            for (const [key, value] of Object.entries(server.env)) {
+              if (typeof value === "string" && value.length > 0) {
+                sandboxEnv[key] = value;
+              }
+            }
+          }
+        }
+
         await ctx.onLog("stdout", `[e2b] MCP config written with servers: ${Object.keys(mcpServers).join(", ")}\n`);
       }
     }
@@ -705,7 +782,7 @@ function buildDefaultPrompt(
       }
     }
     parts.push("\n\n--- END AGENT PERSONA ---");
-    parts.push("\n\nIMPORTANT: You already have your persona and heartbeat instructions above. Start your heartbeat procedure immediately — load the /substaff skill and begin working. Do NOT re-read the persona files from disk.");
+    parts.push("\n\nIMPORTANT: You already have your persona and heartbeat instructions above. The /substaff skill is pre-loaded into your system prompt — do NOT invoke /substaff again. Start your heartbeat procedure immediately. Do NOT re-read persona files from disk, search for files, or read memory before checking assignments.");
   }
 
   return parts.join("");

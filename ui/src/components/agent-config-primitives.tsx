@@ -25,27 +25,27 @@ export const help: Record<string, string> = {
   capabilities: "Describes what this agent can do. Shown in the org chart and used for task routing.",
   adapterType: "How this agent runs: E2B sandbox, spawned process, or generic HTTP webhook.",
   cwd: "Default working directory for the adapter. Use an absolute path.",
-  promptTemplate: "The prompt sent to the agent on each heartbeat. Supports {{ agent.id }}, {{ agent.name }}, {{ agent.role }} variables.",
+  promptTemplate: "The prompt sent to the agent on each work session. Supports {{ agent.id }}, {{ agent.name }}, {{ agent.role }} variables.",
   model: "Override the default model used by the adapter.",
   thinkingEffort: "Control model reasoning depth. Supported values vary by adapter/model.",
   chrome: "Enable Chrome integration by passing --chrome.",
   dangerouslySkipPermissions: "Run without permission prompts. Required for unattended operation.",
   dangerouslyBypassSandbox: "Run without sandbox restrictions. Required for filesystem/network access.",
   search: "Enable web search capability during runs.",
-  maxTurnsPerRun: "Maximum number of agentic turns (tool calls) per heartbeat run.",
+  maxTurnsPerRun: "Maximum number of agentic turns (tool calls) per work session.",
   command: "The command to execute (e.g. node, python).",
   localCommand: "Override the path to the CLI command the adapter should call.",
   args: "Command-line arguments, comma-separated.",
   extraArgs: "Extra CLI arguments, comma-separated.",
   envVars: "Environment variables injected into the adapter process. Use plain values or secret references.",
   webhookUrl: "The URL that receives POST requests when the agent is invoked.",
-  heartbeatInterval: "Run this agent automatically on a timer. Useful for periodic tasks like checking for new work.",
-  intervalSec: "Seconds between automatic heartbeat invocations.",
+  heartbeatInterval: "Run this agent automatically on a recurring schedule. Useful for periodic tasks like checking for new work.",
+  intervalSec: "Seconds between automatic work sessions.",
   timeoutSec: "Maximum seconds a run can take before being terminated. 0 means no timeout.",
   graceSec: "Seconds to wait after sending interrupt before force-killing the process.",
-  wakeOnDemand: "Allow this agent to be woken by assignments, API calls, UI actions, or automated systems.",
-  cooldownSec: "Minimum seconds between consecutive heartbeat runs.",
-  maxConcurrentRuns: "Maximum number of heartbeat runs that can execute simultaneously for this agent.",
+  wakeOnDemand: "Allow this agent to be triggered by task assignments, API calls, or UI actions.",
+  cooldownSec: "Minimum seconds between consecutive work sessions.",
+  maxConcurrentRuns: "Maximum number of work sessions that can run simultaneously for this agent.",
   budgetMonthlyCents: "Monthly spending limit in cents. 0 means no limit.",
 };
 
@@ -81,8 +81,8 @@ export function HintIcon({ text }: { text: string }) {
 export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-1">
-        <label className="text-xs text-muted-foreground">{label}</label>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <label className="text-sm text-muted-foreground">{label}</label>
         {hint && <HintIcon text={hint} />}
       </div>
       {children}
@@ -104,7 +104,7 @@ export function ToggleField({
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-1.5">
-        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground">{label}</span>
         {hint && <HintIcon text={hint} />}
       </div>
       <button
@@ -152,7 +152,7 @@ export function ToggleWithNumber({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">{label}</span>
+          <span className="text-sm text-muted-foreground">{label}</span>
           {hint && <HintIcon text={hint} />}
         </div>
         <button
@@ -171,11 +171,11 @@ export function ToggleWithNumber({
         </button>
       </div>
       {showNumber && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           {numberPrefix && <span>{numberPrefix}</span>}
           <input
             type="number"
-            className="w-16 rounded-md border border-border px-2 py-0.5 bg-transparent outline-none text-xs font-mono text-center"
+            className="w-16 rounded-md border border-border px-2 py-1 bg-transparent outline-none text-sm font-mono text-center"
             value={number}
             onChange={(e) => onNumberChange(Number(e.target.value))}
           />
@@ -205,7 +205,7 @@ export function CollapsibleSection({
   return (
     <div className={cn(bordered && "border-t border-border")}>
       <button
-        className="flex items-center gap-2 w-full px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/30 transition-colors"
+        className="flex items-center gap-2 w-full px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent/30 transition-colors"
         onClick={onToggle}
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -455,7 +455,7 @@ export function InlineField({ label, hint, children }: { label: string; hint?: s
   return (
     <div className="flex items-center gap-3">
       <div className="flex items-center gap-1.5 shrink-0">
-        <label className="text-xs text-muted-foreground">{label}</label>
+        <label className="text-sm text-muted-foreground">{label}</label>
         {hint && <HintIcon text={hint} />}
       </div>
       <div className="w-24 ml-auto">{children}</div>

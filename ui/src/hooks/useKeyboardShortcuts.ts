@@ -2,12 +2,15 @@ import { useEffect } from "react";
 
 interface ShortcutHandlers {
   onNewIssue?: () => void;
+  onNewProject?: () => void;
+  onNewGoal?: () => void;
+  onNewAgent?: () => void;
   onToggleSidebar?: () => void;
   onTogglePanel?: () => void;
   onSwitchCompany?: (index: number) => void;
 }
 
-export function useKeyboardShortcuts({ onNewIssue, onToggleSidebar, onTogglePanel, onSwitchCompany }: ShortcutHandlers) {
+export function useKeyboardShortcuts({ onNewIssue, onNewProject, onNewGoal, onNewAgent, onToggleSidebar, onTogglePanel, onSwitchCompany }: ShortcutHandlers) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Don't fire shortcuts when typing in inputs
@@ -23,26 +26,52 @@ export function useKeyboardShortcuts({ onNewIssue, onToggleSidebar, onTogglePane
         return;
       }
 
-      // C → New Issue
-      if (e.key === "c" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      // C → New Task
+      if (e.key === "c") {
         e.preventDefault();
         onNewIssue?.();
+        return;
+      }
+
+      // P → New Project
+      if (e.key === "p") {
+        e.preventDefault();
+        onNewProject?.();
+        return;
+      }
+
+      // G → New Goal
+      if (e.key === "g") {
+        e.preventDefault();
+        onNewGoal?.();
+        return;
+      }
+
+      // A → Add Agent
+      if (e.key === "a") {
+        e.preventDefault();
+        onNewAgent?.();
+        return;
       }
 
       // [ → Toggle Sidebar
-      if (e.key === "[" && !e.metaKey && !e.ctrlKey) {
+      if (e.key === "[") {
         e.preventDefault();
         onToggleSidebar?.();
+        return;
       }
 
       // ] → Toggle Panel
-      if (e.key === "]" && !e.metaKey && !e.ctrlKey) {
+      if (e.key === "]") {
         e.preventDefault();
         onTogglePanel?.();
+        return;
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onNewIssue, onToggleSidebar, onTogglePanel, onSwitchCompany]);
+  }, [onNewIssue, onNewProject, onNewAgent, onToggleSidebar, onTogglePanel, onSwitchCompany]);
 }

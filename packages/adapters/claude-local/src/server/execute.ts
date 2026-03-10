@@ -16,6 +16,7 @@ import {
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
   ensurePathInEnv,
+  buildSafeProcessEnv,
   renderTemplate,
   runChildProcess,
   DEFAULT_AGENT_TIMEOUT_SEC,
@@ -47,12 +48,13 @@ async function resolveSubstaffSkillsDir(): Promise<string | null> {
  * the repo's `skills/` directory, so `--add-dir` makes Claude Code discover
  * them as proper registered skills.
  */
-async function buildSkillsDir(): Promise<string> {
+async function buildSkillsDir(): Promise<{ dir: string; substaffSkillContent: string | null }> {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "substaff-skills-"));
   const target = path.join(tmp, ".claude", "skills");
   await fs.mkdir(target, { recursive: true });
   const skillsDir = await resolveSubstaffSkillsDir();
-  if (!skillsDir) return tmp;
+  let substaffSkillContent: string | null = null;
+  if (!skillsDir) return { dir: tmp, substaffSkillContent };
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.isDirectory()) {
@@ -60,9 +62,16 @@ async function buildSkillsDir(): Promise<string> {
         path.join(skillsDir, entry.name),
         path.join(target, entry.name),
       );
+      // Read the core substaff skill for system prompt injection
+      if (entry.name === "substaff") {
+        try {
+          const content = await fs.readFile(path.join(skillsDir, entry.name, "SKILL.md"), "utf-8");
+          substaffSkillContent = content;
+        } catch { /* skill file missing — not critical */ }
+      }
     }
   }
-  return tmp;
+  return { dir: tmp, substaffSkillContent };
 }
 
 export interface ClaudeExecutionInput {
@@ -224,7 +233,7 @@ export async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Pro
     env.SUBSTAFF_API_KEY = authToken;
   }
 
-  const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
+  const runtimeEnv = ensurePathInEnv({ ...buildSafeProcessEnv(), ...env });
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
   const timeoutSec = asNumber(config.timeoutSec, 0) || DEFAULT_AGENT_TIMEOUT_SEC;
@@ -322,17 +331,26 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     extraArgs,
   } = runtimeConfig;
   const billingType = resolveClaudeBillingType(env);
-  const skillsDir = await buildSkillsDir();
+  const { dir: skillsDir, substaffSkillContent } = await buildSkillsDir();
 
-  // When instructionsFilePath is configured, create a combined temp file that
-  // includes both the file content and the path directive, so we only need
-  // --append-system-prompt-file (Claude CLI forbids using both flags together).
-  let effectiveInstructionsFilePath = instructionsFilePath;
+  // Build a combined system prompt file with:
+  // 1. Agent instructions (if configured)
+  // 2. Core substaff skill (heartbeat procedure) — injected so the agent has it from turn 1
+  // Claude CLI only allows one --append-system-prompt-file, so we combine them.
+  const systemPromptParts: string[] = [];
+  let effectiveInstructionsFilePath: string | null = null;
   if (instructionsFilePath) {
     const instructionsContent = await fs.readFile(instructionsFilePath, "utf-8");
     const pathDirective = `\nThe above agent instructions were loaded from ${instructionsFilePath}. Resolve any relative file references from ${instructionsFileDir}.`;
+    systemPromptParts.push(instructionsContent + pathDirective);
+  }
+  if (substaffSkillContent) {
+    const stripped = substaffSkillContent.replace(/^---[\s\S]*?---\s*/, "");
+    systemPromptParts.push("\n\n--- SUBSTAFF HEARTBEAT SKILL (pre-loaded, do NOT invoke /substaff) ---\n" + stripped + "\n--- END SUBSTAFF HEARTBEAT SKILL ---");
+  }
+  if (systemPromptParts.length > 0) {
     const combinedPath = path.join(skillsDir, "agent-instructions.md");
-    await fs.writeFile(combinedPath, instructionsContent + pathDirective, "utf-8");
+    await fs.writeFile(combinedPath, systemPromptParts.join("\n"), "utf-8");
     effectiveInstructionsFilePath = combinedPath;
   }
 

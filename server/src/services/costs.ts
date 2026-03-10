@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { activityLog, agents, companies, costEvents, heartbeatRuns, issues, projects } from "@substaff/db";
+import { agents, companies, costEvents, heartbeatRuns, issues, projects } from "@substaff/db";
 import { notFound, unprocessable } from "../errors.js";
 
 export interface CostDateRange {
@@ -22,45 +22,58 @@ export function costService(db: Db) {
         throw unprocessable("Agent does not belong to company");
       }
 
-      const event = await db
+      const [event] = await db
         .insert(costEvents)
         .values({ ...data, companyId })
-        .returning()
-        .then((rows) => rows[0]);
+        .returning();
 
-      await db
-        .update(agents)
-        .set({
-          spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${event.costCents}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(agents.id, event.agentId));
+      // Enqueue async processing: markup, credit deduction, budget checks
+      const { enqueueCostProcessing } = await import("../queues/index.js");
+      const enqueued = enqueueCostProcessing({
+        costEventId: event.id,
+        vendorId: event.vendorId,
+        companyId,
+        agentId: event.agentId,
+        rawCostCents: event.costCents,
+      });
 
-      await db
-        .update(companies)
-        .set({
-          spentMonthlyCents: sql`${companies.spentMonthlyCents} + ${event.costCents}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(companies.id, companyId));
-
-      const updatedAgent = await db
-        .select()
-        .from(agents)
-        .where(eq(agents.id, event.agentId))
-        .then((rows) => rows[0] ?? null);
-
-      if (
-        updatedAgent &&
-        updatedAgent.budgetMonthlyCents > 0 &&
-        updatedAgent.spentMonthlyCents >= updatedAgent.budgetMonthlyCents &&
-        updatedAgent.status !== "paused" &&
-        updatedAgent.status !== "terminated"
-      ) {
+      // Fallback: inline budget update if queue unavailable
+      if (!enqueued && event.costCents > 0) {
         await db
           .update(agents)
-          .set({ status: "paused", updatedAt: new Date() })
-          .where(eq(agents.id, updatedAgent.id));
+          .set({
+            spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${event.costCents}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(agents.id, event.agentId));
+
+        await db
+          .update(companies)
+          .set({
+            spentMonthlyCents: sql`${companies.spentMonthlyCents} + ${event.costCents}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(companies.id, companyId));
+
+        // Inline budget check fallback
+        const updatedAgent = await db
+          .select()
+          .from(agents)
+          .where(eq(agents.id, event.agentId))
+          .then((rows) => rows[0] ?? null);
+
+        if (
+          updatedAgent &&
+          updatedAgent.budgetMonthlyCents > 0 &&
+          updatedAgent.spentMonthlyCents >= updatedAgent.budgetMonthlyCents &&
+          updatedAgent.status !== "paused" &&
+          updatedAgent.status !== "terminated"
+        ) {
+          await db
+            .update(agents)
+            .set({ status: "paused", updatedAt: new Date() })
+            .where(eq(agents.id, updatedAgent.id));
+        }
       }
 
       return event;
@@ -79,14 +92,16 @@ export function costService(db: Db) {
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
-      const [{ total }] = await db
+      const [{ total, platformTotal }] = await db
         .select({
           total: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          platformTotal: sql<number>`coalesce(sum(${costEvents.platformCostCents}), 0)::int`,
         })
         .from(costEvents)
         .where(and(...conditions));
 
       const spendCents = Number(total);
+      const platformSpendCents = Number(platformTotal);
       const utilization =
         company.budgetMonthlyCents > 0
           ? (spendCents / company.budgetMonthlyCents) * 100
@@ -95,6 +110,7 @@ export function costService(db: Db) {
       return {
         companyId,
         spendCents,
+        platformSpendCents,
         budgetCents: company.budgetMonthlyCents,
         utilizationPercent: Number(utilization.toFixed(2)),
       };
@@ -111,6 +127,7 @@ export function costService(db: Db) {
           agentName: agents.name,
           agentStatus: agents.status,
           costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          platformCostCents: sql<number>`coalesce(sum(${costEvents.platformCostCents}), 0)::int`,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
         })
@@ -154,51 +171,91 @@ export function costService(db: Db) {
     },
 
     byProject: async (companyId: string, range?: CostDateRange) => {
-      const issueIdAsText = sql<string>`${issues.id}::text`;
-      const runProjectLinks = db
-        .selectDistinctOn([activityLog.runId, issues.projectId], {
-          runId: activityLog.runId,
-          projectId: issues.projectId,
+      // Cost events typically lack projectId, so we attribute agent costs
+      // to projects proportionally based on the agent's assigned issues per project.
+      const conditions: ReturnType<typeof eq>[] = [eq(costEvents.companyId, companyId)];
+      if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
+      if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
+
+      // Get per-agent cost totals
+      const agentCosts = await db
+        .select({
+          agentId: costEvents.agentId,
+          costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          platformCostCents: sql<number>`coalesce(sum(${costEvents.platformCostCents}), 0)::int`,
+          inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
+          outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
         })
-        .from(activityLog)
-        .innerJoin(
-          issues,
-          and(
-            eq(activityLog.entityType, "issue"),
-            eq(activityLog.entityId, issueIdAsText),
-          ),
-        )
+        .from(costEvents)
+        .where(and(...conditions))
+        .groupBy(costEvents.agentId);
+
+      if (agentCosts.length === 0) return [];
+
+      // Get issue-count-per-project for each agent (for proportional attribution)
+      const agentIds = agentCosts.map((r) => r.agentId);
+      const agentProjectCounts = await db
+        .select({
+          agentId: issues.assigneeAgentId,
+          projectId: issues.projectId,
+          projectName: projects.name,
+          issueCount: sql<number>`count(*)::int`,
+        })
+        .from(issues)
+        .innerJoin(projects, eq(issues.projectId, projects.id))
         .where(
           and(
-            eq(activityLog.companyId, companyId),
             eq(issues.companyId, companyId),
-            isNotNull(activityLog.runId),
             isNotNull(issues.projectId),
+            isNotNull(issues.assigneeAgentId),
+            inArray(issues.assigneeAgentId, agentIds),
           ),
         )
-        .orderBy(activityLog.runId, issues.projectId, desc(activityLog.createdAt))
-        .as("run_project_links");
+        .groupBy(issues.assigneeAgentId, issues.projectId, projects.name);
 
-      const conditions: ReturnType<typeof eq>[] = [eq(heartbeatRuns.companyId, companyId)];
-      if (range?.from) conditions.push(gte(heartbeatRuns.finishedAt, range.from));
-      if (range?.to) conditions.push(lte(heartbeatRuns.finishedAt, range.to));
+      // Build agent → project weights
+      const agentProjectMap = new Map<string, { projectId: string; projectName: string; weight: number }[]>();
+      for (const row of agentProjectCounts) {
+        if (!row.agentId) continue;
+        const list = agentProjectMap.get(row.agentId) ?? [];
+        list.push({ projectId: row.projectId!, projectName: row.projectName, weight: row.issueCount });
+        agentProjectMap.set(row.agentId, list);
+      }
 
-      const costCentsExpr = sql<number>`coalesce(sum(round(coalesce((${heartbeatRuns.usageJson} ->> 'costUsd')::numeric, 0) * 100)), 0)::int`;
+      // Distribute each agent's costs proportionally across projects
+      const projectTotals = new Map<string, {
+        projectName: string;
+        costCents: number;
+        platformCostCents: number;
+        inputTokens: number;
+        outputTokens: number;
+      }>();
 
-      return db
-        .select({
-          projectId: runProjectLinks.projectId,
-          projectName: projects.name,
-          costCents: costCentsExpr,
-          inputTokens: sql<number>`coalesce(sum(coalesce((${heartbeatRuns.usageJson} ->> 'inputTokens')::int, 0)), 0)::int`,
-          outputTokens: sql<number>`coalesce(sum(coalesce((${heartbeatRuns.usageJson} ->> 'outputTokens')::int, 0)), 0)::int`,
-        })
-        .from(runProjectLinks)
-        .innerJoin(heartbeatRuns, eq(runProjectLinks.runId, heartbeatRuns.id))
-        .innerJoin(projects, eq(runProjectLinks.projectId, projects.id))
-        .where(and(...conditions))
-        .groupBy(runProjectLinks.projectId, projects.name)
-        .orderBy(desc(costCentsExpr));
+      for (const ac of agentCosts) {
+        const projectWeights = agentProjectMap.get(ac.agentId);
+        if (!projectWeights || projectWeights.length === 0) continue;
+
+        const totalWeight = projectWeights.reduce((s, p) => s + p.weight, 0);
+        for (const pw of projectWeights) {
+          const fraction = pw.weight / totalWeight;
+          const existing = projectTotals.get(pw.projectId) ?? {
+            projectName: pw.projectName,
+            costCents: 0,
+            platformCostCents: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+          };
+          existing.costCents += Math.round(ac.costCents * fraction);
+          existing.platformCostCents += Math.round(ac.platformCostCents * fraction);
+          existing.inputTokens += Math.round(ac.inputTokens * fraction);
+          existing.outputTokens += Math.round(ac.outputTokens * fraction);
+          projectTotals.set(pw.projectId, existing);
+        }
+      }
+
+      return [...projectTotals.entries()]
+        .map(([projectId, data]) => ({ projectId, ...data }))
+        .sort((a, b) => b.platformCostCents - a.platformCostCents);
     },
   };
 }

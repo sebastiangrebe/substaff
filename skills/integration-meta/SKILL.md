@@ -26,7 +26,7 @@ The Meta integration uses `meta-ads-mcp` for managing ad campaigns, ad sets, cre
 1. **Facebook Page required.** Creating ad sets and ad creatives requires a connected Facebook Page (`page_id`). The ad account alone is not enough. To discover the page_id:
    - **Step 1:** Check task comments from previous runs for a page_id already discovered.
    - **Step 2:** Call `mcp__meta__get_ad_accounts` — the response may include associated page info. Also try `mcp__meta__list_campaigns` to check for existing campaigns that reference a page_id in their ad sets.
-   - **Step 3:** Use the Graph API directly: `curl -s "https://graph.facebook.com/v22.0/me/accounts?access_token=$META_ACCESS_TOKEN"`. This returns all Facebook Pages managed by the token holder, including `id` and `name`. **NOTE:** `META_ACCESS_TOKEN` is injected into the MCP server process — if the var is empty in your shell, try extracting it from MCP tool responses or skip this step.
+   - **Step 3:** Use the Graph API directly: `curl -s "https://graph.facebook.com/v22.0/me/accounts?access_token=$META_ACCESS_TOKEN"`. This returns all Facebook Pages managed by the token holder, including `id` and `name`. The `META_ACCESS_TOKEN` env var is available in your shell.
    - **Step 4 (final):** If Steps 1-3 all fail, mark the task `blocked` asking the board to provide the Page ID. **Maximum 3 tool calls total for page discovery.** After 3 calls, stop and mark blocked.
    - **Graph API reference:** For any Meta API calls beyond what the MCP tools provide, consult `https://developers.facebook.com/docs/graph-api/reference/`. Key endpoints: `/me/accounts` (list pages), `/act_{ad_account_id}/campaigns` (list campaigns), `/{page_id}` (page details).
    - **NEVER:** Do not read MCP server source files, inspect process environments, try undocumented MCP resource URIs, or use `ReadMcpResourceTool` with guessed URIs. These approaches waste time and budget.
@@ -114,7 +114,9 @@ These patterns waste time and budget. If you catch yourself doing any of these, 
 
 ## Reusing Previous Run Context
 
-**Before making ANY API calls, read the task's comment thread.** Previous heartbeat runs likely already discovered the ad account, created campaigns, and documented what failed. Extract all IDs, account info, and error details from comments before calling `health_check`, `get_ad_accounts`, or `list_campaigns` again. Do NOT repeat discovery calls that a previous run already completed — this wastes budget.
+**Before making ANY MCP or API calls, read the task's comment thread.** Previous heartbeat runs likely already discovered the ad account, created campaigns, and documented what failed. Extract all IDs, account info, and error details from comments before calling `health_check`, `get_ad_accounts`, or `list_campaigns` again. Do NOT repeat discovery calls that a previous run already completed — this wastes budget.
+
+**Cross-heartbeat failure tracking:** If a previous heartbeat's comments document that `create_campaign` or any other endpoint returned "Invalid parameter", that failure carries over. Do NOT retry the same call with the same or similar parameters in a new heartbeat — the 2-attempt limit applies **across heartbeats**, not just within a single run. Instead, analyze what went wrong from the comments and either try a genuinely different approach or mark blocked.
 
 ## Reusing Existing Campaigns
 

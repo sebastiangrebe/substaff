@@ -1,14 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Plug, Check, X, ExternalLink, Loader2, Plus, KeyRound } from "lucide-react";
+import { Plug, Check, X, ExternalLink, Loader2, Plus, KeyRound, Search } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { integrationsApi } from "../api/integrations";
 import { secretsApi } from "../api/secrets";
 import { queryKeys } from "../lib/queryKeys";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { Button } from "@/components/ui/button";
 import type { McpServerDefinition, CompanySecret } from "@substaff/shared";
+import { agentsApi } from "../api/agents";
 
 /** Slugs that support OAuth-based connection (browser redirect flow) */
 const OAUTH_SLUGS = new Set(["google-drive", "meta", "tiktok"]);
@@ -363,6 +365,7 @@ export function Integrations() {
   const [connectDef, setConnectDef] = useState<McpServerDefinition | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [oauthMessage, setOauthMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [search, setSearch] = useState("");
 
   // Handle OAuth redirect results (query params set by the callback redirect)
   useEffect(() => {
@@ -408,6 +411,12 @@ export function Integrations() {
     enabled: !!selectedCompanyId,
   });
 
+  const { data: agents } = useQuery({
+    queryKey: queryKeys.agents.list(selectedCompanyId!),
+    queryFn: () => agentsApi.list(selectedCompanyId!),
+    enabled: !!selectedCompanyId,
+  });
+
   const disconnectMutation = useMutation({
     mutationFn: (connectionId: string) => integrationsApi.disconnect(connectionId),
     onSuccess: () => {
@@ -433,12 +442,7 @@ export function Integrations() {
   }
 
   if (defsLoading || connsLoading) {
-    return (
-      <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading integrations...
-      </div>
-    );
+    return <PageSkeleton variant="integrations" />;
   }
 
   const connectedSlugs = new Set((connections ?? []).map((c) => c.provider));
@@ -446,16 +450,157 @@ export function Integrations() {
     (connections ?? []).map((c) => [c.provider, c]),
   );
 
-  return (
-    <div className="max-w-3xl space-y-6">
-      <div className="flex items-center gap-2">
-        <Plug className="h-5 w-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Integrations</h1>
+  const allDefs = definitions ?? [];
+  const connectedDefs = allDefs.filter((d) => connectedSlugs.has(d.slug));
+  const availableDefs = allDefs.filter((d) => !connectedSlugs.has(d.slug));
+
+  const SLUG_CATEGORIES: Record<string, string> = {
+    github: "Development",
+    linear: "Development",
+    notion: "Productivity",
+    slack: "Communication",
+    "google-drive": "Productivity",
+    meta: "Marketing",
+    tiktok: "Marketing",
+  };
+
+  const filteredAvailable = search.trim()
+    ? availableDefs.filter(
+        (d) =>
+          d.displayName.toLowerCase().includes(search.toLowerCase()) ||
+          d.description.toLowerCase().includes(search.toLowerCase()) ||
+          (SLUG_CATEGORIES[d.slug] ?? "").toLowerCase().includes(search.toLowerCase()),
+      )
+    : availableDefs;
+
+  // Group available by category
+  const categoryOrder = ["Development", "Productivity", "Communication", "Marketing", "Other"];
+  const grouped = new Map<string, McpServerDefinition[]>();
+  for (const def of filteredAvailable) {
+    const cat = SLUG_CATEGORIES[def.slug] ?? "Other";
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(def);
+  }
+  const sortedCategories = categoryOrder.filter((c) => grouped.has(c));
+
+  function renderCard(def: McpServerDefinition, isConnected: boolean) {
+    const conn = connectionBySlug.get(def.slug);
+    const iconUrl = def.iconUrl || SLUG_ICONS[def.slug];
+    const isOAuth = OAUTH_SLUGS.has(def.slug);
+
+    return (
+      <div
+        key={def.id}
+        className={`rounded-xl border px-4 py-4 transition-colors ${
+          isConnected
+            ? "border-emerald-500/40 bg-emerald-500/5"
+            : "border-border hover:border-muted-foreground/30"
+        }`}
+      >
+        <div className="flex items-start gap-3">
+          {iconUrl ? (
+            <img src={iconUrl} alt="" className="h-8 w-8 rounded-md shrink-0 mt-0.5" />
+          ) : (
+            <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
+              <Plug className="h-4 w-4 text-muted-foreground" />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{def.displayName}</span>
+              {isConnected && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
+                  <Check className="h-3 w-3" />
+                  Connected
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+              {def.description}
+            </p>
+            <div className="mt-2.5 flex items-center gap-2">
+              {isConnected && conn ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={disconnectMutation.isPending}
+                  onClick={() => {
+                    if (window.confirm(`Disconnect ${def.displayName}?`)) {
+                      disconnectMutation.mutate(conn.id);
+                    }
+                  }}
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => handleConnect(def)}
+                >
+                  {isOAuth
+                    ? `Connect with ${def.slug === "google-drive" ? "Google" : def.slug === "meta" ? "Meta" : def.slug === "tiktok" ? "TikTok" : def.displayName}`
+                    : "Connect"}
+                </Button>
+              )}
+              {def.documentationUrl && (
+                <a
+                  href={def.documentationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                >
+                  Docs
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+            {isConnected && agents && (() => {
+              const assigned = agents.filter(
+                (a) => a.integrations && a.integrations.includes(def.slug) && a.status !== "terminated",
+              );
+              const rootDefault = agents.filter(
+                (a) => !a.reportsTo && (!a.integrations || a.integrations.length === 0) && a.status !== "terminated",
+              );
+              return (assigned.length > 0 || rootDefault.length > 0) ? (
+                <div className="mt-2.5 pt-2.5 border-t border-border/50">
+                  <span className="text-[11px] text-muted-foreground">Agents:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {assigned.map((a) => (
+                      <span
+                        key={a.id}
+                        className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
+                      >
+                        {a.name}
+                      </span>
+                    ))}
+                    {rootDefault.map((a) => (
+                      <span
+                        key={a.id}
+                        className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                      >
+                        {a.name} (all)
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
+          </div>
+        </div>
       </div>
-      <p className="text-sm text-muted-foreground">
-        Connect external tools so your agents can deliver work directly — push PRs, post messages,
-        create issues, and more via MCP.
-      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-lg font-semibold">Connections</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Connect external tools so your agents can deliver work directly.
+        </p>
+      </div>
 
       {oauthMessage && (
         <div
@@ -469,91 +614,55 @@ export function Integrations() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {(definitions ?? []).map((def) => {
-          const isConnected = connectedSlugs.has(def.slug);
-          const conn = connectionBySlug.get(def.slug);
-          const iconUrl = def.iconUrl || SLUG_ICONS[def.slug];
-          const isOAuth = OAUTH_SLUGS.has(def.slug);
+      {/* Connected */}
+      {connectedDefs.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Connected ({connectedDefs.length})
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {connectedDefs.map((def) => renderCard(def, true))}
+          </div>
+        </div>
+      )}
 
-          return (
-            <div
-              key={def.id}
-              className={`rounded-lg border px-4 py-4 transition-colors ${
-                isConnected
-                  ? "border-emerald-500/40 bg-emerald-500/5"
-                  : "border-border hover:border-muted-foreground/30"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                {iconUrl ? (
-                  <img src={iconUrl} alt="" className="h-8 w-8 rounded-md shrink-0 mt-0.5" />
-                ) : (
-                  <div className="h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                    <Plug className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{def.displayName}</span>
-                    {isConnected && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
-                        <Check className="h-3 w-3" />
-                        Connected
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                    {def.description}
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    {isConnected && conn ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
-                        disabled={disconnectMutation.isPending}
-                        onClick={() => {
-                          if (window.confirm(`Disconnect ${def.displayName}?`)) {
-                            disconnectMutation.mutate(conn.id);
-                          }
-                        }}
-                      >
-                        Disconnect
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        className="text-xs"
-                        onClick={() => handleConnect(def)}
-                      >
-                        {isOAuth
-                          ? `Connect with ${def.slug === "google-drive" ? "Google" : def.slug === "meta" ? "Meta" : def.slug === "tiktok" ? "TikTok" : def.displayName}`
-                          : "Connect"}
-                      </Button>
-                    )}
-                    {def.documentationUrl && (
-                      <a
-                        href={def.documentationUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                      >
-                        Docs
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
+      {/* Available */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          Available
+        </h2>
+        {availableDefs.length > 4 && (
+          <div className="relative max-w-xs">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search integrations..."
+              className="w-full rounded-md border border-border bg-transparent pl-8 pr-3 py-1.5 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
+            />
+          </div>
+        )}
+
+        {sortedCategories.map((cat) => (
+          <div key={cat} className="space-y-2.5">
+            <h3 className="text-xs font-medium text-muted-foreground">{cat}</h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {grouped.get(cat)!.map((def) => renderCard(def, false))}
             </div>
-          );
-        })}
+          </div>
+        ))}
+
+        {filteredAvailable.length === 0 && search.trim() && (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No integrations matching "{search}"
+          </p>
+        )}
       </div>
 
-      {(definitions ?? []).length === 0 && (
+      {allDefs.length === 0 && (
         <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
-          No MCP integrations available yet.
+          No integrations available yet.
         </div>
       )}
 

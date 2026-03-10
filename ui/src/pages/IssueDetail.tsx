@@ -20,6 +20,7 @@ import { CommentThread } from "../components/CommentThread";
 import { IssueProperties } from "../components/IssueProperties";
 import { LiveRunWidget } from "../components/LiveRunWidget";
 import type { MentionOption } from "../components/MarkdownEditor";
+import { PageSkeleton } from "../components/PageSkeleton";
 import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
 import { StatusBadge } from "../components/StatusBadge";
@@ -428,13 +429,23 @@ export function IssueDetail() {
       invalidateIssue();
       queryClient.invalidateQueries({ queryKey: queryKeys.issues.comments(issueId!) });
       const issueRef = issue?.identifier ?? (issueId ? `Task ${issueId.slice(0, 8)}` : "Task");
-      pushToast({
-        dedupeKey: `activity:issue.comment_added:${issueId}:${comment.id}`,
-        title: `Comment posted on ${issueRef}`,
-        body: issue?.title ? truncate(issue.title, 96) : undefined,
-        tone: "success",
-        action: issueId ? { label: `View ${issueRef}`, href: `/issues/${issue?.identifier ?? issueId}` } : undefined,
-      });
+      if (comment.warning) {
+        pushToast({
+          dedupeKey: "budget-exhausted",
+          title: "Credits depleted",
+          body: "Your comment was saved but the agent won't respond. Top up to continue.",
+          tone: "error",
+          action: { label: "Go to Billing", href: "/billing" },
+        });
+      } else {
+        pushToast({
+          dedupeKey: `activity:issue.comment_added:${issueId}:${comment.id}`,
+          title: `Comment posted on ${issueRef}`,
+          body: issue?.title ? truncate(issue.title, 96) : undefined,
+          tone: "success",
+          action: issueId ? { label: `View ${issueRef}`, href: `/issues/${issue?.identifier ?? issueId}` } : undefined,
+        });
+      }
     },
   });
 
@@ -554,7 +565,7 @@ export function IssueDetail() {
     },
   });
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading...</p>;
+  if (isLoading) return <PageSkeleton variant="detail" />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!issue) return null;
 
@@ -712,7 +723,7 @@ export function IssueDetail() {
           value={issue.title}
           onSave={(title) => updateIssue.mutate({ title })}
           as="h2"
-          className="text-xl font-bold"
+          className="text-lg font-semibold"
         />
 
         <InlineEditor

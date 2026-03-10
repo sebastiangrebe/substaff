@@ -142,16 +142,8 @@ export function NewAgentDialog() {
         onKeyDown={handleKeyDown}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            {selectedCompany && (
-              <span className="bg-muted px-1.5 py-0.5 rounded text-xs font-medium">
-                {selectedCompany.name.slice(0, 3).toUpperCase()}
-              </span>
-            )}
-            <span className="text-muted-foreground/60">&rsaquo;</span>
-            <span>Add team member</span>
-          </div>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <h2 className="text-sm font-semibold">Add Agent</h2>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon-xs" className="text-muted-foreground" onClick={() => setExpanded(!expanded)}>
               {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -267,7 +259,7 @@ export function NewAgentDialog() {
             </Popover>
           </div>
 
-          {/* Shared config form (adapter + heartbeat) */}
+          {/* Shared config form (adapter + schedule) */}
           <AgentConfigForm
             mode="create"
             values={configValues}

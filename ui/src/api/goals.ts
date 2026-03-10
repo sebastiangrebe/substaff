@@ -9,5 +9,4 @@ export const goalsApi = {
   update: (id: string, data: Record<string, unknown>) => api.patch<Goal>(`/goals/${id}`, data),
   remove: (id: string) => api.delete<Goal>(`/goals/${id}`),
   progress: (id: string) => api.get<GoalProgress>(`/goals/${id}/progress`),
-  tree: (companyId: string) => api.get<GoalProgress[]>(`/companies/${companyId}/goals/tree`),
 };

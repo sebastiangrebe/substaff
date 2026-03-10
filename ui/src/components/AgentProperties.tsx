@@ -93,6 +93,20 @@ export function AgentProperties({ agent, runtimeState }: AgentPropertiesProps) {
         <PropertyRow label="Created">
           <span className="text-sm">{formatDate(agent.createdAt)}</span>
         </PropertyRow>
+        {agent.integrations && agent.integrations.length > 0 && (
+          <PropertyRow label="Integrations">
+            <div className="flex flex-wrap gap-1">
+              {agent.integrations.map((slug) => (
+                <span
+                  key={slug}
+                  className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
+                >
+                  {slug}
+                </span>
+              ))}
+            </div>
+          </PropertyRow>
+        )}
       </div>
     </div>
   );

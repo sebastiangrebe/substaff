@@ -6,15 +6,15 @@ import { agentsApi } from "../api/agents";
 import { heartbeatsApi } from "../api/heartbeats";
 import { activityApi } from "../api/activity";
 import { projectsApi } from "../api/projects";
+import { authApi } from "../api/auth";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { MetricCard } from "../components/MetricCard";
 import { ActivityRow } from "../components/ActivityRow";
-import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
+import { ChartCard, RunActivityChart, IssueStatusChart, SuccessRateChart, TaskCompletionChart } from "../components/ActivityCharts";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { formatCents } from "../lib/utils";
-import { Bot, CircleDot, DollarSign, ShieldCheck, BarChart3 } from "lucide-react";
+import { Bot, CircleDot, CheckCircle2, ShieldCheck, BarChart3 } from "lucide-react";
 import { EmptyState } from "../components/EmptyState";
 import type { Agent } from "@substaff/shared";
 
@@ -84,16 +84,31 @@ export function Analytics() {
     return map;
   }, [issues]);
 
+  const { data: session } = useQuery({
+    queryKey: queryKeys.auth.session,
+    queryFn: () => authApi.getSession(),
+  });
+
+  const userNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (session?.user) map.set(session.user.id, session.user.name ?? "You");
+    return map;
+  }, [session]);
+
   if (!selectedCompanyId) {
     return <EmptyState icon={BarChart3} message="Select a company to view analytics." />;
   }
 
   if (isLoading) {
-    return <PageSkeleton variant="dashboard" />;
+    return <PageSkeleton variant="analytics" />;
   }
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-lg font-semibold">Analytics</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Performance metrics and trends across your company.</p>
+      </div>
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 
       {data && (
@@ -125,15 +140,13 @@ export function Analytics() {
               }
             />
             <MetricCard
-              icon={DollarSign}
-              value={formatCents(data.costs.monthSpendCents)}
-              label="Month Spend"
-              to="/costs"
+              icon={CheckCircle2}
+              value={data.tasks.done ?? 0}
+              label="Tasks Completed"
+              to="/issues"
               description={
                 <span>
-                  {data.costs.monthBudgetCents > 0
-                    ? `${data.costs.monthUtilizationPercent}% of ${formatCents(data.costs.monthBudgetCents)} budget`
-                    : "Unlimited budget"}
+                  {(runs ?? []).length} total runs
                 </span>
               }
             />
@@ -154,8 +167,8 @@ export function Analytics() {
             <ChartCard title="Run Activity" subtitle="Last 14 days">
               <RunActivityChart runs={runs ?? []} />
             </ChartCard>
-            <ChartCard title="Tasks by Priority" subtitle="Last 14 days">
-              <PriorityChart issues={issues ?? []} />
+            <ChartCard title="Task Completion" subtitle="Last 14 days">
+              <TaskCompletionChart issues={issues ?? []} />
             </ChartCard>
             <ChartCard title="Tasks by Status" subtitle="Last 14 days">
               <IssueStatusChart issues={issues ?? []} />
@@ -172,7 +185,7 @@ export function Analytics() {
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Recent Activity
           </h3>
-          <div className="border border-border divide-y divide-border overflow-hidden">
+          <div className="border border-border divide-y divide-border rounded-xl overflow-hidden">
             {recentActivity.map((event) => (
               <ActivityRow
                 key={event.id}
@@ -180,6 +193,7 @@ export function Analytics() {
                 agentMap={agentMap}
                 entityNameMap={entityNameMap}
                 entityTitleMap={entityTitleMap}
+                userNameMap={userNameMap}
               />
             ))}
           </div>

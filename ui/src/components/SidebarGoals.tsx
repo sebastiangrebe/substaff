@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Plus, Target } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
-import { useSidebar } from "../context/SidebarContext";
+import { useSidebar, SidebarMenuButton, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { goalsApi } from "../api/goals";
 import { queryKeys } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
@@ -19,7 +19,7 @@ export function SidebarGoals() {
   const [open, setOpen] = useState(false);
   const { selectedCompanyId } = useCompany();
   const { openNewGoal } = useDialog();
-  const { isMobile, setSidebarOpen } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
 
   const { data: goals } = useQuery({
@@ -40,19 +40,15 @@ export function SidebarGoals() {
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="flex items-center">
-        <NavLink
-          to="/goals"
-          onClick={() => { if (isMobile) setSidebarOpen(false); }}
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-2 text-[13px] font-medium transition-colors flex-1 min-w-0",
-            goalsActive
-              ? "bg-accent text-foreground"
-              : "text-foreground/80 hover:bg-accent/50 hover:text-foreground",
-          )}
-        >
-          <Target className="h-4 w-4 shrink-0" />
-          <span className="flex-1 truncate">Goals</span>
-        </NavLink>
+        <SidebarMenuButton asChild tooltip="Goals" className="flex-1 min-w-0">
+          <NavLink
+            to="/goals"
+            onClick={() => { if (isMobile) setOpenMobile(false); }}
+          >
+            <Target className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate">Goals</span>
+          </NavLink>
+        </SidebarMenuButton>
         <CollapsibleTrigger className="flex items-center justify-center h-8 w-8 shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors">
           <ChevronRight
             className={cn(
@@ -64,34 +60,33 @@ export function SidebarGoals() {
       </div>
 
       <CollapsibleContent>
-        <div className="flex flex-col gap-0.5 mt-0.5 pl-4">
+        <SidebarMenuSub>
           {visibleGoals.map((goal: Goal) => (
-            <NavLink
-              key={goal.id}
-              to={`/goals/${goal.id}`}
-              onClick={() => {
-                if (isMobile) setSidebarOpen(false);
-              }}
-              className={cn(
-                "flex items-center gap-2.5 px-3 py-1.5 text-[13px] font-medium transition-colors",
-                activeGoalId === goal.id
-                  ? "bg-accent text-foreground"
-                  : "text-foreground/80 hover:bg-accent/50 hover:text-foreground",
-              )}
-            >
-              <span className="flex-1 truncate">{goal.title}</span>
-            </NavLink>
+            <SidebarMenuSubItem key={goal.id}>
+              <SidebarMenuSubButton asChild isActive={activeGoalId === goal.id}>
+                <NavLink
+                  to={`/goals/${goal.id}`}
+                  onClick={() => { if (isMobile) setOpenMobile(false); }}
+                >
+                  <span className="truncate">{goal.title}</span>
+                </NavLink>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
           ))}
           {openNewGoal && (
-            <button
-              onClick={() => openNewGoal()}
-              className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate">New Goal</span>
-            </button>
+            <SidebarMenuSubItem>
+              <SidebarMenuSubButton asChild>
+                <button
+                  onClick={() => openNewGoal()}
+                  className="text-muted-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">New Goal</span>
+                </button>
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
           )}
-        </div>
+        </SidebarMenuSub>
       </CollapsibleContent>
     </Collapsible>
   );

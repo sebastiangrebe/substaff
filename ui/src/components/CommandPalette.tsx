@@ -17,16 +17,21 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import {
+  Briefcase,
   CircleDot,
-  Bot,
-  Hexagon,
-  Target,
-  LayoutDashboard,
-  Inbox,
+  Home,
+  BarChart3,
   DollarSign,
   History,
   SquarePen,
   Plus,
+  Bot,
+  FolderKanban,
+  FolderOpen,
+  Target,
+  Network,
+  Plug,
+  Settings,
 } from "lucide-react";
 import { Identity } from "./Identity";
 import { agentUrl, projectUrl } from "../lib/utils";
@@ -36,7 +41,7 @@ export function CommandPalette() {
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
   const { selectedCompanyId } = useCompany();
-  const { openNewIssue, openNewAgent } = useDialog();
+  const { openNewIssue, openNewAgent, openNewProject, openNewGoal } = useDialog();
   const searchQuery = query.trim();
 
   useEffect(() => {
@@ -93,10 +98,12 @@ export function CommandPalette() {
     [issues, searchedIssues, searchQuery],
   );
 
+  const kbd = "ml-auto text-xs text-muted-foreground font-mono";
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
-        placeholder="Search issues, agents, projects..."
+        placeholder="Search tasks, agents, projects..."
         value={query}
         onValueChange={setQuery}
       />
@@ -111,8 +118,28 @@ export function CommandPalette() {
             }}
           >
             <SquarePen className="mr-2 h-4 w-4" />
-            Create new issue
-            <span className="ml-auto text-xs text-muted-foreground">C</span>
+            New task
+            <span className={kbd}>C</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              setOpen(false);
+              openNewProject();
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New project
+            <span className={kbd}>P</span>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => {
+              setOpen(false);
+              openNewGoal();
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New goal
+            <span className={kbd}>G</span>
           </CommandItem>
           <CommandItem
             onSelect={() => {
@@ -121,11 +148,8 @@ export function CommandPalette() {
             }}
           >
             <Plus className="mr-2 h-4 w-4" />
-            Create new agent
-          </CommandItem>
-          <CommandItem onSelect={() => go("/projects")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create new project
+            Add agent
+            <span className={kbd}>A</span>
           </CommandItem>
         </CommandGroup>
 
@@ -133,36 +157,56 @@ export function CommandPalette() {
 
         <CommandGroup heading="Pages">
           <CommandItem onSelect={() => go("/dashboard")}>
-            <LayoutDashboard className="mr-2 h-4 w-4" />
-            Dashboard
+            <Home className="mr-2 h-4 w-4" />
+            Home
           </CommandItem>
           <CommandItem onSelect={() => go("/inbox")}>
-            <Inbox className="mr-2 h-4 w-4" />
-            Inbox
+            <Briefcase className="mr-2 h-4 w-4" />
+            My Work
           </CommandItem>
           <CommandItem onSelect={() => go("/issues")}>
             <CircleDot className="mr-2 h-4 w-4" />
-            Issues
-          </CommandItem>
-          <CommandItem onSelect={() => go("/projects")}>
-            <Hexagon className="mr-2 h-4 w-4" />
-            Projects
+            Tasks
           </CommandItem>
           <CommandItem onSelect={() => go("/goals")}>
             <Target className="mr-2 h-4 w-4" />
             Goals
           </CommandItem>
+          <CommandItem onSelect={() => go("/projects")}>
+            <FolderKanban className="mr-2 h-4 w-4" />
+            Projects
+          </CommandItem>
           <CommandItem onSelect={() => go("/agents")}>
             <Bot className="mr-2 h-4 w-4" />
             Agents
           </CommandItem>
-          <CommandItem onSelect={() => go("/costs")}>
+          <CommandItem onSelect={() => go("/billing")}>
             <DollarSign className="mr-2 h-4 w-4" />
-            Costs
+            Billing
+          </CommandItem>
+          <CommandItem onSelect={() => go("/org")}>
+            <Network className="mr-2 h-4 w-4" />
+            Org Chart
+          </CommandItem>
+          <CommandItem onSelect={() => go("/analytics")}>
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Analytics
           </CommandItem>
           <CommandItem onSelect={() => go("/activity")}>
             <History className="mr-2 h-4 w-4" />
             Activity
+          </CommandItem>
+          <CommandItem onSelect={() => go("/files")}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            Files
+          </CommandItem>
+          <CommandItem onSelect={() => go("/integrations")}>
+            <Plug className="mr-2 h-4 w-4" />
+            Connections
+          </CommandItem>
+          <CommandItem onSelect={() => go("/company/settings")}>
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
           </CommandItem>
         </CommandGroup>
 
@@ -216,7 +260,7 @@ export function CommandPalette() {
             <CommandGroup heading="Projects">
               {projects.slice(0, 10).map((project) => (
                 <CommandItem key={project.id} onSelect={() => go(projectUrl(project))}>
-                  <Hexagon className="mr-2 h-4 w-4" />
+                  <FolderKanban className="mr-2 h-4 w-4" />
                   {project.name}
                 </CommandItem>
               ))}

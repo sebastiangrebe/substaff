@@ -1,4 +1,4 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { integrationConnections, mcpServerDefinitions, companies } from "@substaff/db";
 import { notFound, unprocessable } from "../errors.js";
@@ -139,7 +139,7 @@ export function integrationService(db: Db) {
     return existing;
   }
 
-  async function resolveCompanyMcpConfig(companyId: string) {
+  async function resolveCompanyMcpConfig(companyId: string, providerFilter?: string[] | null) {
     const connections = await db
       .select({
         connection: integrationConnections,
@@ -154,6 +154,9 @@ export function integrationService(db: Db) {
         and(
           eq(integrationConnections.companyId, companyId),
           eq(integrationConnections.status, "active"),
+          ...(providerFilter && providerFilter.length > 0
+            ? [inArray(integrationConnections.provider, providerFilter)]
+            : []),
         ),
       );
 

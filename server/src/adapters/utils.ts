@@ -20,6 +20,7 @@ export {
   buildSubstaffEnv,
   defaultPathForPlatform,
   ensurePathInEnv,
+  buildSafeProcessEnv,
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
 } from "@substaff/adapter-utils/server-utils";

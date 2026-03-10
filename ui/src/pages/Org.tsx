@@ -113,6 +113,10 @@ export function Org() {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h1 className="text-lg font-semibold">Org Chart</h1>
+        <p className="mt-1 text-sm text-muted-foreground">See how your agents are structured and who reports to whom.</p>
+      </div>
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 
       {data && data.length === 0 && (

@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { Link } from "@/lib/router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Project } from "@substaff/shared";
+import { PROJECT_STATUSES, type Project } from "@substaff/shared";
 import { StatusBadge } from "./StatusBadge";
 import { formatDate, cn } from "../lib/utils";
 import { agentsApi } from "../api/agents";
 import { goalsApi } from "../api/goals";
 import { useCompany } from "../context/CompanyContext";
 import { queryKeys } from "../lib/queryKeys";
-import { Separator } from "@/components/ui/separator";
+
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Plus, X } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 
 interface ProjectPropertiesProps {
   project: Project;
@@ -20,12 +20,15 @@ interface ProjectPropertiesProps {
 
 function PropertyRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 py-1.5">
-      <span className="text-xs text-muted-foreground shrink-0 w-20">{label}</span>
+    <div className="space-y-1.5">
+      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
       <div className="flex items-center gap-1.5 min-w-0">{children}</div>
     </div>
   );
 }
+
+const editableClasses =
+  "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 -ml-1.5 cursor-pointer transition-colors hover:bg-accent/50 border border-transparent hover:border-border";
 
 function LeadPicker({
   agents,
@@ -41,29 +44,32 @@ function LeadPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="cursor-pointer hover:opacity-80 transition-opacity text-sm">
+        <button className={cn(editableClasses, "text-sm")}>
           {current ? current.name : <span className="text-muted-foreground">None</span>}
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-48 p-1" align="end">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn("w-full justify-start text-xs", !currentId && "bg-accent")}
+      <PopoverContent className="w-48 p-1" align="start">
+        <button
+          className={cn(
+            "flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent/50 transition-colors",
+            !currentId && "bg-accent"
+          )}
           onClick={() => { onChange(null); setOpen(false); }}
         >
           None
-        </Button>
+        </button>
         {agents.map((agent) => (
-          <Button
+          <button
             key={agent.id}
-            variant="ghost"
-            size="sm"
-            className={cn("w-full justify-start text-xs", agent.id === currentId && "bg-accent")}
+            className={cn(
+              "flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent/50 transition-colors",
+              agent.id === currentId && "bg-accent"
+            )}
             onClick={() => { onChange(agent.id); setOpen(false); }}
           >
             {agent.name}
-          </Button>
+          </button>
         ))}
       </PopoverContent>
     </Popover>
@@ -74,6 +80,8 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
   const { selectedCompanyId } = useCompany();
   const queryClient = useQueryClient();
   const [goalOpen, setGoalOpen] = useState(false);
+  const [goalSearch, setGoalSearch] = useState("");
+  const [statusOpen, setStatusOpen] = useState(false);
 
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -122,9 +130,34 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-3">
         <PropertyRow label="Status">
-          <StatusBadge status={project.status} />
+          {onUpdate ? (
+            <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+              <PopoverTrigger asChild>
+                <button className={cn(editableClasses, "text-sm")}>
+                  <StatusBadge status={project.status} />
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-40 p-1" align="start">
+                {PROJECT_STATUSES.map((s) => (
+                  <button
+                    key={s}
+                    className={cn(
+                      "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 capitalize transition-colors",
+                      s === project.status && "bg-accent"
+                    )}
+                    onClick={() => { onUpdate({ status: s }); setStatusOpen(false); }}
+                  >
+                    <StatusBadge status={s} />
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <StatusBadge status={project.status} />
+          )}
         </PropertyRow>
         <PropertyRow label="Lead">
           {onUpdate ? (
@@ -141,87 +174,101 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
             <span className="text-sm text-muted-foreground">None</span>
           )}
         </PropertyRow>
-        <div className="py-1.5">
-          <div className="flex items-start justify-between gap-2">
-            <span className="text-xs text-muted-foreground">Goals</span>
-            <div className="flex flex-col items-end gap-1.5">
-              {linkedGoals.length === 0 ? (
-                <span className="text-sm text-muted-foreground">None</span>
-              ) : (
-                <div className="flex flex-wrap justify-end gap-1.5 max-w-[220px]">
-                  {linkedGoals.map((goal) => (
-                    <span
-                      key={goal.id}
-                      className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"
-                    >
-                      <Link to={`/goals/${goal.id}`} className="hover:underline max-w-[140px] truncate">
-                        {goal.title}
-                      </Link>
-                      {onUpdate && (
-                        <button
-                          className="text-muted-foreground hover:text-foreground"
-                          type="button"
-                          onClick={() => removeGoal(goal.id)}
-                          aria-label={`Remove goal ${goal.title}`}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {onUpdate && (
-                <Popover open={goalOpen} onOpenChange={setGoalOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      className="h-6 px-2"
-                      disabled={availableGoals.length === 0}
-                    >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Goal
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-56 p-1" align="end">
-                    {availableGoals.length === 0 ? (
-                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                        All goals linked.
-                      </div>
-                    ) : (
-                      availableGoals.map((goal) => (
-                        <button
-                          key={goal.id}
-                          className="flex items-center w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50"
-                          onClick={() => addGoal(goal.id)}
-                        >
-                          {goal.title}
-                        </button>
-                      ))
-                    )}
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
-          </div>
-        </div>
         {project.targetDate && (
           <PropertyRow label="Target Date">
             <span className="text-sm">{formatDate(project.targetDate)}</span>
           </PropertyRow>
         )}
-      </div>
-
-      <Separator />
-
-      <div className="space-y-1">
         <PropertyRow label="Created">
           <span className="text-sm">{formatDate(project.createdAt)}</span>
         </PropertyRow>
         <PropertyRow label="Updated">
           <span className="text-sm">{formatDate(project.updatedAt)}</span>
         </PropertyRow>
+      </div>
+
+      <div className="space-y-1.5">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Goals</span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {linkedGoals.length === 0 && (
+            <span className="text-sm text-muted-foreground">None</span>
+          )}
+          {linkedGoals.map((goal) => (
+            <span
+              key={goal.id}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 h-8 text-sm"
+            >
+              <Link to={`/goals/${goal.id}`} className="hover:underline">
+                {goal.title}
+              </Link>
+              {onUpdate && (
+                <button
+                  className="text-muted-foreground hover:text-foreground"
+                  type="button"
+                  onClick={() => removeGoal(goal.id)}
+                  aria-label={`Remove goal ${goal.title}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </span>
+          ))}
+          {onUpdate && (
+            <Popover open={goalOpen} onOpenChange={(open) => { setGoalOpen(open); if (!open) setGoalSearch(""); }}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-8 px-2.5 text-sm"
+                  disabled={availableGoals.length === 0}
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Goal
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start">
+                <div className="p-2 border-b border-border">
+                  <input
+                    className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/50"
+                    placeholder="Search goals..."
+                    value={goalSearch}
+                    onChange={(e) => setGoalSearch(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="p-1 max-h-[200px] overflow-y-auto">
+                  {availableGoals.length === 0 ? (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                      All goals linked.
+                    </div>
+                  ) : (
+                    (() => {
+                      const filtered = goalSearch.trim()
+                        ? availableGoals.filter((g) =>
+                            g.title.toLowerCase().includes(goalSearch.toLowerCase())
+                          )
+                        : availableGoals;
+                      return filtered.length === 0 ? (
+                        <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                          No matching goals.
+                        </div>
+                      ) : (
+                        filtered.map((goal) => (
+                          <button
+                            key={goal.id}
+                            className="flex w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent/50 transition-colors"
+                            onClick={() => { addGoal(goal.id); setGoalSearch(""); }}
+                          >
+                            {goal.title}
+                          </button>
+                        ))
+                      );
+                    })()
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
       </div>
     </div>
   );

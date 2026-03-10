@@ -3,24 +3,22 @@ import { useParams, useNavigate, Link, useBeforeUnload } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi, type AgentKey, type ClaudeLoginResult } from "../api/agents";
 import { heartbeatsApi } from "../api/heartbeats";
-import { ChartCard, RunActivityChart, PriorityChart, IssueStatusChart, SuccessRateChart } from "../components/ActivityCharts";
+import { ChartCard, IssueStatusChart, SuccessRateChart, TotalCostChart, CostPerRunChart } from "../components/ActivityCharts";
 import { activityApi } from "../api/activity";
 import { issuesApi } from "../api/issues";
 import { usePanel } from "../context/PanelContext";
-import { useSidebar } from "../context/SidebarContext";
+import { useSidebar } from "@/components/ui/sidebar";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { AgentConfigForm } from "../components/AgentConfigForm";
-import { adapterLabels, roleLabels } from "../components/agent-config-primitives";
+import { roleLabels } from "../components/agent-config-primitives";
 import { getUIAdapter, buildTranscript } from "../adapters";
 import type { TranscriptEntry } from "../adapters";
 import { StatusBadge } from "../components/StatusBadge";
-import { agentStatusDot, agentStatusDotDefault } from "../lib/status-colors";
 import { MarkdownBody } from "../components/MarkdownBody";
 import { EntityRow } from "../components/EntityRow";
-import { Identity } from "../components/Identity";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { formatCents, formatDate, relativeTime, formatTokens } from "../lib/utils";
 import { cn } from "../lib/utils";
@@ -150,9 +148,8 @@ function humanizeStdoutLine(raw: string): string | null {
       const b = block as Record<string, unknown>;
       if (b.type === "text" && typeof b.text === "string" && b.text) {
         parts.push(b.text);
-      } else if (b.type === "tool_use" && typeof b.name === "string") {
-        parts.push(`Used tool: ${b.name}`);
       }
+      // Skip tool_use blocks — too technical for human view
     }
     return parts.length > 0 ? parts.join("\n") : null;
   }
@@ -174,17 +171,13 @@ function humanizeStdoutLine(raw: string): string | null {
     return parts.length > 0 ? parts.join("\n") : null;
   }
 
-  if (type === "result") {
-    const cost = typeof obj.total_cost_usd === "number" ? `$${obj.total_cost_usd.toFixed(4)}` : "";
-    const resultText = typeof obj.result === "string" ? obj.result : "";
-    const pieces = [resultText, cost].filter(Boolean);
-    return pieces.length > 0 ? `Finished: ${pieces.join(" · ")}` : "Finished";
-  }
+  // result — cost is already shown in the run header, skip in human view
+  if (type === "result") return null;
 
   if (type === "system") {
     if (obj.subtype === "init") {
       const model = typeof obj.model === "string" ? obj.model : "unknown";
-      return `Started: ${model}`;
+      return `Agent started`;
     }
   }
 
@@ -414,7 +407,7 @@ export function AgentDetail() {
   const showConfigActionBar = activeView === "configure" && configDirty;
 
   return (
-    <div className={cn("space-y-6", isMobile && showConfigActionBar && "pb-24")}>
+    <div className={cn("space-y-3", isMobile && showConfigActionBar && "pb-24")}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
@@ -427,53 +420,15 @@ export function AgentDetail() {
             </button>
           </AgentIconPicker>
           <div className="min-w-0">
-            <h2 className="text-2xl font-bold truncate">{agent.name}</h2>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold truncate">{agent.name}</h1>
+              <StatusBadge status={agent.status} />
+            </div>
             <p className="text-sm text-muted-foreground truncate">
               {roleLabels[agent.role] ?? agent.role}
               {agent.title ? ` - ${agent.title}` : ""}
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => openNewIssue({ assigneeAgentId: agent.id })}
-          >
-            <Plus className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Assign Task</span>
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => agentAction.mutate("invoke")}
-            disabled={agentAction.isPending || isPendingApproval}
-          >
-            <Play className="h-3.5 w-3.5 sm:mr-1" />
-            <span className="hidden sm:inline">Invoke</span>
-          </Button>
-          {agent.status === "paused" ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => agentAction.mutate("resume")}
-              disabled={agentAction.isPending || isPendingApproval}
-            >
-              <Play className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">Resume</span>
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => agentAction.mutate("pause")}
-              disabled={agentAction.isPending || isPendingApproval}
-            >
-              <Pause className="h-3.5 w-3.5 sm:mr-1" />
-              <span className="hidden sm:inline">Pause</span>
-            </Button>
-          )}
-          <span className="hidden sm:inline"><StatusBadge status={agent.status} /></span>
           {mobileLiveRun && (
             <Link
               to={`/agents/${canonicalAgentRef}/runs/${mobileLiveRun.id}`}
@@ -486,58 +441,107 @@ export function AgentDetail() {
               <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400">Live</span>
             </Link>
           )}
-
-          {/* Overflow menu */}
-          <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon-xs">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-44 p-1" align="end">
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50"
-                onClick={() => {
-                  navigate(`/agents/${canonicalAgentRef}/configure`);
-                  setMoreOpen(false);
-                }}
-              >
-                <Settings className="h-3 w-3" />
-                Configure Agent
-              </button>
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50"
-                onClick={() => {
-                  navigator.clipboard.writeText(agent.id);
-                  setMoreOpen(false);
-                }}
-              >
-                <Copy className="h-3 w-3" />
-                Copy Agent ID
-              </button>
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50"
-                onClick={() => {
-                  resetTaskSession.mutate(null);
-                  setMoreOpen(false);
-                }}
-              >
-                <RotateCcw className="h-3 w-3" />
-                Reset Sessions
-              </button>
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-destructive"
-                onClick={() => {
-                  agentAction.mutate("terminate");
-                  setMoreOpen(false);
-                }}
-              >
-                <Trash2 className="h-3 w-3" />
-                Terminate
-              </button>
-            </PopoverContent>
-          </Popover>
         </div>
+
+        {/* Actions dropdown */}
+        <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm">
+              Actions
+              <ChevronDown className="h-3.5 w-3.5 ml-1" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-1" align="end">
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              onClick={() => {
+                agentAction.mutate("invoke");
+                setMoreOpen(false);
+              }}
+              disabled={agentAction.isPending || isPendingApproval}
+            >
+              <Play className="h-3.5 w-3.5" />
+              Invoke
+            </button>
+            {agent.status === "paused" ? (
+              <button
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+                onClick={() => {
+                  agentAction.mutate("resume");
+                  setMoreOpen(false);
+                }}
+                disabled={agentAction.isPending || isPendingApproval}
+              >
+                <Play className="h-3.5 w-3.5" />
+                Resume
+              </button>
+            ) : (
+              <button
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+                onClick={() => {
+                  agentAction.mutate("pause");
+                  setMoreOpen(false);
+                }}
+                disabled={agentAction.isPending || isPendingApproval}
+              >
+                <Pause className="h-3.5 w-3.5" />
+                Pause
+              </button>
+            )}
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              onClick={() => {
+                openNewIssue({ assigneeAgentId: agent.id });
+                setMoreOpen(false);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Assign Task
+            </button>
+            <div className="h-px bg-border my-1" />
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              onClick={() => {
+                navigate(`/agents/${canonicalAgentRef}/configure`);
+                setMoreOpen(false);
+              }}
+            >
+              <Settings className="h-3.5 w-3.5" />
+              Configure
+            </button>
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              onClick={() => {
+                navigator.clipboard.writeText(agent.id);
+                setMoreOpen(false);
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+              Copy ID
+            </button>
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              onClick={() => {
+                resetTaskSession.mutate(null);
+                setMoreOpen(false);
+              }}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset Sessions
+            </button>
+            <div className="h-px bg-border my-1" />
+            <button
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50 text-destructive"
+              onClick={() => {
+                agentAction.mutate("terminate");
+                setMoreOpen(false);
+              }}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Terminate
+            </button>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
@@ -548,7 +552,7 @@ export function AgentDetail() {
       )}
 
       {/* Floating Save/Cancel (desktop) */}
-      {!isMobile && (
+      {!isMobile && activeView === "configure" && (
         <div
           className={cn(
             "sticky top-6 z-10 float-right transition-opacity duration-150",
@@ -646,15 +650,6 @@ export function AgentDetail() {
 
 /* ---- Helper components ---- */
 
-function SummaryRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground text-xs">{label}</span>
-      <div className="flex items-center gap-1">{children}</div>
-    </div>
-  );
-}
-
 function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: string }) {
   if (runs.length === 0) return null;
 
@@ -672,9 +667,9 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
     : run.error ?? "";
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="flex w-full items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-medium">
+        <h3 className="flex items-center gap-2 text-base font-medium">
           {isLive && (
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
@@ -685,7 +680,7 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
         </h3>
         <Link
           to={`/agents/${agentId}/runs/${run.id}`}
-          className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors no-underline"
+          className="shrink-0 text-sm text-muted-foreground hover:text-foreground transition-colors no-underline"
         >
           View details &rarr;
         </Link>
@@ -699,11 +694,10 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
         )}
       >
         <div className="flex items-center gap-2">
-          <StatusIcon className={cn("h-3.5 w-3.5", statusInfo.color, run.status === "running" && "animate-spin")} />
+          <StatusIcon className={cn("h-4 w-4", statusInfo.color, run.status === "running" && "animate-spin")} />
           <StatusBadge status={run.status} />
-          <span className="font-mono text-xs text-muted-foreground">{run.id.slice(0, 8)}</span>
           <span className={cn(
-            "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
             run.invocationSource === "timer" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
               : run.invocationSource === "assignment" ? "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"
               : run.invocationSource === "on_demand" ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300"
@@ -711,12 +705,12 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
           )}>
             {sourceLabels[run.invocationSource] ?? run.invocationSource}
           </span>
-          <span className="ml-auto text-xs text-muted-foreground">{relativeTime(run.createdAt)}</span>
+          <span className="ml-auto text-sm text-muted-foreground">{relativeTime(run.createdAt)}</span>
         </div>
 
         {summary && (
-          <div className="overflow-hidden max-h-16">
-            <MarkdownBody className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{summary}</MarkdownBody>
+          <div className="overflow-hidden max-h-20 pl-6">
+            <MarkdownBody className="text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{summary}</MarkdownBody>
           </div>
         )}
       </Link>
@@ -746,17 +740,17 @@ function AgentOverview({
   agentRouteId: string;
 }) {
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {/* Latest Run */}
       <LatestRunCard runs={runs} agentId={agentRouteId} />
 
       {/* Charts */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <ChartCard title="Run Activity" subtitle="Last 14 days">
-          <RunActivityChart runs={runs} />
+        <ChartCard title="Total cost" subtitle={runtimeState ? `${formatCents(runtimeState.totalCostCents)} across ${runs.length} runs` : "Last 14 days"}>
+          <TotalCostChart runs={runs} />
         </ChartCard>
-        <ChartCard title="Tasks by Priority" subtitle="Last 14 days">
-          <PriorityChart issues={assignedIssues} />
+        <ChartCard title="Cost per task" subtitle={runs.length > 0 && runtimeState ? `${formatCents(Math.round(runtimeState.totalCostCents / runs.length))} avg` : "Last 14 days"}>
+          <CostPerRunChart runs={runs} />
         </ChartCard>
         <ChartCard title="Tasks by Status" subtitle="Last 14 days">
           <IssueStatusChart issues={assignedIssues} />
@@ -766,16 +760,16 @@ function AgentOverview({
         </ChartCard>
       </div>
 
-      {/* Recent Issues */}
+      {/* Recent Tasks */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Recent Issues</h3>
-          <Link to={`/issues?assignee=${agentId}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            See All &rarr;
+          <h3 className="text-base font-medium">Recent Tasks</h3>
+          <Link to={`/issues?assignee=${agentId}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors no-underline">
+            See all &rarr;
           </Link>
         </div>
         {assignedIssues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No assigned issues.</p>
+          <p className="text-sm text-muted-foreground">No assigned tasks.</p>
         ) : (
           <div className="border border-border rounded-lg">
             {assignedIssues.slice(0, 10).map((issue) => (
@@ -796,217 +790,11 @@ function AgentOverview({
         )}
       </div>
 
-      {/* Costs */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium">Costs</h3>
-        <CostsSection runtimeState={runtimeState} runs={runs} />
-      </div>
-
-      {/* Configuration Summary */}
-      <ConfigSummary
-        agent={agent}
-        agentRouteId={agentRouteId}
-        reportsToAgent={reportsToAgent}
-        directReports={directReports}
-      />
     </div>
   );
 }
 
-/* Chart components imported from ../components/ActivityCharts */
 
-/* ---- Configuration Summary ---- */
-
-function ConfigSummary({
-  agent,
-  agentRouteId,
-  reportsToAgent,
-  directReports,
-}: {
-  agent: Agent;
-  agentRouteId: string;
-  reportsToAgent: Agent | null;
-  directReports: Agent[];
-}) {
-  const config = agent.adapterConfig as Record<string, unknown>;
-  const promptText = typeof config?.promptTemplate === "string" ? config.promptTemplate : "";
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Configuration</h3>
-        <Link
-          to={`/agents/${agentRouteId}/configure`}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors no-underline"
-        >
-          <Settings className="h-3 w-3" />
-          Manage &rarr;
-        </Link>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="border border-border rounded-lg p-4 space-y-3">
-          <h4 className="text-xs text-muted-foreground font-medium">Agent Details</h4>
-          <div className="space-y-2 text-sm">
-            <SummaryRow label="Adapter">
-              <span className="font-mono">{adapterLabels[agent.adapterType] ?? agent.adapterType}</span>
-              {String(config?.model ?? "") !== "" && (
-                <span className="text-muted-foreground ml-1">
-                  ({String(config.model)})
-                </span>
-              )}
-            </SummaryRow>
-            <SummaryRow label="Heartbeat">
-              {(agent.runtimeConfig as Record<string, unknown>)?.heartbeat
-                ? (() => {
-                    const hb = (agent.runtimeConfig as Record<string, unknown>).heartbeat as Record<string, unknown>;
-                    if (!hb.enabled) return <span className="text-muted-foreground">Disabled</span>;
-                    const sec = Number(hb.intervalSec) || 300;
-                    const maxConcurrentRuns = Math.max(1, Math.floor(Number(hb.maxConcurrentRuns) || 1));
-                    const intervalLabel = sec >= 60 ? `${Math.round(sec / 60)} min` : `${sec}s`;
-                    return (
-                      <span>
-                        Every {intervalLabel}
-                        {maxConcurrentRuns > 1 ? ` (max ${maxConcurrentRuns} concurrent)` : ""}
-                      </span>
-                    );
-                  })()
-                : <span className="text-muted-foreground">Not configured</span>
-              }
-            </SummaryRow>
-            <SummaryRow label="Last heartbeat">
-              {agent.lastHeartbeatAt
-                ? <span>{relativeTime(agent.lastHeartbeatAt)}</span>
-                : <span className="text-muted-foreground">Never</span>
-              }
-            </SummaryRow>
-            <SummaryRow label="Reports to">
-              {reportsToAgent ? (
-                <Link
-                  to={`/agents/${agentRouteRef(reportsToAgent)}`}
-                  className="text-blue-600 hover:underline dark:text-blue-400"
-                >
-                  <Identity name={reportsToAgent.name} size="sm" />
-                </Link>
-              ) : (
-                <span className="text-muted-foreground">Nobody (top-level)</span>
-              )}
-            </SummaryRow>
-          </div>
-          {directReports.length > 0 && (
-            <div className="pt-1">
-              <span className="text-xs text-muted-foreground">Direct reports</span>
-              <div className="mt-1 space-y-1">
-                {directReports.map((r) => (
-                  <Link
-                    key={r.id}
-                    to={`/agents/${agentRouteRef(r)}`}
-                    className="flex items-center gap-2 text-sm text-blue-600 hover:underline dark:text-blue-400"
-                  >
-                    <span className="relative flex h-2 w-2">
-                      <span className={`absolute inline-flex h-full w-full rounded-full ${agentStatusDot[r.status] ?? agentStatusDotDefault}`} />
-                    </span>
-                    {r.name}
-                    <span className="text-muted-foreground text-xs">({roleLabels[r.role] ?? r.role})</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-          {agent.capabilities && (
-            <div className="pt-1">
-              <span className="text-xs text-muted-foreground">Capabilities</span>
-              <p className="text-sm mt-0.5">{agent.capabilities}</p>
-            </div>
-          )}
-        </div>
-        {promptText && (
-          <div className="border border-border rounded-lg p-4 space-y-2">
-            <h4 className="text-xs text-muted-foreground font-medium">Prompt Template</h4>
-            <pre className="text-xs text-muted-foreground line-clamp-[12] font-mono whitespace-pre-wrap">{promptText}</pre>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ---- Costs Section (inline) ---- */
-
-function CostsSection({
-  runtimeState,
-  runs,
-}: {
-  runtimeState?: AgentRuntimeState;
-  runs: HeartbeatRun[];
-}) {
-  const runsWithCost = runs
-    .filter((r) => {
-      const u = r.usageJson as Record<string, unknown> | null;
-      return u && (u.cost_usd || u.total_cost_usd || u.input_tokens);
-    })
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-  return (
-    <div className="space-y-4">
-      {runtimeState && (
-        <div className="border border-border rounded-lg p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <span className="text-xs text-muted-foreground block">Input tokens</span>
-              <span className="text-lg font-semibold">{formatTokens(runtimeState.totalInputTokens)}</span>
-            </div>
-            <div>
-              <span className="text-xs text-muted-foreground block">Output tokens</span>
-              <span className="text-lg font-semibold">{formatTokens(runtimeState.totalOutputTokens)}</span>
-            </div>
-            <div>
-              <span className="text-xs text-muted-foreground block">Cached tokens</span>
-              <span className="text-lg font-semibold">{formatTokens(runtimeState.totalCachedInputTokens)}</span>
-            </div>
-            <div>
-              <span className="text-xs text-muted-foreground block">Total cost</span>
-              <span className="text-lg font-semibold">{formatCents(runtimeState.totalCostCents)}</span>
-            </div>
-          </div>
-        </div>
-      )}
-      {runsWithCost.length > 0 && (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-border bg-accent/20">
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Date</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Run</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Input</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Output</th>
-                <th className="text-right px-3 py-2 font-medium text-muted-foreground">Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runsWithCost.slice(0, 10).map((run) => {
-                const u = run.usageJson as Record<string, unknown>;
-                return (
-                  <tr key={run.id} className="border-b border-border last:border-b-0">
-                    <td className="px-3 py-2">{formatDate(run.createdAt)}</td>
-                    <td className="px-3 py-2 font-mono">{run.id.slice(0, 8)}</td>
-                    <td className="px-3 py-2 text-right">{formatTokens(Number(u.input_tokens ?? 0))}</td>
-                    <td className="px-3 py-2 text-right">{formatTokens(Number(u.output_tokens ?? 0))}</td>
-                    <td className="px-3 py-2 text-right">
-                      {(u.cost_usd || u.total_cost_usd)
-                        ? `$${Number(u.cost_usd ?? u.total_cost_usd ?? 0).toFixed(4)}`
-                        : "-"
-                      }
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ---- Agent Configure Page ---- */
 
@@ -1212,12 +1000,9 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
       )}
     >
       <div className="flex items-center gap-2">
-        <StatusIcon className={cn("h-3.5 w-3.5 shrink-0", statusInfo.color, run.status === "running" && "animate-spin")} />
-        <span className="font-mono text-xs text-muted-foreground">
-          {run.id.slice(0, 8)}
-        </span>
+        <StatusIcon className={cn("h-4 w-4 shrink-0", statusInfo.color, run.status === "running" && "animate-spin")} />
         <span className={cn(
-          "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium shrink-0",
+          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium shrink-0",
           run.invocationSource === "timer" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
             : run.invocationSource === "assignment" ? "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"
             : run.invocationSource === "on_demand" ? "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/50 dark:text-cyan-300"
@@ -1225,19 +1010,18 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
         )}>
           {sourceLabels[run.invocationSource] ?? run.invocationSource}
         </span>
-        <span className="ml-auto text-[11px] text-muted-foreground shrink-0">
+        <span className="ml-auto text-xs text-muted-foreground shrink-0">
           {relativeTime(run.createdAt)}
         </span>
       </div>
       {summary && (
-        <span className="text-xs text-muted-foreground truncate pl-5.5">
-          {summary.slice(0, 60)}
+        <span className="text-sm text-muted-foreground truncate pl-6">
+          {summary.slice(0, 80)}
         </span>
       )}
-      {(metrics.totalTokens > 0 || metrics.cost > 0) && (
-        <div className="flex items-center gap-2 pl-5.5 text-[11px] text-muted-foreground">
-          {metrics.totalTokens > 0 && <span>{formatTokens(metrics.totalTokens)} tok</span>}
-          {metrics.cost > 0 && <span>${metrics.cost.toFixed(3)}</span>}
+      {metrics.cost > 0 && (
+        <div className="flex items-center gap-2 pl-6 text-xs text-muted-foreground">
+          <span>${metrics.cost.toFixed(3)}</span>
         </div>
       )}
     </Link>
@@ -1455,19 +1239,19 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
       {/* Tasks touched — shown as heading context */}
       {touchedIssues && touchedIssues.length > 0 && (
         <div className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Tasks Touched ({touchedIssues.length})</span>
+          <span className="text-sm font-medium text-muted-foreground">Tasks ({touchedIssues.length})</span>
           <div className="border border-border rounded-lg divide-y divide-border">
             {touchedIssues.map((issue) => (
               <Link
                 key={issue.issueId}
                 to={`/issues/${issue.identifier ?? issue.issueId}`}
-                className="flex items-center justify-between w-full px-3 py-2 text-xs hover:bg-accent/20 transition-colors text-left no-underline text-inherit"
+                className="flex items-center justify-between w-full px-3 py-2.5 text-sm hover:bg-accent/20 transition-colors text-left no-underline text-inherit"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <StatusBadge status={issue.status} />
                   <span className="truncate">{issue.title}</span>
                 </div>
-                <span className="font-mono text-muted-foreground shrink-0 ml-2">{issue.identifier ?? issue.issueId.slice(0, 8)}</span>
+                {issue.identifier && <span className="text-xs text-muted-foreground shrink-0 ml-2">{issue.identifier}</span>}
               </Link>
             ))}
           </div>
@@ -1476,20 +1260,20 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
 
       {/* Run summary */}
       <div className="flex items-center gap-3 flex-wrap">
-        <StatusBadge status={run.status} />
+        <StatusBadge status={run.status} className="text-sm px-3 py-1" />
         {displayDurationSec !== null && (
-          <span className="text-xs font-mono text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             {displayDurationSec >= 60 ? `${Math.floor(displayDurationSec / 60)}m ${displayDurationSec % 60}s` : `${displayDurationSec}s`}
           </span>
         )}
         {hasMetrics && metrics.cost > 0 && (
-          <span className="text-xs font-mono text-muted-foreground">${metrics.cost.toFixed(4)}</span>
+          <span className="text-sm text-muted-foreground">${metrics.cost.toFixed(4)}</span>
         )}
         {(run.status === "running" || run.status === "queued") && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="text-destructive hover:text-destructive text-xs h-6 px-2"
+            className="text-destructive hover:text-destructive"
             onClick={() => cancelRun.mutate()}
             disabled={cancelRun.isPending}
           >
@@ -1497,13 +1281,13 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
           </Button>
         )}
         {canResumeLostRun && (
-          <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => resumeRun.mutate()} disabled={resumeRun.isPending}>
+          <Button variant="outline" size="sm" onClick={() => resumeRun.mutate()} disabled={resumeRun.isPending}>
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
             {resumeRun.isPending ? "Resuming…" : "Resume"}
           </Button>
         )}
         {canRetryRun && !canResumeLostRun && (
-          <Button variant="ghost" size="sm" className="text-xs h-6 px-2" onClick={() => retryRun.mutate()} disabled={retryRun.isPending}>
+          <Button variant="outline" size="sm" onClick={() => retryRun.mutate()} disabled={retryRun.isPending}>
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
             {retryRun.isPending ? "Retrying…" : "Retry"}
           </Button>
@@ -1515,10 +1299,9 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
       {retryRun.isError && (
         <div className="text-xs text-destructive">{retryRun.error instanceof Error ? retryRun.error.message : "Failed to retry run"}</div>
       )}
-      {run.error && (
+      {run.error && !run.logRef && (
         <div className="text-xs">
           <span className="text-red-600 dark:text-red-400">{run.error}</span>
-          {run.errorCode && <span className="text-muted-foreground ml-1">({run.errorCode})</span>}
         </div>
       )}
       {run.errorCode === "claude_auth_required" && adapterType === "claude_local" && (
@@ -1540,19 +1323,19 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
         </div>
       )}
 
-      {/* stderr excerpt for failed runs */}
-      {run.stderrExcerpt && (
-        <div className="space-y-1">
-          <span className="text-xs font-medium text-red-600 dark:text-red-400">stderr</span>
-          <pre className="bg-neutral-100 dark:bg-neutral-950 rounded-md p-3 text-xs font-mono text-red-700 dark:text-red-300 overflow-x-auto whitespace-pre-wrap">{run.stderrExcerpt}</pre>
+      {/* stderr excerpt — only when no full transcript log is available */}
+      {run.stderrExcerpt && !run.logRef && (
+        <div className="rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20 p-3 space-y-1">
+          <span className="text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Warnings</span>
+          <pre className="text-sm text-red-600 dark:text-red-300 whitespace-pre-wrap break-words overflow-x-auto">{run.stderrExcerpt}</pre>
         </div>
       )}
 
-      {/* stdout excerpt when no log is available */}
+      {/* stdout excerpt — only when no full transcript log is available */}
       {run.stdoutExcerpt && !run.logRef && (
-        <div className="space-y-1">
-          <span className="text-xs font-medium text-muted-foreground">stdout</span>
-          <pre className="bg-neutral-100 dark:bg-neutral-950 rounded-md p-3 text-xs font-mono text-foreground overflow-x-auto whitespace-pre-wrap">{run.stdoutExcerpt}</pre>
+        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Output</span>
+          <pre className="text-sm text-foreground whitespace-pre-wrap break-words overflow-x-auto">{run.stdoutExcerpt}</pre>
         </div>
       )}
 
@@ -1730,15 +1513,35 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
     system: "text-blue-600 dark:text-blue-300",
   };
 
+  // Merge consecutive stderr entries with the same timestamp into a single entry
+  const dedupedTranscript = transcript.reduce<typeof transcript>((acc, entry) => {
+    if (entry.kind === "stderr" && acc.length > 0) {
+      const prev = acc[acc.length - 1];
+      if (prev.kind === "stderr" && prev.ts === entry.ts) {
+        acc[acc.length - 1] = { ...prev, text: prev.text + "\n" + entry.text };
+        return acc;
+      }
+    }
+    acc.push(entry);
+    return acc;
+  }, []);
+  const displayEntries = [...dedupedTranscript].reverse();
+  const humanVisibleCount = dedupedTranscript.filter((e) => {
+    if (e.kind === "system" || e.kind === "tool_call" || e.kind === "result") return false;
+    if (e.kind === "tool_result" && !e.isError) return false;
+    if (e.kind === "stdout" && !humanizeStdoutLine(e.text)) return false;
+    return true;
+  }).length;
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">
-          Transcript ({transcript.length})
+        <span className="text-sm font-medium text-muted-foreground">
+          Activity ({logMode === "human" ? humanVisibleCount : dedupedTranscript.length})
         </span>
         <div className="flex items-center gap-2">
           {/* Human / Raw toggle */}
-          <div className="flex items-center rounded-md border border-border text-[11px] overflow-hidden">
+          <div className="flex items-center rounded-md border border-border text-sm overflow-hidden">
             <button
               className={cn(
                 "px-2 py-0.5 transition-colors",
@@ -1746,7 +1549,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
               )}
               onClick={() => onLogModeChange("human")}
             >
-              Human
+              Summary
             </button>
             <button
               className={cn(
@@ -1755,7 +1558,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
               )}
               onClick={() => onLogModeChange("raw")}
             >
-              Raw
+              Full
             </button>
           </div>
           {isLive && (
@@ -1770,27 +1573,26 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
         </div>
       </div>
       {(() => {
-        const displayEntries = [...transcript].reverse();
         return (
-          <div className="rounded-lg font-mono text-xs overflow-x-hidden space-y-2">
+          <div className="rounded-lg text-sm overflow-x-hidden space-y-2">
             {displayEntries.length === 0 && !run.logRef && (
-              <div className="text-neutral-500 bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3">No persisted transcript for this run.</div>
+              <div className="text-neutral-500 bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3">No log available for this run.</div>
             )}
             {logMode === "human" ? (
               /* ---- Human-readable mode ---- */
               displayEntries.map((entry, idx) => {
                 const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
-                const tsEl = <span className="text-[10px] text-neutral-400 dark:text-neutral-600 select-none shrink-0">{time}</span>;
-                const cardBase = "rounded-lg border p-3 [animation:log-entry-in_0.35s_ease-out_both]";
+                const tsEl = <span className="text-sm text-neutral-400 dark:text-neutral-600 select-none shrink-0">{time}</span>;
+                const cardBase = "rounded-lg border p-4 [animation:log-entry-in_0.35s_ease-out_both]";
 
                 if (entry.kind === "assistant") {
                   return (
                     <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-green-200 dark:border-green-900/40 bg-green-50/50 dark:bg-green-950/20")}>
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-2">
                         {tsEl}
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-green-700 dark:text-green-300">Agent</span>
+                        <span className="text-sm font-semibold uppercase tracking-wider text-green-700 dark:text-green-300">Agent</span>
                       </div>
-                      <MarkdownBody className="text-xs [&_pre]:text-[11px] text-green-950 dark:text-green-50">{entry.text}</MarkdownBody>
+                      <MarkdownBody className="text-sm text-green-950 dark:text-green-50">{entry.text}</MarkdownBody>
                     </div>
                   );
                 }
@@ -1798,36 +1600,27 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                 if (entry.kind === "thinking") {
                   return (
                     <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-green-100 dark:border-green-900/20 bg-green-50/30 dark:bg-green-950/10 opacity-60")}>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1.5">
                         {tsEl}
-                        <span className="text-[10px] italic font-medium text-green-600/70 dark:text-green-300/60">Thinking</span>
+                        <span className="text-sm italic font-medium text-green-600/70 dark:text-green-300/60">Thinking</span>
                       </div>
-                      <MarkdownBody className="italic text-xs opacity-70">{entry.text}</MarkdownBody>
+                      <MarkdownBody className="italic text-sm opacity-70">{entry.text}</MarkdownBody>
                     </div>
                   );
                 }
 
-                if (entry.kind === "tool_call") {
-                  return (
-                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-yellow-200 dark:border-yellow-900/30 bg-yellow-50/40 dark:bg-yellow-950/15")}>
-                      <div className="flex items-center gap-2">
-                        {tsEl}
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-yellow-700 dark:text-yellow-300">Tool</span>
-                        <span className="text-xs text-yellow-900 dark:text-yellow-100 font-medium">{entry.name}</span>
-                      </div>
-                    </div>
-                  );
-                }
+                // tool_call — skip in human mode (too technical)
+                if (entry.kind === "tool_call") return null;
 
                 if (entry.kind === "tool_result") {
                   if (entry.isError) {
                     return (
                       <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20")}>
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 mb-2">
                           {tsEl}
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Tool error</span>
+                          <span className="text-sm font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Tool error</span>
                         </div>
-                        <pre className="text-red-600 dark:text-red-300 whitespace-pre-wrap break-words max-h-40 overflow-y-auto text-[11px]">
+                        <pre className="text-red-600 dark:text-red-300 whitespace-pre-wrap break-words max-h-40 overflow-y-auto text-sm">
                           {(() => { try { return JSON.stringify(JSON.parse(entry.content), null, 2); } catch { return entry.content; } })()}
                         </pre>
                       </div>
@@ -1842,55 +1635,37 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                     <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-blue-200 dark:border-blue-900/30 bg-blue-50/40 dark:bg-blue-950/15")}>
                       <div className="flex items-center gap-2">
                         {tsEl}
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">Started</span>
-                        <span className="text-xs text-blue-900 dark:text-blue-100">{entry.model}</span>
+                        <span className="text-sm font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">Agent started</span>
                       </div>
                     </div>
                   );
                 }
 
-                if (entry.kind === "result") {
-                  return (
-                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-cyan-200 dark:border-cyan-900/30 bg-cyan-50/40 dark:bg-cyan-950/15")}>
-                      <div className="flex items-center gap-2 mb-1">
-                        {tsEl}
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">Finished</span>
-                        <span className="text-xs text-cyan-900 dark:text-cyan-100">
-                          {formatTokens(entry.inputTokens + entry.outputTokens)} tokens &middot; ${entry.costUsd.toFixed(4)}
-                        </span>
-                      </div>
-                      {entry.isError && entry.errors.length > 0 && (
-                        <div className="text-red-600 dark:text-red-300 whitespace-pre-wrap break-words text-[11px]">
-                          {entry.errors.join(" | ")}
-                        </div>
-                      )}
-                      {entry.text && (
-                        <MarkdownBody className="mt-1 text-xs [&_pre]:text-[11px]">{entry.text}</MarkdownBody>
-                      )}
-                    </div>
-                  );
-                }
+                // result — cost already shown in run header, skip in human mode
+                if (entry.kind === "result") return null;
 
                 if (entry.kind === "user") {
                   return (
                     <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50")}>
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-2">
                         {tsEl}
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Prompt</span>
+                        <span className="text-sm font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Prompt</span>
                       </div>
-                      <MarkdownBody className="text-xs">{entry.text}</MarkdownBody>
+                      <MarkdownBody className="text-sm">{entry.text}</MarkdownBody>
                     </div>
                   );
                 }
 
                 if (entry.kind === "stderr") {
+                  // In summary mode, show only the first meaningful line (strip stack traces)
+                  const firstLine = entry.text.split("\n").find((l) => l.trim() && !l.trim().startsWith("at ")) ?? entry.text.split("\n")[0];
                   return (
                     <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20")}>
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-2">
                         {tsEl}
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Error</span>
+                        <span className="text-sm font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Error</span>
                       </div>
-                      <div className="text-red-600 dark:text-red-300 whitespace-pre-wrap break-words text-[11px]">{entry.text}</div>
+                      <div className="text-red-600 dark:text-red-300 break-words text-sm">{firstLine}</div>
                     </div>
                   );
                 }
@@ -1908,7 +1683,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                       <div className="flex items-center gap-2 mb-1.5">
                         {tsEl}
                       </div>
-                      <MarkdownBody className="text-xs [&_pre]:text-[11px]">{humanText}</MarkdownBody>
+                      <MarkdownBody className="text-sm">{humanText}</MarkdownBody>
                     </div>
                   );
                 }
@@ -1919,8 +1694,8 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
               {displayEntries.map((entry, idx) => {
                 const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
                 const grid = "grid grid-cols-[auto_auto_1fr] gap-x-2 sm:gap-x-3 items-baseline";
-                const tsCell = "text-neutral-400 dark:text-neutral-600 select-none w-12 sm:w-16 text-[10px] sm:text-xs";
-                const lblCell = "w-14 sm:w-20 text-[10px] sm:text-xs";
+                const tsCell = "text-neutral-400 dark:text-neutral-600 select-none w-14 sm:w-18 text-xs sm:text-sm";
+                const lblCell = "w-16 sm:w-20 text-xs sm:text-sm";
                 const contentCell = "min-w-0 whitespace-pre-wrap break-words overflow-hidden";
                 const expandCell = "col-span-full md:col-start-3 md:col-span-1";
 
@@ -1960,7 +1735,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                       <span className={tsCell}>{time}</span>
                       <span className={cn(lblCell, "text-yellow-700 dark:text-yellow-300")}>tool_call</span>
                       <span className="text-yellow-900 dark:text-yellow-100 min-w-0">{entry.name}</span>
-                      <pre className={cn(expandCell, "bg-neutral-200 dark:bg-neutral-900 rounded p-2 text-[11px] overflow-x-auto whitespace-pre-wrap text-neutral-800 dark:text-neutral-200")}>
+                      <pre className={cn(expandCell, "bg-neutral-200 dark:bg-neutral-900 rounded p-2 text-xs overflow-x-auto whitespace-pre-wrap text-neutral-800 dark:text-neutral-200")}>
                         {JSON.stringify(entry.input, null, 2)}
                       </pre>
                     </div>
@@ -2013,7 +1788,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 const rawText = entry.text;
                 const label =
-                  entry.kind === "stderr" ? "stderr" :
+                  entry.kind === "stderr" ? "warning" :
                   entry.kind === "system" ? "system" :
                   "stdout";
                 const color =
@@ -2035,35 +1810,34 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
         );
       })()}
 
-      {(run.status === "failed" || run.status === "timed_out") && (
-        <div className="rounded-lg border border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-950/20 p-3 space-y-2">
-          <div className="text-xs font-medium text-red-700 dark:text-red-300">Failure details</div>
+      {(run.status === "failed" || run.status === "timed_out") && !run.logRef && (
+        <div className="rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20 p-3 space-y-2">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Failure details</div>
           {run.error && (
-            <div className="text-xs text-red-600 dark:text-red-200">
-              <span className="text-red-700 dark:text-red-300">Error: </span>
+            <div className="text-xs text-red-600 dark:text-red-300">
               {run.error}
             </div>
           )}
           {run.stderrExcerpt && run.stderrExcerpt.trim() && (
             <div>
-              <div className="text-xs text-red-700 dark:text-red-300 mb-1">stderr excerpt</div>
-              <pre className="bg-red-50 dark:bg-neutral-950 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap text-red-800 dark:text-red-100">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-300 mb-1">Warnings</div>
+              <pre className="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words overflow-x-auto">
                 {run.stderrExcerpt}
               </pre>
             </div>
           )}
           {run.resultJson && (
             <div>
-              <div className="text-xs text-red-700 dark:text-red-300 mb-1">adapter result JSON</div>
-              <pre className="bg-red-50 dark:bg-neutral-950 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap text-red-800 dark:text-red-100">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-300 mb-1">Result</div>
+              <pre className="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words overflow-x-auto">
                 {JSON.stringify(run.resultJson, null, 2)}
               </pre>
             </div>
           )}
           {run.stdoutExcerpt && run.stdoutExcerpt.trim() && !run.resultJson && (
             <div>
-              <div className="text-xs text-red-700 dark:text-red-300 mb-1">stdout excerpt</div>
-              <pre className="bg-red-50 dark:bg-neutral-950 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap text-red-800 dark:text-red-100">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-300 mb-1">Output</div>
+              <pre className="text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words overflow-x-auto">
                 {run.stdoutExcerpt}
               </pre>
             </div>
@@ -2071,10 +1845,10 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
         </div>
       )}
 
-      {events.length > 0 && (
+      {events.length > 0 && logMode === "raw" && (
         <div>
           <div className="mb-2 text-xs font-medium text-muted-foreground">Events ({events.length})</div>
-          <div className="bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3 font-mono text-xs space-y-0.5">
+          <div className="bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3 text-xs space-y-0.5">
             {events.map((evt) => {
               const color = evt.color
                 ?? (evt.level ? levelColors[evt.level] : null)

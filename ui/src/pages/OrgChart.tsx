@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@/lib/router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi, type OrgNode } from "../api/agents";
+import { orgChartApi } from "../api/orgChart";
 import { useCompany } from "../context/CompanyContext";
+import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { agentUrl } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { AgentIcon } from "../components/AgentIconPicker";
-import { OrgChartEditor } from "../components/OrgChartEditor";
-import { Network, PenTool } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Network, Plus, MessageSquareText, X } from "lucide-react";
 import type { Agent } from "@substaff/shared";
 
 // Layout constants
@@ -34,7 +36,6 @@ interface LayoutNode {
 
 // ── Layout algorithm ────────────────────────────────────────────────────
 
-/** Compute the width each subtree needs. */
 function subtreeWidth(node: OrgNode): number {
   if (node.reports.length === 0) return CARD_W;
   const childrenW = node.reports.reduce((sum, c) => sum + subtreeWidth(c), 0);
@@ -42,7 +43,6 @@ function subtreeWidth(node: OrgNode): number {
   return Math.max(CARD_W, childrenW + gaps);
 }
 
-/** Recursively assign x,y positions. */
 function layoutTree(node: OrgNode, x: number, y: number): LayoutNode {
   const totalW = subtreeWidth(node);
   const layoutChildren: LayoutNode[] = [];
@@ -70,12 +70,9 @@ function layoutTree(node: OrgNode, x: number, y: number): LayoutNode {
   };
 }
 
-/** Layout all root nodes side by side. */
 function layoutForest(roots: OrgNode[]): LayoutNode[] {
   if (roots.length === 0) return [];
 
-  const totalW = roots.reduce((sum, r) => sum + subtreeWidth(r), 0);
-  const gaps = (roots.length - 1) * GAP_X;
   let x = PADDING;
   const y = PADDING;
 
@@ -86,11 +83,9 @@ function layoutForest(roots: OrgNode[]): LayoutNode[] {
     x += w + GAP_X;
   }
 
-  // Compute bounds and return
   return result;
 }
 
-/** Flatten layout tree to list of nodes. */
 function flattenLayout(nodes: LayoutNode[]): LayoutNode[] {
   const result: LayoutNode[] = [];
   function walk(n: LayoutNode) {
@@ -101,7 +96,6 @@ function flattenLayout(nodes: LayoutNode[]): LayoutNode[] {
   return result;
 }
 
-/** Collect all parent→child edges. */
 function collectEdges(nodes: LayoutNode[]): Array<{ parent: LayoutNode; child: LayoutNode }> {
   const edges: Array<{ parent: LayoutNode; child: LayoutNode }> = [];
   function walk(n: LayoutNode) {
@@ -137,7 +131,7 @@ const defaultDotColor = "#a3a3a3";
 export function OrgChart() {
   const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const [mode, setMode] = useState<"view" | "editor">("view");
+  const { openNewAgent } = useDialog();
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Org Chart" }]);
@@ -147,41 +141,19 @@ export function OrgChart() {
     return <EmptyState icon={Network} message="Select a company to view the org chart." />;
   }
 
-  if (mode === "editor") {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-          <Network className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold">Org Chart</span>
-          <div className="flex items-center gap-0.5 ml-4 rounded-md border border-border p-0.5">
-            <button
-              className="px-2.5 py-1 text-xs rounded transition-colors text-muted-foreground hover:text-foreground"
-              onClick={() => setMode("view")}
-            >
-              View
-            </button>
-            <button
-              className="px-2.5 py-1 text-xs rounded transition-colors bg-accent text-foreground font-medium"
-            >
-              Editor
-            </button>
-          </div>
-        </div>
-        <OrgChartEditor companyId={selectedCompanyId} />
-      </div>
-    );
-  }
-
   return (
-    <OrgChartViewMode
+    <OrgChartView
       companyId={selectedCompanyId}
-      onSwitchToEditor={() => setMode("editor")}
+      onAddAgent={openNewAgent}
     />
   );
 }
 
-function OrgChartViewMode({ companyId, onSwitchToEditor }: { companyId: string; onSwitchToEditor: () => void }) {
+function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent: () => void }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [promptText, setPromptText] = useState("");
 
   const { data: orgTree, isLoading } = useQuery({
     queryKey: queryKeys.org(companyId),
@@ -193,6 +165,31 @@ function OrgChartViewMode({ companyId, onSwitchToEditor }: { companyId: string; 
     queryKey: queryKeys.agents.list(companyId),
     queryFn: () => agentsApi.list(companyId),
     enabled: !!companyId,
+  });
+
+  // Load saved prompt-to-org text
+  const { data: savedChart } = useQuery({
+    queryKey: queryKeys.orgChart(companyId),
+    queryFn: () => orgChartApi.get(companyId),
+    enabled: !!companyId,
+  });
+
+  useEffect(() => {
+    if (savedChart?.promptToOrg) {
+      setPromptText(savedChart.promptToOrg);
+    }
+  }, [savedChart?.promptToOrg]);
+
+  const savePromptMutation = useMutation({
+    mutationFn: (prompt: string) =>
+      orgChartApi.save(companyId, {
+        nodes: savedChart?.nodes ?? [],
+        edges: savedChart?.edges ?? [],
+        promptToOrg: prompt || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orgChart(companyId) });
+    },
   });
 
   const agentMap = useMemo(() => {
@@ -234,7 +231,6 @@ function OrgChartViewMode({ companyId, onSwitchToEditor }: { companyId: string; 
     const containerW = container.clientWidth;
     const containerH = container.clientHeight;
 
-    // Fit chart to container
     const scaleX = (containerW - 40) / bounds.width;
     const scaleY = (containerH - 40) / bounds.height;
     const fitZoom = Math.min(scaleX, scaleY, 1);
@@ -251,7 +247,6 @@ function OrgChartViewMode({ companyId, onSwitchToEditor }: { companyId: string; 
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return;
-    // Don't drag if clicking a card
     const target = e.target as HTMLElement;
     if (target.closest("[data-org-card]")) return;
     setDragging(true);
@@ -281,7 +276,6 @@ function OrgChartViewMode({ companyId, onSwitchToEditor }: { companyId: string; 
     const factor = e.deltaY < 0 ? 1.1 : 0.9;
     const newZoom = Math.min(Math.max(zoom * factor, 0.2), 2);
 
-    // Zoom toward mouse position
     const scale = newZoom / zoom;
     setPan({
       x: mouseX - scale * (mouseX - pan.x),
@@ -298,179 +292,215 @@ function OrgChartViewMode({ companyId, onSwitchToEditor }: { companyId: string; 
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] gap-4">
         <EmptyState icon={Network} message="No organizational hierarchy defined." />
-        <button
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent transition-colors"
-          onClick={onSwitchToEditor}
-        >
-          <PenTool className="h-3.5 w-3.5" />
-          Open Org Chart Editor
-        </button>
+        <Button size="sm" onClick={onAddAgent}>
+          <Plus className="h-4 w-4" />
+          Add Agent
+        </Button>
       </div>
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-[calc(100vh-4rem)] overflow-hidden relative bg-muted/20 border border-border rounded-lg"
-      style={{ cursor: dragging ? "grabbing" : "grab" }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
-    >
-      {/* Editor toggle */}
-      <div className="absolute top-3 left-3 z-10">
-        <button
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors shadow-sm"
-          onClick={onSwitchToEditor}
-        >
-          <PenTool className="h-3.5 w-3.5" />
-          Editor
-        </button>
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      <div className="shrink-0 pb-3">
+        <h1 className="text-lg font-semibold">Org Chart</h1>
+        <p className="mt-1 text-sm text-muted-foreground">See how your agents are structured and who reports to whom.</p>
       </div>
+      {/* Prompt-to-Org panel */}
+      {showPrompt && (
+        <div className="border-b border-border bg-card px-4 py-3 space-y-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Prompt-to-Org
+            </span>
+            <Button size="icon-xs" variant="ghost" onClick={() => setShowPrompt(false)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <textarea
+            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none resize-y min-h-[60px] focus:border-primary"
+            placeholder="Describe your org structure in natural language... (e.g. 'A CEO managing a CTO and CMO. The CTO has 3 engineers and 1 QA.')"
+            value={promptText}
+            onChange={(e) => setPromptText(e.target.value)}
+          />
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] text-muted-foreground">
+              Automatic generation from natural language is coming soon.
+            </p>
+            <Button
+              size="xs"
+              onClick={() => savePromptMutation.mutate(promptText)}
+              disabled={savePromptMutation.isPending}
+            >
+              {savePromptMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        </div>
+      )}
 
-      {/* Zoom controls */}
-      <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
-        <button
-          className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
-          onClick={() => {
-            const newZoom = Math.min(zoom * 1.2, 2);
-            const container = containerRef.current;
-            if (container) {
-              const cx = container.clientWidth / 2;
-              const cy = container.clientHeight / 2;
-              const scale = newZoom / zoom;
-              setPan({ x: cx - scale * (cx - pan.x), y: cy - scale * (cy - pan.y) });
-            }
-            setZoom(newZoom);
-          }}
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-        <button
-          className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
-          onClick={() => {
-            const newZoom = Math.max(zoom * 0.8, 0.2);
-            const container = containerRef.current;
-            if (container) {
-              const cx = container.clientWidth / 2;
-              const cy = container.clientHeight / 2;
-              const scale = newZoom / zoom;
-              setPan({ x: cx - scale * (cx - pan.x), y: cy - scale * (cy - pan.y) });
-            }
-            setZoom(newZoom);
-          }}
-          aria-label="Zoom out"
-        >
-          &minus;
-        </button>
-        <button
-          className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-[10px] hover:bg-accent transition-colors"
-          onClick={() => {
-            if (!containerRef.current) return;
-            const cW = containerRef.current.clientWidth;
-            const cH = containerRef.current.clientHeight;
-            const scaleX = (cW - 40) / bounds.width;
-            const scaleY = (cH - 40) / bounds.height;
-            const fitZoom = Math.min(scaleX, scaleY, 1);
-            const chartW = bounds.width * fitZoom;
-            const chartH = bounds.height * fitZoom;
-            setZoom(fitZoom);
-            setPan({ x: (cW - chartW) / 2, y: (cH - chartH) / 2 });
-          }}
-          title="Fit to screen"
-          aria-label="Fit chart to screen"
-        >
-          Fit
-        </button>
-      </div>
-
-      {/* SVG layer for edges */}
-      <svg
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          width: "100%",
-          height: "100%",
-        }}
+      {/* Chart canvas */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-hidden relative bg-muted/20 border border-border rounded-lg"
+        style={{ cursor: dragging ? "grabbing" : "grab" }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
       >
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-          {edges.map(({ parent, child }) => {
-            const x1 = parent.x + CARD_W / 2;
-            const y1 = parent.y + CARD_H;
-            const x2 = child.x + CARD_W / 2;
-            const y2 = child.y;
-            const midY = (y1 + y2) / 2;
+        {/* Top-left actions */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+          <Button size="sm" onClick={onAddAgent}>
+            <Plus className="h-4 w-4" />
+            Add Agent
+          </Button>
+          <Button
+            size="sm"
+            variant={showPrompt ? "secondary" : "outline"}
+            onClick={() => setShowPrompt(!showPrompt)}
+          >
+            <MessageSquareText className="h-4 w-4" />
+            Prompt to Org
+          </Button>
+        </div>
+
+        {/* Zoom controls */}
+        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
+          <button
+            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
+            onClick={() => {
+              const newZoom = Math.min(zoom * 1.2, 2);
+              const container = containerRef.current;
+              if (container) {
+                const cx = container.clientWidth / 2;
+                const cy = container.clientHeight / 2;
+                const scale = newZoom / zoom;
+                setPan({ x: cx - scale * (cx - pan.x), y: cy - scale * (cy - pan.y) });
+              }
+              setZoom(newZoom);
+            }}
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+          <button
+            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
+            onClick={() => {
+              const newZoom = Math.max(zoom * 0.8, 0.2);
+              const container = containerRef.current;
+              if (container) {
+                const cx = container.clientWidth / 2;
+                const cy = container.clientHeight / 2;
+                const scale = newZoom / zoom;
+                setPan({ x: cx - scale * (cx - pan.x), y: cy - scale * (cy - pan.y) });
+              }
+              setZoom(newZoom);
+            }}
+            aria-label="Zoom out"
+          >
+            &minus;
+          </button>
+          <button
+            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-[10px] hover:bg-accent transition-colors"
+            onClick={() => {
+              if (!containerRef.current) return;
+              const cW = containerRef.current.clientWidth;
+              const cH = containerRef.current.clientHeight;
+              const scaleX = (cW - 40) / bounds.width;
+              const scaleY = (cH - 40) / bounds.height;
+              const fitZoom = Math.min(scaleX, scaleY, 1);
+              const chartW = bounds.width * fitZoom;
+              const chartH = bounds.height * fitZoom;
+              setZoom(fitZoom);
+              setPan({ x: (cW - chartW) / 2, y: (cH - chartH) / 2 });
+            }}
+            title="Fit to screen"
+            aria-label="Fit chart to screen"
+          >
+            Fit
+          </button>
+        </div>
+
+        {/* SVG layer for edges */}
+        <svg
+          className="absolute inset-0 pointer-events-none"
+          style={{ width: "100%", height: "100%" }}
+        >
+          <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
+            {edges.map(({ parent, child }) => {
+              const x1 = parent.x + CARD_W / 2;
+              const y1 = parent.y + CARD_H;
+              const x2 = child.x + CARD_W / 2;
+              const y2 = child.y;
+              const midY = (y1 + y2) / 2;
+
+              return (
+                <path
+                  key={`${parent.id}-${child.id}`}
+                  d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
+                  fill="none"
+                  stroke="var(--border)"
+                  strokeWidth={1.5}
+                />
+              );
+            })}
+          </g>
+        </svg>
+
+        {/* Card layer */}
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: "0 0",
+          }}
+        >
+          {allNodes.map((node) => {
+            const agent = agentMap.get(node.id);
+            const dotColor = statusDotColor[node.status] ?? defaultDotColor;
 
             return (
-              <path
-                key={`${parent.id}-${child.id}`}
-                d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
-                fill="none"
-                stroke="var(--border)"
-                strokeWidth={1.5}
-              />
-            );
-          })}
-        </g>
-      </svg>
-
-      {/* Card layer */}
-      <div
-        className="absolute inset-0"
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: "0 0",
-        }}
-      >
-        {allNodes.map((node) => {
-          const agent = agentMap.get(node.id);
-          const dotColor = statusDotColor[node.status] ?? defaultDotColor;
-
-          return (
-            <div
-              key={node.id}
-              data-org-card
-              className="absolute bg-card border border-border rounded-lg shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
-              style={{
-                left: node.x,
-                top: node.y,
-                width: CARD_W,
-                minHeight: CARD_H,
-              }}
-              onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
-            >
-              <div className="flex items-center px-4 py-3 gap-3">
-                {/* Agent icon + status dot */}
-                <div className="relative shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
-                    <AgentIcon icon={agent?.icon} className="h-4.5 w-4.5 text-foreground/70" />
+              <div
+                key={node.id}
+                data-org-card
+                className="absolute bg-card border border-border rounded-lg shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
+                style={{
+                  left: node.x,
+                  top: node.y,
+                  width: CARD_W,
+                  minHeight: CARD_H,
+                }}
+                onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
+              >
+                <div className="flex items-center px-4 py-3 gap-3">
+                  <div className="relative shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
+                      <AgentIcon icon={agent?.icon} className="h-4.5 w-4.5 text-foreground/70" />
+                    </div>
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
+                      style={{ backgroundColor: dotColor }}
+                    />
                   </div>
-                  <span
-                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
-                    style={{ backgroundColor: dotColor }}
-                  />
-                </div>
-                {/* Name + role + adapter type */}
-                <div className="flex flex-col items-start min-w-0 flex-1">
-                  <span className="text-sm font-semibold text-foreground leading-tight">
-                    {node.name}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                    {agent?.title ?? roleLabel(node.role)}
-                  </span>
-                  {agent && (
-                    <span className="text-[10px] text-muted-foreground/60 font-mono leading-tight mt-1">
-                      {adapterLabels[agent.adapterType] ?? agent.adapterType}
+                  <div className="flex flex-col items-start min-w-0 flex-1">
+                    <span className="text-sm font-semibold text-foreground leading-tight">
+                      {node.name}
                     </span>
-                  )}
+                    <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                      {agent?.title ?? roleLabel(node.role)}
+                    </span>
+                    {agent && (
+                      <span className="text-[10px] text-muted-foreground/60 font-mono leading-tight mt-1">
+                        {adapterLabels[agent.adapterType] ?? agent.adapterType}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

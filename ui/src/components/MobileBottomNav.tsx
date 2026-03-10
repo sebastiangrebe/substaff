@@ -50,8 +50,8 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
     () => [
       { type: "link", to: "/dashboard", label: "Home", icon: House },
       { type: "link", to: "/issues", label: "Tasks", icon: CircleDot },
-      { type: "action", label: "Create", icon: SquarePen, onClick: () => openNewIssue() },
-      { type: "link", to: "/agents/all", label: "Agents", icon: Users },
+      { type: "action", label: "New", icon: SquarePen, onClick: () => openNewIssue() },
+      { type: "link", to: "/agents/all", label: "Team", icon: Users },
       {
         type: "link",
         to: "/inbox",
@@ -64,32 +64,30 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
   );
 
   return (
-    <nav
+    <div
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85 transition-transform duration-200 ease-out md:hidden pb-[env(safe-area-inset-bottom)]",
+        "fixed bottom-0 left-0 right-0 z-30 flex justify-center transition-transform duration-200 ease-out md:hidden",
         visible ? "translate-y-0" : "translate-y-full",
       )}
-      aria-label="Mobile navigation"
+      style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))" }}
     >
-      <div className="grid h-16 grid-cols-5 px-1">
+      <nav
+        className="flex items-center gap-1 px-2 h-14 rounded-2xl bg-card/95 backdrop-blur-lg border border-border shadow-lg shadow-black/5 dark:shadow-black/20"
+        aria-label="Mobile navigation"
+      >
         {items.map((item) => {
           if (item.type === "action") {
             const Icon = item.icon;
-            const active = /\/issues\/new(?:\/|$)/.test(location.pathname);
             return (
               <button
                 key={item.label}
                 type="button"
                 onClick={item.onClick}
-                className={cn(
-                  "relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-medium transition-colors",
-                  active
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
+                className="flex flex-col items-center justify-center gap-0.5 rounded-xl px-4 py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
-                <Icon className="h-[18px] w-[18px]" />
-                <span className="truncate">{item.label}</span>
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground">
+                  <Icon className="h-4 w-4" />
+                </div>
               </button>
             );
           }
@@ -101,9 +99,9 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "relative flex min-w-0 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-medium transition-colors",
+                  "relative flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-3.5 py-1.5 text-[10px] font-medium transition-colors",
                   isActive
-                    ? "text-foreground"
+                    ? "text-primary"
                     : "text-muted-foreground hover:text-foreground",
                 )
               }
@@ -111,9 +109,9 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
               {({ isActive }) => (
                 <>
                   <span className="relative">
-                    <Icon className={cn("h-[18px] w-[18px]", isActive && "stroke-[2.3]")} />
+                    <Icon className={cn("h-5 w-5", isActive && "stroke-[2.3]")} />
                     {item.badge != null && item.badge > 0 && (
-                      <span className="absolute -right-2 -top-2 rounded-full bg-primary px-1.5 py-0.5 text-[10px] leading-none text-primary-foreground">
+                      <span className="absolute -right-2.5 -top-1.5 rounded-full bg-red-500 text-white px-1 py-0.5 text-[9px] leading-none font-semibold min-w-[16px] text-center">
                         {item.badge > 99 ? "99+" : item.badge}
                       </span>
                     )}
@@ -124,7 +122,7 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
             </NavLink>
           );
         })}
-      </div>
-    </nav>
+      </nav>
+    </div>
   );
 }

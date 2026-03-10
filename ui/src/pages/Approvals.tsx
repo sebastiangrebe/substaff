@@ -84,6 +84,10 @@ export function Approvals() {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h1 className="text-lg font-semibold">Reviews</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Approve or reject agent actions that need your sign-off.</p>
+      </div>
       <div className="flex items-center justify-between">
         <Tabs value={statusFilter} onValueChange={(v) => navigate(`/approvals/${v}`)}>
           <PageTabBar items={[

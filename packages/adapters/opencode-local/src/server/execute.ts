@@ -13,6 +13,7 @@ import {
   ensureAbsoluteDirectory,
   ensureCommandResolvable,
   ensurePathInEnv,
+  buildSafeProcessEnv,
   renderTemplate,
   runChildProcess,
   DEFAULT_AGENT_TIMEOUT_SEC,
@@ -253,7 +254,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     env.SUBSTAFF_API_KEY = authToken;
   }
   const billingType = resolveOpenCodeBillingType(env);
-  const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
+  const runtimeEnv = ensurePathInEnv({ ...buildSafeProcessEnv(), ...env });
   await ensureCommandResolvable(command, cwd, runtimeEnv);
 
   const timeoutSec = asNumber(config.timeoutSec, 0) || DEFAULT_AGENT_TIMEOUT_SEC;
