@@ -3,6 +3,7 @@ import { useNavigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi, type OrgNode } from "../api/agents";
 import { orgChartApi } from "../api/orgChart";
+import { accessApi } from "../api/access";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -14,7 +15,7 @@ import { RolesPanel } from "../components/RolesPanel";
 import { AgentIcon } from "../components/AgentIconPicker";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Network, Plus, MessageSquareText, Shield, X } from "lucide-react";
+import { Network, Plus, MessageSquareText, Shield, UserPlus, X } from "lucide-react";
 import { BUILTIN_ROLE_LABELS, type Agent } from "@substaff/shared";
 
 // Layout constants
@@ -162,6 +163,10 @@ export function OrgChart() {
             <Shield className="h-3.5 w-3.5 mr-1.5" />
             Roles
           </TabsTrigger>
+          <TabsTrigger value="invites">
+            <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+            Invites
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="chart" className="mt-0">
@@ -175,6 +180,10 @@ export function OrgChart() {
 
         <TabsContent value="roles" className="mt-0">
           <RolesPanel />
+        </TabsContent>
+
+        <TabsContent value="invites" className="mt-0">
+          <InvitesPanel companyId={selectedCompanyId} />
         </TabsContent>
       </Tabs>
     </div>
@@ -529,6 +538,65 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function InvitesPanel({ companyId }: { companyId: string }) {
+  const queryClient = useQueryClient();
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+
+  const inviteMutation = useMutation({
+    mutationFn: () =>
+      accessApi.createCompanyInvite(companyId, {
+        allowedJoinTypes: "both",
+        expiresInHours: 72,
+      }),
+    onSuccess: (invite) => {
+      setInviteError(null);
+      const base = window.location.origin.replace(/\/+$/, "");
+      const absoluteUrl = invite.inviteUrl.startsWith("http")
+        ? invite.inviteUrl
+        : `${base}${invite.inviteUrl}`;
+      setInviteLink(absoluteUrl);
+      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });
+    },
+    onError: (err) => {
+      setInviteError(err instanceof Error ? err.message : "Failed to create invite");
+    },
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="space-y-3 rounded-xl border border-border/50 px-4 py-4">
+        <p className="text-sm text-muted-foreground">
+          Generate a link to invite humans or agents to this company. Links expire after 72 hours.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending}>
+            {inviteMutation.isPending ? "Creating..." : "Create invite link"}
+          </Button>
+          {inviteLink && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                await navigator.clipboard.writeText(inviteLink);
+              }}
+            >
+              Copy link
+            </Button>
+          )}
+        </div>
+        {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
+        {inviteLink && (
+          <div className="rounded-md border border-border bg-muted/30 p-3">
+            <span className="text-sm text-muted-foreground">Share link</span>
+            <p className="mt-1 break-all font-mono text-sm">{inviteLink}</p>
+          </div>
+        )}
       </div>
     </div>
   );

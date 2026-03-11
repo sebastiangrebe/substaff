@@ -11,7 +11,7 @@ declare global {
         vendorIds?: string[];
         companyId?: string;
         companyIds?: string[];
-        isInstanceAdmin?: boolean;
+        isVendorOwner?: boolean;
         keyId?: string;
         runId?: string;
         source?: "session" | "agent_key" | "agent_jwt" | "none";

@@ -6,19 +6,10 @@ import { authApi } from "../api/auth";
 import { healthApi } from "../api/health";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { AGENT_ADAPTER_TYPES } from "@substaff/shared";
+import { HeroAnimation } from "@/components/HeroAnimation";
 import type { AgentAdapterType, JoinRequest } from "@substaff/shared";
 
 type JoinType = "human" | "agent";
-const joinAdapterOptions: AgentAdapterType[] = [...AGENT_ADAPTER_TYPES];
-
-const adapterLabels: Record<string, string> = {
-  e2b_sandbox: "E2B Sandbox",
-  process: "Process",
-  http: "HTTP",
-};
-
-const ENABLED_INVITE_ADAPTERS = new Set<string>(AGENT_ADAPTER_TYPES);
 
 function dateTime(value: string) {
   return new Date(value).toLocaleString();
@@ -39,7 +30,7 @@ export function InviteLandingPage() {
   const token = (params.token ?? "").trim();
   const [joinType, setJoinType] = useState<JoinType>("human");
   const [agentName, setAgentName] = useState("");
-  const [adapterType, setAdapterType] = useState<AgentAdapterType>("e2b_sandbox");
+  const adapterType: AgentAdapterType = "e2b_sandbox";
   const [capabilities, setCapabilities] = useState("");
   const [result, setResult] = useState<{ kind: "bootstrap" | "join"; payload: unknown } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,40 +100,85 @@ export function InviteLandingPage() {
     },
   });
 
-  if (!token) {
-    return <div className="mx-auto max-w-xl py-10 text-sm text-destructive">Invalid invite token.</div>;
-  }
-
-  if (inviteQuery.isLoading || healthQuery.isLoading || sessionQuery.isLoading) {
-    return <div className="mx-auto max-w-xl py-10 text-sm text-muted-foreground">Loading invite...</div>;
-  }
-
-  if (inviteQuery.error || !invite) {
+  /* ── Full-screen layout with animation background + glass card ── */
+  function PageShell({ children }: { children: React.ReactNode }) {
     return (
-      <div className="mx-auto max-w-xl py-10">
-        <div className="rounded-lg border border-border bg-card p-6">
-          <h1 className="text-lg font-semibold">Invite not available</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            This invite may be expired, revoked, or already used.
-          </p>
+      <div className="fixed inset-0 overflow-auto">
+        {/* Animated background */}
+        <HeroAnimation />
+
+        {/* Content overlay */}
+        <div className="relative z-10 flex min-h-full items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
+            {/* Logo */}
+            <div className="flex items-center gap-2.5 mb-8">
+              <img src="/logo.svg" alt="Substaff" className="h-7 w-7" />
+              <span className="text-base font-semibold text-white/90 tracking-tight">Substaff</span>
+            </div>
+
+            {/* Glass card */}
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl shadow-2xl shadow-black/40 p-8">
+              {children}
+            </div>
+
+            {/* Footer */}
+            <p className="mt-6 text-center text-xs text-white/30">
+              Autonomous workforce management
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
+  if (!token) {
+    return (
+      <PageShell>
+        <p className="text-sm text-red-400">Invalid invite token.</p>
+      </PageShell>
+    );
+  }
+
+  if (inviteQuery.isLoading || healthQuery.isLoading || sessionQuery.isLoading) {
+    return (
+      <PageShell>
+        <div className="flex items-center gap-3">
+          <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
+          <p className="text-sm text-white/50">Loading invite...</p>
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (inviteQuery.error || !invite) {
+    return (
+      <PageShell>
+        <h1 className="text-xl font-semibold text-white">Invite not available</h1>
+        <p className="mt-2 text-sm text-white/50">
+          This invite may be expired, revoked, or already used.
+        </p>
+      </PageShell>
+    );
+  }
+
   if (result?.kind === "bootstrap") {
     return (
-      <div className="mx-auto max-w-xl py-10">
-        <div className="rounded-lg border border-border bg-card p-6">
-          <h1 className="text-lg font-semibold">Bootstrap complete</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            The first instance admin is now configured. You can continue to the board.
-          </p>
-          <Button asChild className="mt-4">
-            <Link to="/">Open board</Link>
-          </Button>
+      <PageShell>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-10 w-10 rounded-full bg-green-500/15 flex items-center justify-center">
+            <svg className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-white">Bootstrap complete</h1>
+            <p className="text-sm text-white/50">Instance admin configured.</p>
+          </div>
         </div>
-      </div>
+        <Button asChild className="w-full">
+          <Link to="/">Open board</Link>
+        </Button>
+      </PageShell>
     );
   }
 
@@ -167,147 +203,138 @@ export function InviteLandingPage() {
     const onboardingTextPath = readNestedString(payload.onboarding, ["textInstructions", "path"]);
     const diagnostics = Array.isArray(payload.diagnostics) ? payload.diagnostics : [];
     return (
-      <div className="mx-auto max-w-xl py-10">
-        <div className="rounded-lg border border-border bg-card p-6">
-          <h1 className="text-lg font-semibold">Join request submitted</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Your request is pending admin approval. You will not have access until approved.
-          </p>
-          <div className="mt-4 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-            Request ID: <span className="font-mono">{payload.id}</span>
+      <PageShell>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="h-10 w-10 rounded-full bg-indigo-500/15 flex items-center justify-center">
+            <svg className="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
           </div>
-          {claimSecret && claimApiKeyPath && (
-            <div className="mt-3 space-y-1 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">One-time claim secret (save now)</p>
-              <p className="font-mono break-all">{claimSecret}</p>
-              <p className="font-mono break-all">POST {claimApiKeyPath}</p>
-            </div>
-          )}
-          {(onboardingSkillUrl || onboardingSkillPath || onboardingInstallPath) && (
-            <div className="mt-3 space-y-1 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Substaff skill bootstrap</p>
-              {onboardingSkillUrl && <p className="font-mono break-all">GET {onboardingSkillUrl}</p>}
-              {!onboardingSkillUrl && onboardingSkillPath && <p className="font-mono break-all">GET {onboardingSkillPath}</p>}
-              {onboardingInstallPath && <p className="font-mono break-all">Install to {onboardingInstallPath}</p>}
-            </div>
-          )}
-          {(onboardingTextUrl || onboardingTextPath) && (
-            <div className="mt-3 space-y-1 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Agent-readable onboarding text</p>
-              {onboardingTextUrl && <p className="font-mono break-all">GET {onboardingTextUrl}</p>}
-              {!onboardingTextUrl && onboardingTextPath && <p className="font-mono break-all">GET {onboardingTextPath}</p>}
-            </div>
-          )}
-          {diagnostics.length > 0 && (
-            <div className="mt-3 space-y-1 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Connectivity diagnostics</p>
-              {diagnostics.map((diag, idx) => (
-                <div key={`${diag.code}:${idx}`} className="space-y-0.5">
-                  <p className={diag.level === "warn" ? "text-amber-600 dark:text-amber-400" : undefined}>
-                    [{diag.level}] {diag.message}
-                  </p>
-                  {diag.hint && <p className="font-mono break-all">{diag.hint}</p>}
-                </div>
-              ))}
-            </div>
-          )}
+          <div>
+            <h1 className="text-lg font-semibold text-white">Join request submitted</h1>
+            <p className="text-sm text-white/50">Pending admin approval.</p>
+          </div>
         </div>
-      </div>
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3 text-xs text-white/40">
+          Request ID: <span className="font-mono text-white/60">{payload.id}</span>
+        </div>
+        {claimSecret && claimApiKeyPath && (
+          <div className="mt-3 space-y-1 rounded-lg border border-white/[0.06] bg-white/[0.03] p-3 text-xs text-white/40">
+            <p className="font-medium text-white/80">One-time claim secret (save now)</p>
+            <p className="font-mono break-all text-white/60">{claimSecret}</p>
+            <p className="font-mono break-all text-white/50">POST {claimApiKeyPath}</p>
+          </div>
+        )}
+        {(onboardingSkillUrl || onboardingSkillPath || onboardingInstallPath) && (
+          <div className="mt-3 space-y-1 rounded-lg border border-white/[0.06] bg-white/[0.03] p-3 text-xs text-white/40">
+            <p className="font-medium text-white/80">Substaff skill bootstrap</p>
+            {onboardingSkillUrl && <p className="font-mono break-all">GET {onboardingSkillUrl}</p>}
+            {!onboardingSkillUrl && onboardingSkillPath && <p className="font-mono break-all">GET {onboardingSkillPath}</p>}
+            {onboardingInstallPath && <p className="font-mono break-all">Install to {onboardingInstallPath}</p>}
+          </div>
+        )}
+        {(onboardingTextUrl || onboardingTextPath) && (
+          <div className="mt-3 space-y-1 rounded-lg border border-white/[0.06] bg-white/[0.03] p-3 text-xs text-white/40">
+            <p className="font-medium text-white/80">Agent-readable onboarding text</p>
+            {onboardingTextUrl && <p className="font-mono break-all">GET {onboardingTextUrl}</p>}
+            {!onboardingTextUrl && onboardingTextPath && <p className="font-mono break-all">GET {onboardingTextPath}</p>}
+          </div>
+        )}
+        {diagnostics.length > 0 && (
+          <div className="mt-3 space-y-1 rounded-lg border border-white/[0.06] bg-white/[0.03] p-3 text-xs text-white/40">
+            <p className="font-medium text-white/80">Connectivity diagnostics</p>
+            {diagnostics.map((diag, idx) => (
+              <div key={`${diag.code}:${idx}`} className="space-y-0.5">
+                <p className={diag.level === "warn" ? "text-amber-400" : undefined}>
+                  [{diag.level}] {diag.message}
+                </p>
+                {diag.hint && <p className="font-mono break-all">{diag.hint}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </PageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-xl py-10">
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h1 className="text-xl font-semibold">
-          {invite.inviteType === "bootstrap_ceo" ? "Bootstrap your Substaff instance" : "Join this Substaff company"}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">Invite expires {dateTime(invite.expiresAt)}.</p>
+    <PageShell>
+      <h1 className="text-2xl font-semibold text-white tracking-tight">
+        {invite.inviteType === "bootstrap_ceo" ? "Bootstrap your instance" : "Join this company"}
+      </h1>
+      <p className="mt-1.5 text-sm text-white/40">Invite expires {dateTime(invite.expiresAt)}.</p>
 
-        {invite.inviteType !== "bootstrap_ceo" && (
-          <div className="mt-5 flex gap-2">
-            {availableJoinTypes.map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setJoinType(type)}
-                className={`rounded-md border px-3 py-1.5 text-sm ${
-                  joinType === type
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border bg-background text-foreground"
-                }`}
-              >
-                Join as {type}
-              </button>
-            ))}
+      {invite.inviteType !== "bootstrap_ceo" && availableJoinTypes.length > 1 && (
+        <div className="mt-6 flex rounded-lg border border-white/[0.08] bg-white/[0.03] p-1">
+          {availableJoinTypes.map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setJoinType(type)}
+              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-all ${
+                joinType === type
+                  ? "bg-white/10 text-white shadow-sm"
+                  : "text-white/40 hover:text-white/60"
+              }`}
+            >
+              Join as {type}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {joinType === "agent" && invite.inviteType !== "bootstrap_ceo" && (
+        <div className="mt-6 space-y-4">
+          <div>
+            <label className="text-xs font-medium text-white/40 mb-1.5 block">Agent name</label>
+            <input
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
+              value={agentName}
+              onChange={(event) => setAgentName(event.target.value)}
+              placeholder="e.g. my-coding-agent"
+            />
           </div>
-        )}
-
-        {joinType === "agent" && invite.inviteType !== "bootstrap_ceo" && (
-          <div className="mt-4 space-y-3">
-            <label className="block text-sm">
-              <span className="mb-1 block text-muted-foreground">Agent name</span>
-              <input
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                value={agentName}
-                onChange={(event) => setAgentName(event.target.value)}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-muted-foreground">Adapter type</span>
-              <select
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                value={adapterType}
-                onChange={(event) => setAdapterType(event.target.value as AgentAdapterType)}
-              >
-                {joinAdapterOptions.map((type) => (
-                  <option key={type} value={type} disabled={!ENABLED_INVITE_ADAPTERS.has(type)}>
-                    {adapterLabels[type]}{!ENABLED_INVITE_ADAPTERS.has(type) ? " (Coming soon)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-muted-foreground">Capabilities (optional)</span>
-              <textarea
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                rows={4}
-                value={capabilities}
-                onChange={(event) => setCapabilities(event.target.value)}
-              />
-            </label>
+          <div>
+            <label className="text-xs font-medium text-white/40 mb-1.5 block">Capabilities (optional)</label>
+            <textarea
+              className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors resize-none"
+              rows={3}
+              value={capabilities}
+              onChange={(event) => setCapabilities(event.target.value)}
+              placeholder="Describe what this agent can do..."
+            />
           </div>
-        )}
+        </div>
+      )}
 
-        {requiresAuthForHuman && (
-          <div className="mt-4 rounded-md border border-border bg-muted/30 p-3 text-sm">
-            Sign in or create an account before submitting a human join request.
-            <div className="mt-2">
-              <Button asChild size="sm" variant="outline">
-                <Link to={`/auth?next=${encodeURIComponent(`/invite/${token}`)}`}>Sign in / Create account</Link>
-              </Button>
-            </div>
+      {requiresAuthForHuman && (
+        <div className="mt-5 rounded-lg border border-white/[0.06] bg-white/[0.03] p-4 text-sm text-white/50">
+          Sign in or create an account before submitting a human join request.
+          <div className="mt-3">
+            <Button asChild size="sm" variant="outline">
+              <Link to={`/auth?next=${encodeURIComponent(`/invite/${token}`)}`}>Sign in / Create account</Link>
+            </Button>
           </div>
-        )}
+        </div>
+      )}
 
-        {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+      {error && <p className="mt-4 text-xs text-red-400">{error}</p>}
 
-        <Button
-          className="mt-5"
-          disabled={
-            acceptMutation.isPending ||
-            (joinType === "agent" && invite.inviteType !== "bootstrap_ceo" && agentName.trim().length === 0) ||
-            requiresAuthForHuman
-          }
-          onClick={() => acceptMutation.mutate()}
-        >
-          {acceptMutation.isPending
-            ? "Submitting…"
-            : invite.inviteType === "bootstrap_ceo"
-              ? "Accept bootstrap invite"
-              : "Submit join request"}
-        </Button>
-      </div>
-    </div>
+      <Button
+        className="mt-6 w-full h-11 text-sm font-medium"
+        disabled={
+          acceptMutation.isPending ||
+          (joinType === "agent" && invite.inviteType !== "bootstrap_ceo" && agentName.trim().length === 0) ||
+          requiresAuthForHuman
+        }
+        onClick={() => acceptMutation.mutate()}
+      >
+        {acceptMutation.isPending
+          ? "Submitting..."
+          : invite.inviteType === "bootstrap_ceo"
+            ? "Accept bootstrap invite"
+            : "Submit join request"}
+      </Button>
+    </PageShell>
   );
 }

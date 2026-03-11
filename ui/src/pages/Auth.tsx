@@ -4,8 +4,7 @@ import { useNavigate, useSearchParams } from "@/lib/router";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
-import { Sparkles } from "lucide-react";
+import { HeroAnimation } from "@/components/HeroAnimation";
 
 type AuthMode = "sign_in" | "sign_up";
 
@@ -63,99 +62,109 @@ export function AuthPage() {
   if (isSessionLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
       </div>
     );
   }
 
+  const inputClasses =
+    "w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors";
+
   return (
-    <div className="fixed inset-0 flex bg-background">
-      {/* Left half — form */}
-      <div className="w-full md:w-1/2 flex flex-col overflow-y-auto">
-        <div className="w-full max-w-md mx-auto my-auto px-8 py-12">
-          <div className="flex items-center gap-2 mb-8">
-            <Sparkles className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Substaff</span>
+    <div className="fixed inset-0 overflow-auto">
+      {/* Animated background */}
+      <HeroAnimation />
+
+      {/* Content overlay */}
+      <div className="relative z-10 flex min-h-full items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 mb-8">
+            <img src="/logo.svg" alt="Substaff" className="h-7 w-7" />
+            <span className="text-base font-semibold text-white/90 tracking-tight">Substaff</span>
           </div>
 
-          <h1 className="text-xl font-semibold">
-            {mode === "sign_in" ? "Sign in to Substaff" : "Create your Substaff account"}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "sign_in"
-              ? "Use your email and password to access this instance."
-              : "Create an account for this instance. Email confirmation is not required in v1."}
-          </p>
+          {/* Glass card */}
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl shadow-2xl shadow-black/40 p-8">
+            <h1 className="text-2xl font-semibold text-white tracking-tight">
+              {mode === "sign_in" ? "Sign in to Substaff" : "Create your account"}
+            </h1>
+            <p className="mt-1.5 text-sm text-white/40">
+              {mode === "sign_in"
+                ? "Use your email and password to continue."
+                : "Create an account to get started."}
+            </p>
 
-          <form
-            className="mt-6 space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              mutation.mutate();
-            }}
-          >
-            {mode === "sign_up" && (
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Name</label>
-                <input
-                  className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  autoComplete="name"
-                  autoFocus
-                />
-              </div>
-            )}
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Email</label>
-              <input
-                className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                autoComplete="email"
-                autoFocus={mode === "sign_in"}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Password</label>
-              <input
-                className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
-              />
-            </div>
-            {error && <p className="text-xs text-destructive">{error}</p>}
-            <Button type="submit" disabled={!canSubmit || mutation.isPending} className="w-full">
-              {mutation.isPending
-                ? "Working…"
-                : mode === "sign_in"
-                  ? "Sign In"
-                  : "Create Account"}
-            </Button>
-          </form>
-
-          <div className="mt-5 text-sm text-muted-foreground">
-            {mode === "sign_in" ? "Need an account?" : "Already have an account?"}{" "}
-            <button
-              type="button"
-              className="font-medium text-foreground underline underline-offset-2"
-              onClick={() => {
-                setError(null);
-                setMode(mode === "sign_in" ? "sign_up" : "sign_in");
+            <form
+              className="mt-6 space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                mutation.mutate();
               }}
             >
-              {mode === "sign_in" ? "Create one" : "Sign in"}
-            </button>
-          </div>
-        </div>
-      </div>
+              {mode === "sign_up" && (
+                <div>
+                  <label className="text-xs font-medium text-white/40 mb-1.5 block">Name</label>
+                  <input
+                    className={inputClasses}
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    autoComplete="name"
+                    autoFocus
+                  />
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-medium text-white/40 mb-1.5 block">Email</label>
+                <input
+                  className={inputClasses}
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  autoFocus={mode === "sign_in"}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-white/40 mb-1.5 block">Password</label>
+                <input
+                  className={inputClasses}
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
+                />
+              </div>
+              {error && <p className="text-xs text-red-400">{error}</p>}
+              <Button type="submit" disabled={!canSubmit || mutation.isPending} className="w-full h-11 text-sm font-medium">
+                {mutation.isPending
+                  ? "Working..."
+                  : mode === "sign_in"
+                    ? "Sign In"
+                    : "Create Account"}
+              </Button>
+            </form>
 
-      {/* Right half — ASCII art animation (hidden on mobile) */}
-      <div className="hidden md:block w-1/2 overflow-hidden">
-        <AsciiArtAnimation />
+            <div className="mt-5 text-sm text-white/40">
+              {mode === "sign_in" ? "Need an account?" : "Already have an account?"}{" "}
+              <button
+                type="button"
+                className="font-medium text-white/70 hover:text-white underline underline-offset-2 transition-colors"
+                onClick={() => {
+                  setError(null);
+                  setMode(mode === "sign_in" ? "sign_up" : "sign_in");
+                }}
+              >
+                {mode === "sign_in" ? "Create one" : "Sign in"}
+              </button>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <p className="mt-6 text-center text-xs text-white/30">
+            Autonomous workforce management
+          </p>
+        </div>
       </div>
     </div>
   );

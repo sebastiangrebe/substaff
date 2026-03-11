@@ -1,10 +1,10 @@
-import { Router, type Request, type Response } from "express";
+import type { Request, Response } from "express";
 import multer from "multer";
 import type { Db } from "@substaff/db";
 import { createAssetImageMetadataSchema } from "@substaff/shared";
 import type { StorageService } from "../storage/types.js";
 import { assetService, logActivity } from "../services/index.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
 
 const MAX_ASSET_IMAGE_BYTES = Number(process.env.SUBSTAFF_ATTACHMENT_MAX_BYTES) || 10 * 1024 * 1024;
 const ALLOWED_IMAGE_CONTENT_TYPES = new Set([
@@ -16,7 +16,7 @@ const ALLOWED_IMAGE_CONTENT_TYPES = new Set([
 ]);
 
 export function assetRoutes(db: Db, storage: StorageService) {
-  const router = Router();
+  const router = companyRouter();
   const svc = assetService(db);
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -34,7 +34,6 @@ export function assetRoutes(db: Db, storage: StorageService) {
 
   router.post("/companies/:companyId/assets/images", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
 
     try {
       await runSingleFileUpload(req, res);

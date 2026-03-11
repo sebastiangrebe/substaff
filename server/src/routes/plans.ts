@@ -1,13 +1,13 @@
-import { Router } from "express";
 import { eq, and } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { taskPlans, issues } from "@substaff/db";
 import {
   heartbeatService,
 } from "../services/index.js";
+import { companyRouter } from "./authz.js";
 
 export function planRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const heartbeat = heartbeatService(db);
 
   // Resolve issue identifiers (e.g. "TRA-1") to UUIDs
@@ -97,6 +97,7 @@ export function planRoutes(db: Db) {
 
   // POST /api/companies/:companyId/plans/:planId/approve — approve a plan
   router.post("/companies/:companyId/plans/:planId/approve", async (req, res) => {
+    const { companyId } = req.params;
     if (req.actor.type !== "board" || !req.actor.userId) {
       res.status(401).json({ error: "Only board members can approve plans" });
       return;
@@ -148,6 +149,7 @@ export function planRoutes(db: Db) {
 
   // POST /api/companies/:companyId/plans/:planId/reject — reject a plan
   router.post("/companies/:companyId/plans/:planId/reject", async (req, res) => {
+    const { companyId: rejectCompanyId } = req.params;
     if (req.actor.type !== "board" || !req.actor.userId) {
       res.status(401).json({ error: "Only board members can reject plans" });
       return;

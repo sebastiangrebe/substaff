@@ -210,8 +210,6 @@ export type PrincipalType = (typeof PRINCIPAL_TYPES)[number];
 export const MEMBERSHIP_STATUSES = ["pending", "active", "suspended"] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
-export const INSTANCE_USER_ROLES = ["instance_admin"] as const;
-export type InstanceUserRole = (typeof INSTANCE_USER_ROLES)[number];
 
 export const INVITE_TYPES = ["company_join", "bootstrap_ceo"] as const;
 export type InviteType = (typeof INVITE_TYPES)[number];

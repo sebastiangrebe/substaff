@@ -1,9 +1,8 @@
-import { Router } from "express";
 import { z } from "zod";
 import type { Db } from "@substaff/db";
 import { validate } from "../middleware/validate.js";
 import { activityService } from "../services/activity.js";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter } from "./authz.js";
 import { issueService } from "../services/index.js";
 import { sanitizeRecord } from "../redaction.js";
 
@@ -18,13 +17,12 @@ const createActivitySchema = z.object({
 });
 
 export function activityRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = activityService(db);
   const issueSvc = issueService(db);
 
   router.get("/companies/:companyId/activity", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
 
     const filters = {
       companyId,

@@ -334,6 +334,21 @@ export function agentService(db: Db) {
       const existing = await getById(id);
       if (!existing) return null;
 
+      const activeRuns = await db
+        .select({ id: heartbeatRuns.id })
+        .from(heartbeatRuns)
+        .where(
+          and(
+            eq(heartbeatRuns.agentId, id),
+            inArray(heartbeatRuns.status, ["queued", "running"]),
+          ),
+        )
+        .limit(1);
+
+      if (activeRuns.length > 0) {
+        throw conflict("Cannot delete agent while it has active runs. Pause the agent and cancel its runs first.");
+      }
+
       return db.transaction(async (tx) => {
         await tx.update(agents).set({ reportsTo: null }).where(eq(agents.reportsTo, id));
         await tx.delete(heartbeatRunEvents).where(eq(heartbeatRunEvents.agentId, id));

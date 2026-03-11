@@ -1,6 +1,6 @@
 import type {
   AgentAdapterType,
-  InstanceUserRole,
+
   InviteJoinType,
   InviteType,
   JoinRequestStatus,
@@ -57,6 +57,7 @@ export interface JoinRequest {
   requestIp: string;
   requestingUserId: string | null;
   requestEmailSnapshot: string | null;
+  requestNameSnapshot: string | null;
   agentName: string | null;
   adapterType: AgentAdapterType | null;
   capabilities: string | null;
@@ -72,10 +73,4 @@ export interface JoinRequest {
   updatedAt: Date;
 }
 
-export interface InstanceUserRoleGrant {
-  id: string;
-  userId: string;
-  role: InstanceUserRole;
-  createdAt: Date;
-  updatedAt: Date;
-}
+

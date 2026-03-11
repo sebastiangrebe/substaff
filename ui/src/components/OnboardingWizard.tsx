@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "../lib/utils";
 import { getUIAdapter } from "../adapters";
 import { defaultCreateValues } from "./agent-config-defaults";
-import { AsciiArtAnimation } from "./AsciiArtAnimation";
+import { HeroAnimation } from "./HeroAnimation";
 import {
   Building2,
   Bot,
@@ -22,7 +22,6 @@ import {
   Rocket,
   ArrowLeft,
   ArrowRight,
-  Sparkles,
   Check,
   Loader2,
   X,
@@ -266,32 +265,18 @@ export function OnboardingWizard() {
       }}
     >
       <DialogPortal>
-        {/* Plain div instead of DialogOverlay — Radix's overlay wraps in
-            RemoveScroll which blocks wheel events on our custom (non-DialogContent)
-            scroll container. A plain div preserves the background without scroll-locking. */}
-        <div className="fixed inset-0 z-50 bg-background" />
-        <div className="fixed inset-0 z-50 flex" onKeyDown={handleKeyDown}>
-          {/* Close button — hidden when onboarding is mandatory */}
-          {!onboardingRequired && (
-            <button
-              onClick={handleClose}
-              className="absolute top-4 left-4 z-10 rounded-sm p-1.5 text-muted-foreground/60 hover:text-foreground transition-colors"
-            >
-              <X className="h-5 w-5" />
-              <span className="sr-only">Close</span>
-            </button>
-          )}
+        <div className="fixed inset-0 z-50">
+          {/* Full-screen animated background */}
+          <HeroAnimation />
 
-          {/* Left half — form */}
-          <div className="w-full md:w-1/2 flex flex-col overflow-y-auto">
-            <div className="w-full max-w-md mx-auto my-auto px-8 py-12 shrink-0">
-              {/* Progress indicators */}
-              <div className="flex items-center gap-2 mb-8">
-                <Sparkles className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Get Started</span>
-                <span className="text-sm text-muted-foreground/60">
-                  Step {step} of 4
-                </span>
+          {/* Content overlay */}
+          <div className="relative z-10 flex min-h-full items-center justify-center overflow-y-auto px-4 py-12" onKeyDown={handleKeyDown}>
+            <div className="w-full max-w-md">
+              {/* Logo + progress + close */}
+              <div className="flex items-center gap-2.5 mb-8">
+                <img src="/logo.svg" alt="Substaff" className="h-7 w-7" />
+                <span className="text-base font-semibold text-white/90 tracking-tight">Get Started</span>
+                <span className="text-sm text-white/30 ml-1">Step {step} of 4</span>
                 <div className="flex items-center gap-1.5 ml-auto">
                   {[1, 2, 3, 4].map((s) => (
                     <div
@@ -299,36 +284,48 @@ export function OnboardingWizard() {
                       className={cn(
                         "h-1.5 w-6 rounded-full transition-colors",
                         s < step
-                          ? "bg-green-500"
+                          ? "bg-green-400"
                           : s === step
-                            ? "bg-foreground"
-                            : "bg-muted"
+                            ? "bg-white"
+                            : "bg-white/15"
                       )}
                     />
                   ))}
                 </div>
+                {!onboardingRequired && (
+                  <button
+                    onClick={handleClose}
+                    className="ml-3 rounded-full p-1.5 text-white/30 hover:text-white/70 hover:bg-white/10 transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                    <span className="sr-only">Close</span>
+                  </button>
+                )}
               </div>
+
+              {/* Glass card */}
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl shadow-2xl shadow-black/40 p-8">
 
               {/* Step content */}
               {step === 1 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="bg-muted/50 p-2">
-                      <Building2 className="h-5 w-5 text-muted-foreground" />
+                    <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                      <Building2 className="h-5 w-5 text-white/50" />
                     </div>
                     <div>
-                      <h3 className="font-medium">Name your company</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="font-semibold text-white">Name your company</h3>
+                      <p className="text-xs text-white/40">
                         This is the organization your agents will work for.
                       </p>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
+                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
                       Company name
                     </label>
                     <input
-                      className="w-full rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
                       placeholder="Acme Corp"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
@@ -336,11 +333,11 @@ export function OnboardingWizard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
+                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
                       Mission / goal (optional)
                     </label>
                     <textarea
-                      className="w-full rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 resize-none min-h-[60px]"
+                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors resize-none min-h-[60px]"
                       placeholder="What is this company trying to achieve?"
                       value={companyGoal}
                       onChange={(e) => setCompanyGoal(e.target.value)}
@@ -352,23 +349,23 @@ export function OnboardingWizard() {
               {step === 2 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="bg-muted/50 p-2">
-                      <Bot className="h-5 w-5 text-muted-foreground" />
+                    <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                      <Bot className="h-5 w-5 text-white/50" />
                     </div>
                     <div>
-                      <h3 className="font-medium">Your CEO agent</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="font-semibold text-white">Your CEO agent</h3>
+                      <p className="text-xs text-white/40">
                         We'll create a CEO agent that manages your company.
                         It runs in a secure cloud sandbox.
                       </p>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
+                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
                       Agent name
                     </label>
                     <input
-                      className="w-full rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
                       placeholder="CEO"
                       value={agentName}
                       onChange={(e) => setAgentName(e.target.value)}
@@ -376,17 +373,16 @@ export function OnboardingWizard() {
                     />
                   </div>
 
-                  <div className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-2">
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 space-y-2">
                     <div className="flex items-center gap-2">
-                      <Code className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">E2B Sandbox</span>
-                      <span className="text-[10px] bg-green-500/15 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded-full font-medium">
+                      <Code className="h-4 w-4 text-white/40" />
+                      <span className="text-sm font-medium text-white/80">E2B Sandbox</span>
+                      <span className="text-[10px] bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded-full font-medium">
                         Cloud
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Your agent runs in a secure, isolated cloud sandbox with
-                      its own filesystem. No local setup needed.
+                    <p className="text-xs text-white/35">
+                      Secure, isolated cloud sandbox with its own filesystem. No local setup needed.
                     </p>
                   </div>
                 </div>
@@ -395,23 +391,23 @@ export function OnboardingWizard() {
               {step === 3 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="bg-muted/50 p-2">
-                      <ListTodo className="h-5 w-5 text-muted-foreground" />
+                    <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                      <ListTodo className="h-5 w-5 text-white/50" />
                     </div>
                     <div>
-                      <h3 className="font-medium">Give it something to do</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="font-semibold text-white">Give it something to do</h3>
+                      <p className="text-xs text-white/40">
                         Give your agent a small task to start with — a bug fix,
                         a research question, writing a script.
                       </p>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
+                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
                       Task title
                     </label>
                     <input
-                      className="w-full rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
                       placeholder="e.g. Research competitor pricing"
                       value={taskTitle}
                       onChange={(e) => setTaskTitle(e.target.value)}
@@ -419,12 +415,12 @@ export function OnboardingWizard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">
+                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
                       Description (optional)
                     </label>
                     <textarea
                       ref={textareaRef}
-                      className="w-full rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 resize-none min-h-[120px] max-h-[300px] overflow-y-auto"
+                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors resize-none min-h-[120px] max-h-[300px] overflow-y-auto"
                       placeholder="Add more detail about what the agent should do..."
                       value={taskDescription}
                       onChange={(e) => setTaskDescription(e.target.value)}
@@ -436,55 +432,55 @@ export function OnboardingWizard() {
               {step === 4 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="bg-muted/50 p-2">
-                      <Rocket className="h-5 w-5 text-muted-foreground" />
+                    <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                      <Rocket className="h-5 w-5 text-white/50" />
                     </div>
                     <div>
-                      <h3 className="font-medium">Ready to launch</h3>
-                      <p className="text-xs text-muted-foreground">
+                      <h3 className="font-semibold text-white">Ready to launch</h3>
+                      <p className="text-xs text-white/40">
                         Everything is set up. Your assigned task already woke
                         the agent, so you can jump straight to the issue.
                       </p>
                     </div>
                   </div>
-                  <div className="border border-border/50 divide-y divide-border/50 rounded-xl overflow-hidden">
+                  <div className="border border-white/[0.06] divide-y divide-white/[0.06] rounded-xl overflow-hidden">
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <Building2 className="h-4 w-4 text-white/40 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <p className="text-sm font-medium text-white truncate">
                           {companyName}
                         </p>
-                        <p className="text-xs text-muted-foreground">Company</p>
+                        <p className="text-xs text-white/40">Company</p>
                       </div>
-                      <Check className="h-4 w-4 text-green-500 shrink-0" />
+                      <Check className="h-4 w-4 text-green-400 shrink-0" />
                     </div>
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <Bot className="h-4 w-4 text-white/40 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <p className="text-sm font-medium text-white truncate">
                           {agentName}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-white/40">
                           {getUIAdapter("e2b_sandbox").label}
                         </p>
                       </div>
-                      <Check className="h-4 w-4 text-green-500 shrink-0" />
+                      <Check className="h-4 w-4 text-green-400 shrink-0" />
                     </div>
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <ListTodo className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <ListTodo className="h-4 w-4 text-white/40 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
+                        <p className="text-sm font-medium text-white truncate">
                           {taskTitle}
                         </p>
-                        <p className="text-xs text-muted-foreground">Task</p>
+                        <p className="text-xs text-white/40">Task</p>
                       </div>
-                      <Check className="h-4 w-4 text-green-500 shrink-0" />
+                      <Check className="h-4 w-4 text-green-400 shrink-0" />
                     </div>
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <Wallet className="h-4 w-4 text-yellow-500 shrink-0" />
+                      <Wallet className="h-4 w-4 text-yellow-400 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">Add credits</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-sm font-medium text-white">Add credits</p>
+                        <p className="text-xs text-white/40">
                           Agents need credits to run. Top up on the Billing page.
                         </p>
                       </div>
@@ -506,7 +502,7 @@ export function OnboardingWizard() {
               {/* Error */}
               {error && (
                 <div className="mt-3">
-                  <p className="text-xs text-destructive">{error}</p>
+                  <p className="text-xs text-red-400">{error}</p>
                 </div>
               )}
 
@@ -582,16 +578,16 @@ export function OnboardingWizard() {
                   )}
                 </div>
               </div>
-            </div>
-          </div>
+              </div>{/* end glass card */}
 
-          {/* Right half — ASCII art (hidden on mobile) */}
-          <div className="hidden md:block w-1/2 overflow-hidden">
-            <AsciiArtAnimation />
+              {/* Footer */}
+              <p className="mt-6 text-center text-xs text-white/30">
+                Autonomous workforce management
+              </p>
+            </div>
           </div>
         </div>
       </DialogPortal>
     </Dialog>
   );
 }
-

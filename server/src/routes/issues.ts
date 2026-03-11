@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import type { Request, Response } from "express";
 import multer from "multer";
 import type { Db } from "@substaff/db";
 import { companies } from "@substaff/db";
@@ -29,7 +29,7 @@ import {
 } from "../services/index.js";
 import { logger } from "../middleware/logger.js";
 import { forbidden, HttpError, unauthorized } from "../errors.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
 import { indexComment } from "../vector/index.js";
 
 const MAX_ATTACHMENT_BYTES = Number(process.env.SUBSTAFF_ATTACHMENT_MAX_BYTES) || 10 * 1024 * 1024;
@@ -42,7 +42,7 @@ const ALLOWED_ATTACHMENT_CONTENT_TYPES = new Set([
 ]);
 
 export function issueRoutes(db: Db, storage: StorageService) {
-  const router = Router();
+  const router = companyRouter();
   const svc = issueService(db);
   const access = accessService(db);
   const companySvc = companyService(db);
@@ -98,7 +98,6 @@ export function issueRoutes(db: Db, storage: StorageService) {
   async function assertCanAssignTasks(req: Request, companyId: string) {
     assertCompanyAccess(req, companyId);
     if (req.actor.type === "board") {
-      if (req.actor.isInstanceAdmin) return;
       const allowed = await access.canUser(companyId, req.actor.userId, "tasks:assign");
       if (!allowed) throw forbidden("Missing permission: tasks:assign");
       return;
@@ -192,7 +191,6 @@ export function issueRoutes(db: Db, storage: StorageService) {
 
   router.get("/companies/:companyId/issues", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const assigneeUserFilterRaw = req.query.assigneeUserId as string | undefined;
     const assigneeUserId =
       assigneeUserFilterRaw === "me" && req.actor.type === "board"
@@ -217,14 +215,12 @@ export function issueRoutes(db: Db, storage: StorageService) {
 
   router.get("/companies/:companyId/labels", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const result = await svc.listLabels(companyId);
     res.json(result);
   });
 
   router.post("/companies/:companyId/labels", validate(createIssueLabelSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const label = await svc.createLabel(companyId, req.body);
     const actor = getActorInfo(req);
     await logActivity(db, {
@@ -362,7 +358,6 @@ export function issueRoutes(db: Db, storage: StorageService) {
 
   router.post("/companies/:companyId/issues", validate(createIssueSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     if (req.body.assigneeAgentId || req.body.assigneeUserId) {
       await assertCanAssignTasks(req, companyId);
     }
@@ -1150,7 +1145,6 @@ export function issueRoutes(db: Db, storage: StorageService) {
   router.post("/companies/:companyId/issues/:issueId/attachments", async (req, res) => {
     const companyId = req.params.companyId as string;
     const issueId = req.params.issueId as string;
-    assertCompanyAccess(req, companyId);
     const issue = await svc.getById(issueId);
     if (!issue) {
       res.status(404).json({ error: "Issue not found" });

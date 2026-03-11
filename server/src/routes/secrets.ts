@@ -1,4 +1,3 @@
-import { Router } from "express";
 import type { Db } from "@substaff/db";
 import {
   SECRET_PROVIDERS,
@@ -8,11 +7,11 @@ import {
   updateSecretSchema,
 } from "@substaff/shared";
 import { validate } from "../middleware/validate.js";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter } from "./authz.js";
 import { logActivity, secretService } from "../services/index.js";
 
 export function secretRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = secretService(db);
   const configuredDefaultProvider = process.env.SUBSTAFF_SECRETS_PROVIDER;
   const defaultProvider = (
@@ -24,14 +23,12 @@ export function secretRoutes(db: Db) {
   router.get("/companies/:companyId/secret-providers", (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     res.json(svc.listProviders());
   });
 
   router.get("/companies/:companyId/secrets", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const secrets = await svc.list(companyId);
     res.json(secrets);
   });
@@ -39,7 +36,6 @@ export function secretRoutes(db: Db) {
   router.post("/companies/:companyId/secrets", validate(createSecretSchema), async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
 
     const created = await svc.create(
       companyId,

@@ -1,4 +1,4 @@
-import { Router, type Request } from "express";
+import type { Request } from "express";
 import type { Db } from "@substaff/db";
 import {
   createProjectSchema,
@@ -10,10 +10,10 @@ import {
 import { validate } from "../middleware/validate.js";
 import { projectService, logActivity } from "../services/index.js";
 import { conflict } from "../errors.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
 
 export function projectRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = projectService(db);
 
   async function resolveCompanyIdForProjectReference(req: Request) {
@@ -54,7 +54,6 @@ export function projectRoutes(db: Db) {
 
   router.get("/companies/:companyId/projects", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const result = await svc.list(companyId);
     res.json(result);
   });
@@ -72,7 +71,6 @@ export function projectRoutes(db: Db) {
 
   router.post("/companies/:companyId/projects", validate(createProjectSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     type CreateProjectPayload = Parameters<typeof svc.create>[1] & {
       workspace?: Parameters<typeof svc.createWorkspace>[1];
     };

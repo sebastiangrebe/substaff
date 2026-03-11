@@ -1,4 +1,3 @@
-import { Router } from "express";
 import type { Db } from "@substaff/db";
 import {
   companyPortabilityExportSchema,
@@ -9,36 +8,25 @@ import {
 } from "@substaff/shared";
 import { validate } from "../middleware/validate.js";
 import { accessService, companyPortabilityService, companyService, logActivity } from "../services/index.js";
-import { assertBoard, assertCompanyAccess, getActorInfo, getActorVendorId } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo, getActorVendorId } from "./authz.js";
 
 export function companyRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = companyService(db);
   const portability = companyPortabilityService(db);
   const access = accessService(db);
 
   router.get("/", async (req, res) => {
     assertBoard(req);
-    if (req.actor.isInstanceAdmin) {
-      res.json(await svc.list());
-      return;
-    }
-    const vendorIds = req.actor.vendorIds ?? [];
-    const result = await svc.listByVendor(vendorIds);
-    const allowed = new Set(req.actor.companyIds ?? []);
-    res.json(result.filter((company) => allowed.has(company.id)));
+    // companyIds already includes vendor-owned companies (merged in auth middleware)
+    const companyIds = req.actor.companyIds ?? [];
+    res.json(await svc.listByIds(companyIds));
   });
 
   router.get("/stats", async (req, res) => {
     assertBoard(req);
-    const allowed = req.actor.isInstanceAdmin
-      ? null
-      : new Set(req.actor.companyIds ?? []);
+    const allowed = new Set(req.actor.companyIds ?? []);
     const stats = await svc.stats();
-    if (!allowed) {
-      res.json(stats);
-      return;
-    }
     const filtered = Object.fromEntries(Object.entries(stats).filter(([companyId]) => allowed.has(companyId)));
     res.json(filtered);
   });
@@ -46,7 +34,6 @@ export function companyRoutes(db: Db) {
   router.get("/:companyId", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const company = await svc.getById(companyId);
     if (!company) {
       res.status(404).json({ error: "Company not found" });
@@ -58,7 +45,6 @@ export function companyRoutes(db: Db) {
   router.get("/:companyId/org-chart", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const company = await svc.getById(companyId);
     if (!company) {
       res.status(404).json({ error: "Company not found" });
@@ -70,7 +56,6 @@ export function companyRoutes(db: Db) {
   router.put("/:companyId/org-chart", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const orgChartData = req.body;
     const company = await svc.update(companyId, { orgChartData });
     if (!company) {
@@ -91,7 +76,6 @@ export function companyRoutes(db: Db) {
 
   router.post("/:companyId/export", validate(companyPortabilityExportSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const result = await portability.exportBundle(companyId, req.body);
     res.json(result);
   });
@@ -158,7 +142,6 @@ export function companyRoutes(db: Db) {
   router.patch("/:companyId", validate(updateCompanySchema), async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const company = await svc.update(companyId, req.body);
     if (!company) {
       res.status(404).json({ error: "Company not found" });
@@ -179,7 +162,6 @@ export function companyRoutes(db: Db) {
   router.post("/:companyId/archive", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const company = await svc.archive(companyId);
     if (!company) {
       res.status(404).json({ error: "Company not found" });
@@ -199,7 +181,6 @@ export function companyRoutes(db: Db) {
   router.delete("/:companyId", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const company = await svc.remove(companyId);
     if (!company) {
       res.status(404).json({ error: "Company not found" });

@@ -3,12 +3,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { companiesApi } from "../api/companies";
-import { accessApi } from "../api/access";
 import { api } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { PageSkeleton } from "../components/PageSkeleton";
-import { Settings } from "lucide-react";
 import { HintIcon } from "../components/agent-config-primitives";
 import { cn } from "../lib/utils";
 
@@ -29,9 +26,6 @@ export function CompanySettings() {
     setDescription(selectedCompany.description ?? "");
     setBrandColor(selectedCompany.brandColor ?? "");
   }, [selectedCompany]);
-
-  const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
 
   const generalDirty =
     !!selectedCompany &&
@@ -63,25 +57,6 @@ export function CompanySettings() {
     },
   });
 
-  const inviteMutation = useMutation({
-    mutationFn: () =>
-      accessApi.createCompanyInvite(selectedCompanyId!, {
-        allowedJoinTypes: "both",
-        expiresInHours: 72,
-      }),
-    onSuccess: (invite) => {
-      setInviteError(null);
-      const base = window.location.origin.replace(/\/+$/, "");
-      const absoluteUrl = invite.inviteUrl.startsWith("http")
-        ? invite.inviteUrl
-        : `${base}${invite.inviteUrl}`;
-      setInviteLink(absoluteUrl);
-      queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(selectedCompanyId!) });
-    },
-    onError: (err) => {
-      setInviteError(err instanceof Error ? err.message : "Failed to create invite");
-    },
-  });
   const reindexMutation = useMutation({
     mutationFn: () =>
       api.post(`/companies/${selectedCompanyId}/knowledge/reindex-all`, {}),
@@ -213,41 +188,6 @@ export function CompanySettings() {
             checked={!!selectedCompany.requirePlanApproval}
             onChange={(v) => planApprovalMutation.mutate(v)}
           />
-        </div>
-      </div>
-
-      {/* Invites */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground ">
-          Invites
-        </h2>
-        <div className="space-y-3 rounded-xl border border-border/50 px-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            Generate a link to invite humans or agents to this company. Links expire after 72 hours.
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending}>
-              {inviteMutation.isPending ? "Creating..." : "Create invite link"}
-            </Button>
-            {inviteLink && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(inviteLink);
-                }}
-              >
-                Copy link
-              </Button>
-            )}
-          </div>
-          {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
-          {inviteLink && (
-            <div className="rounded-md border border-border bg-muted/30 p-3">
-              <span className="text-sm text-muted-foreground">Share link</span>
-              <p className="mt-1 break-all font-mono text-sm">{inviteLink}</p>
-            </div>
-          )}
         </div>
       </div>
 

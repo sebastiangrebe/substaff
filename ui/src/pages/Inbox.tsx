@@ -834,19 +834,19 @@ export function Inbox() {
                     <div className="space-y-1">
                       <p className="text-sm font-medium">
                         {joinRequest.requestType === "human"
-                          ? "Someone wants to join"
-                          : `New team member request${joinRequest.agentName ? `: ${joinRequest.agentName}` : ""}`}
+                          ? (joinRequest.requestNameSnapshot || joinRequest.requestEmailSnapshot || "Someone")
+                            + " wants to join"
+                          : `New agent request${joinRequest.agentName ? `: ${joinRequest.agentName}` : ""}`}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        requested {timeAgo(joinRequest.createdAt)} from IP {joinRequest.requestIp}
+                        Requested {timeAgo(joinRequest.createdAt)}
+                        {joinRequest.requestEmailSnapshot &&
+                          joinRequest.requestEmailSnapshot !== "local@substaff.local"
+                          ? ` · ${joinRequest.requestEmailSnapshot}`
+                          : ""}
                       </p>
-                      {joinRequest.requestEmailSnapshot && (
-                        <p className="text-xs text-muted-foreground">
-                          email: {joinRequest.requestEmailSnapshot}
-                        </p>
-                      )}
                       {joinRequest.adapterType && (
-                        <p className="text-xs text-muted-foreground">runtime: {joinRequest.adapterType}</p>
+                        <p className="text-xs text-muted-foreground">Runtime: {joinRequest.adapterType}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2">

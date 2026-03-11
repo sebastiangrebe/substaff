@@ -78,7 +78,7 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
             userId,
             vendorIds,
             companyIds,
-            isInstanceAdmin: isVendorOwner,
+            isVendorOwner,
             runId: runIdHeader ?? undefined,
             source: "session",
           };

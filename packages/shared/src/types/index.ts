@@ -74,7 +74,6 @@ export type {
   PrincipalPermissionGrant,
   Invite,
   JoinRequest,
-  InstanceUserRoleGrant,
 } from "./access.js";
 export type {
   LlmProvider,

@@ -1,7 +1,6 @@
-import { Router } from "express";
 import archiver from "archiver";
 import type { StorageService } from "../storage/types.js";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertBoard, companyRouter } from "./authz.js";
 import { badRequest, forbidden } from "../errors.js";
 
 const MAX_AGENT_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per file
@@ -23,7 +22,7 @@ function agentNamespace(req: Express.Request): { companyId: string; agentId: str
 }
 
 export function fileRoutes(storage: StorageService) {
-  const router = Router();
+  const router = companyRouter();
 
   // =========================================================================
   // Board (UI) endpoints — full company-wide file access
@@ -32,7 +31,6 @@ export function fileRoutes(storage: StorageService) {
   // List files/folders at a given prefix
   router.get("/companies/:companyId/files", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     assertBoard(req);
 
     const prefix = (req.query.prefix as string) ?? "";
@@ -64,7 +62,6 @@ export function fileRoutes(storage: StorageService) {
   // Get/download a specific file
   router.get("/companies/:companyId/files/content/*filePath", async (req, res, next) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     assertBoard(req);
 
     // Express 5 wildcard params return string[]
@@ -95,7 +92,6 @@ export function fileRoutes(storage: StorageService) {
   // Download a folder as a zip archive
   router.get("/companies/:companyId/files/download-zip", async (req, res, next) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     assertBoard(req);
 
     const prefix = (req.query.prefix as string) ?? "";

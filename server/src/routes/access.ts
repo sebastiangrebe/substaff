@@ -2,7 +2,6 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { Router } from "express";
 import type { Request } from "express";
 import { and, eq, isNull, desc } from "drizzle-orm";
 import type { Db } from "@substaff/db";
@@ -18,14 +17,14 @@ import {
   createCompanyInviteSchema,
   listJoinRequestsQuerySchema,
   updateMemberPermissionsSchema,
-  updateUserCompanyAccessSchema,
+
   PERMISSION_KEYS,
 } from "@substaff/shared";
 import type { DeploymentMode } from "@substaff/shared";
 import { forbidden, conflict, notFound, unauthorized, badRequest } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { accessService, agentService, logActivity } from "../services/index.js";
-import { assertCompanyAccess } from "./authz.js";
+import { assertCompanyAccess, companyRouter } from "./authz.js";
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -358,20 +357,17 @@ function inviteExpired(invite: typeof invites.$inferSelect) {
   return invite.expiresAt.getTime() <= Date.now();
 }
 
-function isInstanceAdminBoard(req: Request) {
-  return req.actor.type === "board" && Boolean(req.actor.isInstanceAdmin);
-}
-
-async function resolveActorEmail(db: Db, req: Request): Promise<string | null> {
-  if (isInstanceAdminBoard(req)) return "local@substaff.local";
+async function resolveActorIdentity(db: Db, req: Request): Promise<{ name: string | null; email: string | null }> {
   const userId = req.actor.userId;
-  if (!userId) return null;
-  const user = await db
-    .select({ email: authUsers.email })
-    .from(authUsers)
-    .where(eq(authUsers.id, userId))
-    .then((rows) => rows[0] ?? null);
-  return user?.email ?? null;
+  if (userId) {
+    const user = await db
+      .select({ name: authUsers.name, email: authUsers.email })
+      .from(authUsers)
+      .where(eq(authUsers.id, userId))
+      .then((rows) => rows[0] ?? null);
+    if (user) return { name: user.name ?? null, email: user.email ?? null };
+  }
+  return { name: null, email: null };
 }
 
 function grantsFromDefaults(
@@ -410,16 +406,9 @@ export function accessRoutes(
     deploymentMode: DeploymentMode;
   },
 ) {
-  const router = Router();
+  const router = companyRouter();
   const access = accessService(db);
   const agents = agentService(db);
-
-  async function assertInstanceAdmin(req: Request) {
-    if (req.actor.type !== "board") throw unauthorized();
-    if (isInstanceAdminBoard(req)) return;
-    const allowed = await access.isInstanceAdmin(req.actor.userId);
-    if (!allowed) throw forbidden("Instance admin required");
-  }
 
   async function assertCompanyPermission(req: Request, companyId: string, permissionKey: any) {
     assertCompanyAccess(req, companyId);
@@ -430,7 +419,6 @@ export function accessRoutes(
       return;
     }
     if (req.actor.type !== "board") throw unauthorized();
-    if (isInstanceAdminBoard(req)) return;
     const allowed = await access.canUser(companyId, req.actor.userId, permissionKey);
     if (!allowed) throw forbidden("Permission denied");
   }
@@ -563,7 +551,7 @@ export function accessRoutes(
     if (requestType === "human" && req.actor.type !== "board") {
       throw unauthorized("Human invite acceptance requires authenticated user");
     }
-    if (requestType === "human" && !req.actor.userId && !isInstanceAdminBoard(req)) {
+    if (requestType === "human" && !req.actor.userId) {
       throw unauthorized("Authenticated user is required");
     }
     if (requestType === "agent" && !req.body.agentName) {
@@ -584,7 +572,7 @@ export function accessRoutes(
       ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       : null;
 
-    const actorEmail = requestType === "human" ? await resolveActorEmail(db, req) : null;
+    const actorIdentity = requestType === "human" ? await resolveActorIdentity(db, req) : null;
     const created = await db.transaction(async (tx) => {
       await tx
         .update(invites)
@@ -600,7 +588,8 @@ export function accessRoutes(
           status: "pending_approval",
           requestIp: requestIp(req),
           requestingUserId: requestType === "human" ? req.actor.userId ?? "local-board" : null,
-          requestEmailSnapshot: requestType === "human" ? actorEmail : null,
+          requestEmailSnapshot: requestType === "human" ? actorIdentity?.email ?? null : null,
+          requestNameSnapshot: requestType === "human" ? actorIdentity?.name ?? null : null,
           agentName: requestType === "agent" ? req.body.agentName : null,
           adapterType: requestType === "agent" ? req.body.adapterType ?? null : null,
           capabilities: requestType === "agent" ? req.body.capabilities ?? null : null,
@@ -648,12 +637,8 @@ export function accessRoutes(
     const id = req.params.inviteId as string;
     const invite = await db.select().from(invites).where(eq(invites.id, id)).then((rows) => rows[0] ?? null);
     if (!invite) throw notFound("Invite not found");
-    if (invite.inviteType === "bootstrap_ceo") {
-      await assertInstanceAdmin(req);
-    } else {
-      if (!invite.companyId) throw conflict("Invite is missing company scope");
-      await assertCompanyPermission(req, invite.companyId, "users:invite");
-    }
+    if (!invite.companyId) throw conflict("Invite is missing company scope");
+    await assertCompanyPermission(req, invite.companyId, "users:invite");
     if (invite.acceptedAt) throw conflict("Invite already consumed");
     if (invite.revokedAt) return res.json(invite);
 
@@ -758,7 +743,7 @@ export function accessRoutes(
       .update(joinRequests)
       .set({
         status: "approved",
-        approvedByUserId: req.actor.userId ?? (isInstanceAdminBoard(req) ? "local-board" : null),
+        approvedByUserId: req.actor.userId ?? null,
         approvedAt: new Date(),
         createdAgentId,
         updatedAt: new Date(),
@@ -797,7 +782,7 @@ export function accessRoutes(
       .update(joinRequests)
       .set({
         status: "rejected",
-        rejectedByUserId: req.actor.userId ?? (isInstanceAdminBoard(req) ? "local-board" : null),
+        rejectedByUserId: req.actor.userId ?? null,
         rejectedAt: new Date(),
         updatedAt: new Date(),
       })
@@ -896,24 +881,6 @@ export function accessRoutes(
       );
       if (!updated) throw notFound("Member not found");
       res.json(updated);
-    },
-  );
-
-  router.get("/admin/users/:userId/company-access", async (req, res) => {
-    await assertInstanceAdmin(req);
-    const userId = req.params.userId as string;
-    const memberships = await access.listUserCompanyAccess(userId);
-    res.json(memberships);
-  });
-
-  router.put(
-    "/admin/users/:userId/company-access",
-    validate(updateUserCompanyAccessSchema),
-    async (req, res) => {
-      await assertInstanceAdmin(req);
-      const userId = req.params.userId as string;
-      const memberships = await access.setUserCompanyAccess(userId, req.body.companyIds ?? []);
-      res.json(memberships);
     },
   );
 

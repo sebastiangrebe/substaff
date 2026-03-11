@@ -1,19 +1,17 @@
-import { Router } from "express";
 import type { Db } from "@substaff/db";
 import { createCostEventSchema, updateBudgetSchema } from "@substaff/shared";
 import { validate } from "../middleware/validate.js";
 import { costService, companyService, agentService, logActivity } from "../services/index.js";
-import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
 
 export function costRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const costs = costService(db);
   const companies = companyService(db);
   const agents = agentService(db);
 
   router.post("/companies/:companyId/cost-events", validate(createCostEventSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
 
     if (req.actor.type === "agent" && req.actor.agentId !== req.body.agentId) {
       res.status(403).json({ error: "Agent can only report its own costs" });
@@ -50,7 +48,6 @@ export function costRoutes(db: Db) {
 
   router.get("/companies/:companyId/costs/summary", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const range = parseDateRange(req.query);
     const summary = await costs.summary(companyId, range);
     res.json(summary);
@@ -58,7 +55,6 @@ export function costRoutes(db: Db) {
 
   router.get("/companies/:companyId/costs/by-agent", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const range = parseDateRange(req.query);
     const rows = await costs.byAgent(companyId, range);
     res.json(rows);
@@ -66,7 +62,6 @@ export function costRoutes(db: Db) {
 
   router.get("/companies/:companyId/costs/by-project", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const range = parseDateRange(req.query);
     const rows = await costs.byProject(companyId, range);
     res.json(rows);
@@ -101,6 +96,7 @@ export function costRoutes(db: Db) {
       res.status(404).json({ error: "Agent not found" });
       return;
     }
+    assertCompanyAccess(req, agent.companyId);
 
     if (req.actor.type === "agent") {
       if (req.actor.agentId !== agentId) {

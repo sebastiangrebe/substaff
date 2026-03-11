@@ -1,24 +1,21 @@
-import { Router } from "express";
 import type { Db } from "@substaff/db";
 import { createGoalSchema, updateGoalSchema } from "@substaff/shared";
 import { validate } from "../middleware/validate.js";
 import { goalService, logActivity } from "../services/index.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
 
 export function goalRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = goalService(db);
 
   router.get("/companies/:companyId/goals", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const result = await svc.list(companyId);
     res.json(result);
   });
 
   router.get("/companies/:companyId/goals/tree", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const tree = await svc.tree(companyId);
     res.json(tree);
   });
@@ -48,7 +45,6 @@ export function goalRoutes(db: Db) {
 
   router.post("/companies/:companyId/goals", validate(createGoalSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const goal = await svc.create(companyId, req.body);
     const actor = getActorInfo(req);
     await logActivity(db, {

@@ -1,13 +1,12 @@
-import { Router } from "express";
 import { eq } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { companies, agents } from "@substaff/db";
 import { getBuiltinTemplates, getBuiltinTemplateById } from "../services/org-templates.js";
-import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertBoard, companyRouter, getActorInfo } from "./authz.js";
 import { logActivity } from "../services/index.js";
 
 export function templateRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
 
   // GET /api/templates — list all available org templates
   router.get("/templates", async (_req, res) => {
@@ -30,7 +29,6 @@ export function templateRoutes(db: Db) {
   router.post("/companies/:companyId/apply-template", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
 
     const { templateId, createAgents } = req.body as {
       templateId: string;

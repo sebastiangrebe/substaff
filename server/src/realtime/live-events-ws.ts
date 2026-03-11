@@ -3,7 +3,7 @@ import type { IncomingMessage, Server as HttpServer } from "node:http";
 import type { Duplex } from "node:stream";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { agentApiKeys, companyMemberships, instanceUserRoles } from "@substaff/db";
+import { agentApiKeys, companies, companyMemberships, vendorMemberships } from "@substaff/db";
 import type { DeploymentMode } from "@substaff/shared";
 import { WebSocket, WebSocketServer } from "ws";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
@@ -86,11 +86,19 @@ async function authorizeUpgrade(
     const userId = session?.user?.id;
     if (!userId) return null;
 
-    const [roleRow, memberships] = await Promise.all([
+    const [vendorOwnerRow, memberships] = await Promise.all([
+      // Check if user is a vendor owner of the company's vendor
       db
-        .select({ id: instanceUserRoles.id })
-        .from(instanceUserRoles)
-        .where(and(eq(instanceUserRoles.userId, userId), eq(instanceUserRoles.role, "instance_admin")))
+        .select({ id: vendorMemberships.id })
+        .from(vendorMemberships)
+        .innerJoin(companies, eq(companies.vendorId, vendorMemberships.vendorId))
+        .where(
+          and(
+            eq(companies.id, companyId),
+            eq(vendorMemberships.userId, userId),
+            eq(vendorMemberships.role, "owner"),
+          ),
+        )
         .then((rows) => rows[0] ?? null),
       db
         .select({ companyId: companyMemberships.companyId })
@@ -105,7 +113,7 @@ async function authorizeUpgrade(
     ]);
 
     const hasCompanyMembership = memberships.some((row) => row.companyId === companyId);
-    if (!roleRow && !hasCompanyMembership) return null;
+    if (!vendorOwnerRow && !hasCompanyMembership) return null;
 
     return {
       companyId,

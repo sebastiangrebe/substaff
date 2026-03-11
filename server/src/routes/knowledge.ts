@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { Router } from "express";
 import { eq, and, count, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { indexedArtifacts, issueComments, issues } from "@substaff/db";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertBoard, companyRouter } from "./authz.js";
 import { badRequest } from "../errors.js";
 import { getQdrantClient, isVectorSearchEnabled, createEmbeddingService, createRagService, indexComment } from "../vector/index.js";
 import { COLLECTION_NAME } from "../vector/collections.js";
@@ -13,12 +12,11 @@ import { loadConfig } from "../config.js";
 import { logger } from "../middleware/logger.js";
 
 export function knowledgeRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
 
   // GET /api/companies/:companyId/knowledge/search — semantic search (agents + board)
   router.get("/companies/:companyId/knowledge/search", async (req, res) => {
     const companyId = req.params.companyId!;
-    assertCompanyAccess(req, companyId);
     // No assertBoard — agents need knowledge search for cross-run context
 
     if (!isVectorSearchEnabled()) {
@@ -60,7 +58,6 @@ export function knowledgeRoutes(db: Db) {
   // GET /api/companies/:companyId/knowledge/stats — indexing statistics
   router.get("/companies/:companyId/knowledge/stats", async (req, res) => {
     const companyId = req.params.companyId!;
-    assertCompanyAccess(req, companyId);
     assertBoard(req);
 
     const [totalResult] = await db
@@ -87,7 +84,6 @@ export function knowledgeRoutes(db: Db) {
   // GET /api/companies/:companyId/knowledge/artifacts — list indexed artifacts
   router.get("/companies/:companyId/knowledge/artifacts", async (req, res) => {
     const companyId = req.params.companyId!;
-    assertCompanyAccess(req, companyId);
     assertBoard(req);
 
     const limit = Math.min(Number(req.query.limit) || 50, 200);
@@ -115,7 +111,6 @@ export function knowledgeRoutes(db: Db) {
   // POST /api/companies/:companyId/knowledge/reindex — trigger re-indexing
   router.post("/companies/:companyId/knowledge/reindex", async (req, res) => {
     const companyId = req.params.companyId!;
-    assertCompanyAccess(req, companyId);
     assertBoard(req);
 
     if (!isVectorSearchEnabled()) {
@@ -149,7 +144,6 @@ export function knowledgeRoutes(db: Db) {
   // POST /api/companies/:companyId/knowledge/reindex-all — re-embed all files + comments
   router.post("/companies/:companyId/knowledge/reindex-all", async (req, res) => {
     const companyId = req.params.companyId!;
-    assertCompanyAccess(req, companyId);
     assertBoard(req);
 
     if (!isVectorSearchEnabled()) {
@@ -277,7 +271,6 @@ export function knowledgeRoutes(db: Db) {
   // DELETE /api/companies/:companyId/knowledge/artifacts/:artifactId
   router.delete("/companies/:companyId/knowledge/artifacts/:artifactId", async (req, res) => {
     const companyId = req.params.companyId!;
-    assertCompanyAccess(req, companyId);
     assertBoard(req);
 
     const [artifact] = await db

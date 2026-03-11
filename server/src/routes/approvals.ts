@@ -1,4 +1,3 @@
-import { Router } from "express";
 import type { Db } from "@substaff/db";
 import {
   addApprovalCommentSchema,
@@ -16,7 +15,7 @@ import {
   logActivity,
   secretService,
 } from "../services/index.js";
-import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
 import { redactEventPayload } from "../redaction.js";
 
 function redactApprovalPayload<T extends { payload: Record<string, unknown> }>(approval: T): T {
@@ -27,7 +26,7 @@ function redactApprovalPayload<T extends { payload: Record<string, unknown> }>(a
 }
 
 export function approvalRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = approvalService(db);
   const heartbeat = heartbeatService(db);
   const issueApprovalsSvc = issueApprovalService(db);
@@ -36,7 +35,6 @@ export function approvalRoutes(db: Db) {
 
   router.get("/companies/:companyId/approvals", async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const status = req.query.status as string | undefined;
     const result = await svc.list(companyId, status);
     res.json(result.map((approval) => redactApprovalPayload(approval)));
@@ -55,7 +53,6 @@ export function approvalRoutes(db: Db) {
 
   router.post("/companies/:companyId/approvals", validate(createApprovalSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const rawIssueIds = req.body.issueIds;
     const issueIds = Array.isArray(rawIssueIds)
       ? rawIssueIds.filter((value: unknown): value is string => typeof value === "string")

@@ -83,6 +83,11 @@ export function companyService(db: Db) {
         ? Promise.resolve([])
         : db.select().from(companies).where(inArray(companies.vendorId, vendorIds)).then((rows) => rows.map(normalizeCompanyRow)),
 
+    listByIds: (ids: string[]) =>
+      ids.length === 0
+        ? Promise.resolve([])
+        : db.select().from(companies).where(inArray(companies.id, ids)).then((rows) => rows.map(normalizeCompanyRow)),
+
     getById: (id: string) =>
       db
         .select()

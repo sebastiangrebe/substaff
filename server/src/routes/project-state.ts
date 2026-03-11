@@ -1,17 +1,15 @@
-import { Router } from "express";
 import type { Db } from "@substaff/db";
 import { projectStateService } from "../services/project-state.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { companyRouter, getActorInfo } from "./authz.js";
 import { logActivity } from "../services/index.js";
 
 export function projectStateRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = projectStateService(db);
 
   // GET /api/companies/:companyId/projects/:projectId/state — get latest project state
   router.get("/:companyId/projects/:projectId/state", async (req, res) => {
     const { companyId, projectId } = req.params;
-    assertCompanyAccess(req, companyId!);
 
     const state = await svc.get(projectId!, companyId!);
     res.json({ state });
@@ -20,7 +18,6 @@ export function projectStateRoutes(db: Db) {
   // GET /api/companies/:companyId/projects/:projectId/state/versions — list all versions
   router.get("/:companyId/projects/:projectId/state/versions", async (req, res) => {
     const { companyId, projectId } = req.params;
-    assertCompanyAccess(req, companyId!);
 
     const versions = await svc.listVersions(projectId!, companyId!);
     res.json({ versions });
@@ -29,7 +26,6 @@ export function projectStateRoutes(db: Db) {
   // PUT /api/companies/:companyId/projects/:projectId/state — update project state
   router.put("/:companyId/projects/:projectId/state", async (req, res) => {
     const { companyId, projectId } = req.params;
-    assertCompanyAccess(req, companyId!);
     const actor = getActorInfo(req);
 
     const { stateJson, stateMarkdown } = req.body as {

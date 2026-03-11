@@ -26,7 +26,7 @@ export {
   LIVE_EVENT_TYPES,
   PRINCIPAL_TYPES,
   MEMBERSHIP_STATUSES,
-  INSTANCE_USER_ROLES,
+
   INVITE_TYPES,
   INVITE_JOIN_TYPES,
   JOIN_REQUEST_TYPES,
@@ -79,7 +79,7 @@ export {
   type LiveEventType,
   type PrincipalType,
   type MembershipStatus,
-  type InstanceUserRole,
+
   type InviteType,
   type InviteJoinType,
   type JoinRequestType,
@@ -141,7 +141,7 @@ export type {
   PrincipalPermissionGrant,
   Invite,
   JoinRequest,
-  InstanceUserRoleGrant,
+
   CompanyPortabilityInclude,
   CompanyPortabilitySecretRequirement,
   CompanyPortabilityCompanyManifestEntry,

@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import {
+  companies,
   companyMemberships,
   vendorMemberships,
   principalPermissionGrants,
@@ -14,12 +15,25 @@ type GrantInput = {
 };
 
 export function accessService(db: Db) {
-  async function isInstanceAdmin(userId: string | null | undefined): Promise<boolean> {
+  /** Check whether a user is a vendor owner of the vendor that owns the given company. */
+  async function isVendorOwnerOf(userId: string | null | undefined, companyId: string): Promise<boolean> {
     if (!userId) return false;
+    const company = await db
+      .select({ vendorId: companies.vendorId })
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .then((rows) => rows[0] ?? null);
+    if (!company?.vendorId) return false;
     const row = await db
       .select({ id: vendorMemberships.id })
       .from(vendorMemberships)
-      .where(and(eq(vendorMemberships.userId, userId), eq(vendorMemberships.role, "owner")))
+      .where(
+        and(
+          eq(vendorMemberships.userId, userId),
+          eq(vendorMemberships.vendorId, company.vendorId),
+          eq(vendorMemberships.role, "owner"),
+        ),
+      )
       .then((rows) => rows[0] ?? null);
     return Boolean(row);
   }
@@ -71,7 +85,7 @@ export function accessService(db: Db) {
     permissionKey: PermissionKey,
   ): Promise<boolean> {
     if (!userId) return false;
-    if (await isInstanceAdmin(userId)) return true;
+    if (await isVendorOwnerOf(userId, companyId)) return true;
     return hasPermission(companyId, "user", userId, permissionKey);
   }
 
@@ -227,7 +241,7 @@ export function accessService(db: Db) {
   }
 
   return {
-    isInstanceAdmin,
+    isVendorOwnerOf,
     canUser,
     hasPermission,
     getMembership,

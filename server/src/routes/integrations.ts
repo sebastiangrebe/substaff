@@ -1,20 +1,18 @@
-import { Router } from "express";
 import type { Db } from "@substaff/db";
 import { connectIntegrationSchema, updateIntegrationSchema } from "@substaff/shared";
 import { validate } from "../middleware/validate.js";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter } from "./authz.js";
 import { logActivity } from "../services/activity-log.js";
 import { integrationService } from "../services/integrations.js";
 
 export function integrationRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = integrationService(db);
 
   // List available MCP server definitions
   router.get("/companies/:companyId/integrations/definitions", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const definitions = await svc.listDefinitions();
     res.json(definitions);
   });
@@ -23,7 +21,6 @@ export function integrationRoutes(db: Db) {
   router.get("/companies/:companyId/integrations", async (req, res) => {
     assertBoard(req);
     const companyId = req.params.companyId as string;
-    assertCompanyAccess(req, companyId);
     const connections = await svc.listConnections(companyId);
     res.json(connections);
   });
@@ -35,7 +32,6 @@ export function integrationRoutes(db: Db) {
     async (req, res) => {
       assertBoard(req);
       const companyId = req.params.companyId as string;
-      assertCompanyAccess(req, companyId);
 
       const created = await svc.connectIntegration(companyId, {
         definitionId: req.body.definitionId,

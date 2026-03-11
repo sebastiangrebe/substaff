@@ -1,7 +1,6 @@
-import { Router } from "express";
 import crypto from "node:crypto";
 import type { Db } from "@substaff/db";
-import { assertBoard, assertCompanyAccess } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter } from "./authz.js";
 import { logActivity } from "../services/activity-log.js";
 import { integrationService } from "../services/integrations.js";
 import { secretService } from "../services/secrets.js";
@@ -127,7 +126,7 @@ const GOOGLE_DRIVE_SCOPES = [
 ].join(" ");
 
 export function integrationOAuthRoutes(db: Db) {
-  const router = Router();
+  const router = companyRouter();
   const svc = integrationService(db);
   const secrets = secretService(db);
 
