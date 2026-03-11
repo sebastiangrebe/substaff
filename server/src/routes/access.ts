@@ -743,6 +743,7 @@ export function accessRoutes(
         runtimeConfig: {},
         budgetMonthlyCents: 0,
         spentMonthlyCents: 0,
+        platformSpentMonthlyCents: 0,
         permissions: {},
         lastHeartbeatAt: null,
         metadata: null,

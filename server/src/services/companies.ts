@@ -69,20 +69,26 @@ export function companyService(db: Db) {
     throw new Error("Unable to allocate unique issue prefix");
   }
 
+  function normalizeCompanyRow(row: typeof companies.$inferSelect) {
+    // Strip raw LLM cost from API responses — only platform cost is exposed
+    const { spentMonthlyCents: _rawCost, ...rest } = row;
+    return rest;
+  }
+
   return {
-    list: () => db.select().from(companies),
+    list: () => db.select().from(companies).then((rows) => rows.map(normalizeCompanyRow)),
 
     listByVendor: (vendorIds: string[]) =>
       vendorIds.length === 0
         ? Promise.resolve([])
-        : db.select().from(companies).where(inArray(companies.vendorId, vendorIds)),
+        : db.select().from(companies).where(inArray(companies.vendorId, vendorIds)).then((rows) => rows.map(normalizeCompanyRow)),
 
     getById: (id: string) =>
       db
         .select()
         .from(companies)
         .where(eq(companies.id, id))
-        .then((rows) => rows[0] ?? null),
+        .then((rows) => rows[0] ? normalizeCompanyRow(rows[0]) : null),
 
     create: async (data: typeof companies.$inferInsert) => createCompanyWithUniquePrefix(data),
 
@@ -92,7 +98,7 @@ export function companyService(db: Db) {
         .set({ ...data, updatedAt: new Date() })
         .where(eq(companies.id, id))
         .returning()
-        .then((rows) => rows[0] ?? null),
+        .then((rows) => rows[0] ? normalizeCompanyRow(rows[0]) : null),
 
     archive: (id: string) =>
       db
@@ -100,7 +106,7 @@ export function companyService(db: Db) {
         .set({ status: "archived", updatedAt: new Date() })
         .where(eq(companies.id, id))
         .returning()
-        .then((rows) => rows[0] ?? null),
+        .then((rows) => rows[0] ? normalizeCompanyRow(rows[0]) : null),
 
     remove: (id: string) =>
       db.transaction(async (tx) => {

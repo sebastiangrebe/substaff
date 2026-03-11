@@ -149,8 +149,10 @@ export function agentService(db: Db) {
   }
 
   function normalizeAgentRow(row: typeof agents.$inferSelect) {
+    // Strip raw LLM cost from API responses — only platform cost is exposed
+    const { spentMonthlyCents: _rawCost, ...rest } = row;
     return withUrlKey({
-      ...row,
+      ...rest,
       permissions: normalizeAgentPermissions(row.permissions, row.role),
     });
   }

@@ -594,7 +594,7 @@ export function Integrations() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">Connections</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -617,7 +617,7 @@ export function Integrations() {
       {/* Connected */}
       {connectedDefs.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-muted-foreground ">
             Connected ({connectedDefs.length})
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -628,7 +628,7 @@ export function Integrations() {
 
       {/* Available */}
       <div className="space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+        <h2 className="text-sm font-semibold text-muted-foreground ">
           Available
         </h2>
         {availableDefs.length > 4 && (

@@ -83,6 +83,7 @@ export type {
   SetVendorLlmKeyInput,
 } from "./llm-key.js";
 export { LLM_PROVIDERS } from "./llm-key.js";
+export type { CompanyRole, RoleListItem } from "./company-role.js";
 export type {
   CompanyPortabilityInclude,
   CompanyPortabilitySecretRequirement,

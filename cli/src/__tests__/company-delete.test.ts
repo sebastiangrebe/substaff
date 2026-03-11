@@ -12,7 +12,7 @@ function makeCompany(overrides: Partial<Company>): Company {
     issuePrefix: "ALP",
     issueCounter: 1,
     budgetMonthlyCents: 0,
-    spentMonthlyCents: 0,
+    platformSpentMonthlyCents: 0,
     requirePlanApproval: true,
     requireHireApproval: true,
     orgChartData: null,

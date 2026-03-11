@@ -574,7 +574,7 @@ export function Inbox() {
   const showSeparatorBefore = (key: SectionKey) => visibleSections.indexOf(key) > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">My Work</h1>
         <p className="mt-1 text-sm text-muted-foreground">Tasks, notifications, and items that need your attention.</p>
@@ -660,15 +660,15 @@ export function Inbox() {
         <>
           {showSeparatorBefore("assigned_to_me") && <Separator />}
           <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
               My Tasks
             </h3>
-            <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
+            <div className="divide-y divide-border/50 border border-border/50 rounded-xl overflow-hidden">
               {assignedToMeIssues.map((issue) => (
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
                 >
                   <UserCheck className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
                   <PriorityIcon priority={issue.priority} />
@@ -691,18 +691,18 @@ export function Inbox() {
         <>
           {showSeparatorBefore("blocked") && <Separator />}
           <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
               Blocked Tasks
               <span className="ml-2 text-xs font-normal normal-case text-destructive">
                 {blockedIssues.length}
               </span>
             </h3>
-            <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
+            <div className="divide-y divide-border/50 border border-border/50 rounded-xl overflow-hidden">
               {blockedIssues.map((issue) => (
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
                 >
                   <StatusIcon status="blocked" />
                   <PriorityIcon priority={issue.priority} />
@@ -729,7 +729,7 @@ export function Inbox() {
         <>
           {showSeparatorBefore("approvals") && <Separator />}
           <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
               {tab === "new" ? "Reviews Needing Action" : "Reviews"}
             </h3>
             <div className="grid gap-3">
@@ -757,12 +757,12 @@ export function Inbox() {
         <>
           {showSeparatorBefore("pending_plans") && <Separator />}
           <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
               Plans To Review
             </h3>
             <div className="grid gap-3">
               {pendingPlans.map((plan) => (
-                <div key={plan.id} className="rounded-xl border border-border bg-card p-4">
+                <div key={plan.id} className="rounded-xl border border-border/50 bg-card p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center gap-2">
@@ -824,12 +824,12 @@ export function Inbox() {
         <>
           {showSeparatorBefore("join_requests") && <Separator />}
           <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
               Join Requests
             </h3>
             <div className="grid gap-3">
               {joinRequests.map((joinRequest) => (
-                <div key={joinRequest.id} className="rounded-xl border border-border bg-card p-4">
+                <div key={joinRequest.id} className="rounded-xl border border-border/50 bg-card p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div className="space-y-1">
                       <p className="text-sm font-medium">
@@ -878,7 +878,7 @@ export function Inbox() {
         <>
           {showSeparatorBefore("failed_runs") && <Separator />}
           <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
               Errors
             </h3>
             <div className="grid gap-3">
@@ -899,14 +899,14 @@ export function Inbox() {
         <>
           {showSeparatorBefore("alerts") && <Separator />}
           <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
               Alerts
             </h3>
-            <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
+            <div className="divide-y divide-border/50 border border-border/50 rounded-xl overflow-hidden">
               {showAggregateAgentError && (
                 <Link
                   to="/agents"
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
                 >
                   <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
                   <span className="text-sm">
@@ -918,7 +918,7 @@ export function Inbox() {
               {creditsDepleted && (
                 <Link
                   to="/billing"
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
                 >
                   <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
                   <span className="text-sm">
@@ -929,7 +929,7 @@ export function Inbox() {
               {showBudgetAlert && (
                 <Link
                   to="/billing"
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
                 >
                   <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-400" />
                   <span className="text-sm">
@@ -948,15 +948,15 @@ export function Inbox() {
         <>
           {showSeparatorBefore("stale_work") && <Separator />}
           <div>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
               Needs Attention
             </h3>
-            <div className="divide-y divide-border border border-border rounded-xl overflow-hidden">
+            <div className="divide-y divide-border/50 border border-border/50 rounded-xl overflow-hidden">
               {staleIssues.map((issue) => (
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/50 no-underline text-inherit"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
                 >
                   <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <PriorityIcon priority={issue.priority} />

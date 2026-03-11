@@ -104,7 +104,7 @@ export function Analytics() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">Analytics</h1>
         <p className="mt-1 text-sm text-muted-foreground">Performance metrics and trends across your company.</p>
@@ -182,10 +182,10 @@ export function Analytics() {
 
       {recentActivity.length > 0 && (
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          <h3 className="text-[13px] font-medium text-muted-foreground mb-3">
             Recent Activity
           </h3>
-          <div className="border border-border divide-y divide-border rounded-xl overflow-hidden">
+          <div className="border border-border/50 divide-y divide-border/50 rounded-xl overflow-hidden">
             {recentActivity.map((event) => (
               <ActivityRow
                 key={event.id}

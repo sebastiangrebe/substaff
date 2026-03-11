@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
-import { Navigate, Outlet, Route, Routes, useLocation } from "@/lib/router";
+import { Navigate, Outlet, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Layout } from "./components/Layout";
 import { AppLoader } from "./components/AppLoader";
 import { OnboardingWizard } from "./components/OnboardingWizard";
+import { RouteErrorBoundary } from "./components/ErrorBoundary";
 import { authApi } from "./api/auth";
 import { healthApi } from "./api/health";
 import { Dashboard } from "./pages/Dashboard";
@@ -24,6 +25,7 @@ import { Activity } from "./pages/Activity";
 import { Files } from "./pages/Files";
 import { Inbox } from "./pages/Inbox";
 import { CompanySettings } from "./pages/CompanySettings";
+import { AccountSettings } from "./pages/AccountSettings";
 import { DesignGuide } from "./pages/DesignGuide";
 import { Integrations } from "./pages/Integrations";
 import { OrgChart } from "./pages/OrgChart";
@@ -33,6 +35,7 @@ import { InviteLandingPage } from "./pages/InviteLanding";
 import { queryKeys } from "./lib/queryKeys";
 import { useCompany } from "./context/CompanyContext";
 import { useDialog } from "./context/DialogContext";
+import type { RouteObject } from "react-router-dom";
 
 function CloudAccessGate() {
   const location = useLocation();
@@ -70,52 +73,49 @@ function CloudAccessGate() {
   return <Outlet />;
 }
 
-function boardRoutes() {
-  return (
-    <>
-      <Route index element={<Navigate to="dashboard" replace />} />
-      <Route path="dashboard" element={<Dashboard />} />
-      <Route path="companies" element={<Companies />} />
-      <Route path="company/settings" element={<CompanySettings />} />
-      <Route path="org" element={<OrgChart />} />
-      <Route path="agents" element={<Navigate to="/agents/all" replace />} />
-      <Route path="agents/all" element={<Agents />} />
-      <Route path="agents/active" element={<Agents />} />
-      <Route path="agents/paused" element={<Agents />} />
-      <Route path="agents/error" element={<Agents />} />
-      <Route path="agents/:agentId" element={<AgentDetail />} />
-      <Route path="agents/:agentId/:tab" element={<AgentDetail />} />
-      <Route path="agents/:agentId/runs/:runId" element={<AgentDetail />} />
-      <Route path="projects" element={<Projects />} />
-      <Route path="projects/:projectId" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/overview" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/issues" element={<ProjectDetail />} />
-      <Route path="projects/:projectId/issues/:filter" element={<ProjectDetail />} />
-      <Route path="issues" element={<Issues />} />
-      <Route path="issues/all" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/active" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/backlog" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/done" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/recent" element={<Navigate to="/issues" replace />} />
-      <Route path="issues/:issueId" element={<IssueDetail />} />
-      <Route path="goals" element={<Goals />} />
-      <Route path="goals/:goalId" element={<GoalDetail />} />
-      <Route path="approvals" element={<Navigate to="/approvals/pending" replace />} />
-      <Route path="approvals/pending" element={<Approvals />} />
-      <Route path="approvals/all" element={<Approvals />} />
-      <Route path="approvals/:approvalId" element={<ApprovalDetail />} />
-      <Route path="billing" element={<Billing />} />
-      <Route path="analytics" element={<Analytics />} />
-      <Route path="activity" element={<Activity />} />
-      <Route path="files" element={<Files />} />
-      <Route path="inbox" element={<Navigate to="/inbox/new" replace />} />
-      <Route path="inbox/new" element={<Inbox />} />
-      <Route path="inbox/all" element={<Inbox />} />
-      <Route path="integrations" element={<Integrations />} />
-      <Route path="design-guide" element={<DesignGuide />} />
-    </>
-  );
-}
+const boardRoutes: RouteObject[] = [
+  { index: true, element: <Navigate to="dashboard" replace /> },
+  { path: "dashboard", element: <Dashboard /> },
+  { path: "companies", element: <Companies /> },
+  { path: "company/settings", element: <CompanySettings /> },
+  { path: "account", element: <AccountSettings /> },
+  { path: "org", element: <OrgChart /> },
+  { path: "agents", element: <Navigate to="/agents/all" replace /> },
+  { path: "agents/all", element: <Agents /> },
+  { path: "agents/active", element: <Agents /> },
+  { path: "agents/paused", element: <Agents /> },
+  { path: "agents/error", element: <Agents /> },
+  { path: "agents/:agentId", element: <AgentDetail /> },
+  { path: "agents/:agentId/:tab", element: <AgentDetail /> },
+  { path: "agents/:agentId/runs/:runId", element: <AgentDetail /> },
+  { path: "projects", element: <Projects /> },
+  { path: "projects/:projectId", element: <ProjectDetail /> },
+  { path: "projects/:projectId/overview", element: <ProjectDetail /> },
+  { path: "projects/:projectId/issues", element: <ProjectDetail /> },
+  { path: "projects/:projectId/issues/:filter", element: <ProjectDetail /> },
+  { path: "issues", element: <Issues /> },
+  { path: "issues/all", element: <Navigate to="/issues" replace /> },
+  { path: "issues/active", element: <Navigate to="/issues" replace /> },
+  { path: "issues/backlog", element: <Navigate to="/issues" replace /> },
+  { path: "issues/done", element: <Navigate to="/issues" replace /> },
+  { path: "issues/recent", element: <Navigate to="/issues" replace /> },
+  { path: "issues/:issueId", element: <IssueDetail /> },
+  { path: "goals", element: <Goals /> },
+  { path: "goals/:goalId", element: <GoalDetail /> },
+  { path: "approvals", element: <Navigate to="/approvals/pending" replace /> },
+  { path: "approvals/pending", element: <Approvals /> },
+  { path: "approvals/all", element: <Approvals /> },
+  { path: "approvals/:approvalId", element: <ApprovalDetail /> },
+  { path: "billing", element: <Billing /> },
+  { path: "analytics", element: <Analytics /> },
+  { path: "activity", element: <Activity /> },
+  { path: "files", element: <Files /> },
+  { path: "inbox", element: <Navigate to="/inbox/new" replace /> },
+  { path: "inbox/new", element: <Inbox /> },
+  { path: "inbox/all", element: <Inbox /> },
+  { path: "integrations", element: <Integrations /> },
+  { path: "design-guide", element: <DesignGuide /> },
+];
 
 function CompanyRootRedirect() {
   const { companies, selectedCompany, loading } = useCompany();
@@ -185,46 +185,60 @@ function NoCompaniesStartPage({ autoOpen = true }: { autoOpen?: boolean }) {
   );
 }
 
-export function App() {
+/** Root layout that renders the OnboardingWizard alongside the route outlet */
+function RootLayout() {
   return (
     <>
-      <Routes>
-        <Route path="auth" element={<AuthPage />} />
-        <Route path="invite/:token" element={<InviteLandingPage />} />
-
-        <Route element={<CloudAccessGate />}>
-          <Route index element={<CompanyRootRedirect />} />
-          <Route path="companies" element={<UnprefixedBoardRedirect />} />
-          <Route path="issues" element={<UnprefixedBoardRedirect />} />
-          <Route path="issues/:issueId" element={<UnprefixedBoardRedirect />} />
-          <Route path="agents" element={<UnprefixedBoardRedirect />} />
-          <Route path="agents/:agentId" element={<UnprefixedBoardRedirect />} />
-          <Route path="agents/:agentId/:tab" element={<UnprefixedBoardRedirect />} />
-          <Route path="agents/:agentId/runs/:runId" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/overview" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/issues" element={<UnprefixedBoardRedirect />} />
-          <Route path="projects/:projectId/issues/:filter" element={<UnprefixedBoardRedirect />} />
-          <Route path="goals" element={<UnprefixedBoardRedirect />} />
-          <Route path="goals/:goalId" element={<UnprefixedBoardRedirect />} />
-          <Route path="approvals" element={<UnprefixedBoardRedirect />} />
-          <Route path="approvals/:approvalId" element={<UnprefixedBoardRedirect />} />
-          <Route path="billing" element={<UnprefixedBoardRedirect />} />
-          <Route path="analytics" element={<UnprefixedBoardRedirect />} />
-          <Route path="activity" element={<UnprefixedBoardRedirect />} />
-          <Route path="files" element={<UnprefixedBoardRedirect />} />
-          <Route path="inbox" element={<UnprefixedBoardRedirect />} />
-          <Route path="inbox/:tab" element={<UnprefixedBoardRedirect />} />
-          <Route path="integrations" element={<UnprefixedBoardRedirect />} />
-          <Route path="company/settings" element={<UnprefixedBoardRedirect />} />
-          <Route path="dashboard" element={<UnprefixedBoardRedirect />} />
-          <Route path=":companyPrefix" element={<Layout />}>
-            {boardRoutes()}
-          </Route>
-        </Route>
-      </Routes>
+      <Outlet />
       <OnboardingWizard />
     </>
   );
 }
+
+export const routes: RouteObject[] = [
+  {
+    element: <RootLayout />,
+    errorElement: <RouteErrorBoundary />,
+    children: [
+      { path: "auth", element: <AuthPage /> },
+      { path: "invite/:token", element: <InviteLandingPage /> },
+      {
+        element: <CloudAccessGate />,
+        children: [
+          { index: true, element: <CompanyRootRedirect /> },
+          { path: "companies", element: <UnprefixedBoardRedirect /> },
+          { path: "issues", element: <UnprefixedBoardRedirect /> },
+          { path: "issues/:issueId", element: <UnprefixedBoardRedirect /> },
+          { path: "agents", element: <UnprefixedBoardRedirect /> },
+          { path: "agents/:agentId", element: <UnprefixedBoardRedirect /> },
+          { path: "agents/:agentId/:tab", element: <UnprefixedBoardRedirect /> },
+          { path: "agents/:agentId/runs/:runId", element: <UnprefixedBoardRedirect /> },
+          { path: "projects", element: <UnprefixedBoardRedirect /> },
+          { path: "projects/:projectId", element: <UnprefixedBoardRedirect /> },
+          { path: "projects/:projectId/overview", element: <UnprefixedBoardRedirect /> },
+          { path: "projects/:projectId/issues", element: <UnprefixedBoardRedirect /> },
+          { path: "projects/:projectId/issues/:filter", element: <UnprefixedBoardRedirect /> },
+          { path: "goals", element: <UnprefixedBoardRedirect /> },
+          { path: "goals/:goalId", element: <UnprefixedBoardRedirect /> },
+          { path: "approvals", element: <UnprefixedBoardRedirect /> },
+          { path: "approvals/:approvalId", element: <UnprefixedBoardRedirect /> },
+          { path: "billing", element: <UnprefixedBoardRedirect /> },
+          { path: "analytics", element: <UnprefixedBoardRedirect /> },
+          { path: "activity", element: <UnprefixedBoardRedirect /> },
+          { path: "files", element: <UnprefixedBoardRedirect /> },
+          { path: "inbox", element: <UnprefixedBoardRedirect /> },
+          { path: "inbox/:tab", element: <UnprefixedBoardRedirect /> },
+          { path: "integrations", element: <UnprefixedBoardRedirect /> },
+          { path: "company/settings", element: <UnprefixedBoardRedirect /> },
+          { path: "account", element: <UnprefixedBoardRedirect /> },
+          { path: "dashboard", element: <UnprefixedBoardRedirect /> },
+          {
+            path: ":companyPrefix",
+            element: <Layout />,
+            children: boardRoutes,
+          },
+        ],
+      },
+    ],
+  },
+];

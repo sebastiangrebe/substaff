@@ -64,8 +64,8 @@ BODY
 ```
 
 **HEARTBEAT.md** — Execution checklist (role-specific):
-- For IC roles (engineer, designer, qa, researcher): Focus on task execution, code quality, testing, and clear communication. No goal/project oversight.
-- For leadership roles (cto, cmo, cfo, pm): Include goal monitoring, project oversight, delegation, and hiring responsibilities specific to their domain.
+- For IC roles (engineer, designer, qa, researcher, general, specialist, creator, analyst, support, and custom roles with `classification: "ic"`): Focus on task execution, code quality, testing, and clear communication. No goal/project oversight.
+- For leadership roles (ceo, cto, cmo, cfo, pm, manager, executive, and custom roles with `classification: "leadership"`): Include goal monitoring, project oversight, delegation, and hiring responsibilities specific to their domain.
 - Always include: identity check, approval follow-up, assignment retrieval, checkout, work, status updates, exit criteria.
 
 **SOUL.md** — Persona and decision-making style:

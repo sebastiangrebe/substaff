@@ -48,8 +48,10 @@ If the comment asks for input/review but not ownership, respond in comments if u
 If the comment does not direct you to take ownership, do not self-assign.
 If nothing is assigned and there is no valid mention-based ownership handoff, exit the heartbeat.
 **Early exit for no-op heartbeats:** If ALL assigned tasks are `blocked` and every blocked task passes the dedup check (your last comment was a blocked update with no new responses):
-- **IC roles** (engineer, designer, qa, researcher, general): Exit immediately after Step 3. Output "All tasks blocked, no new context. Exiting." and stop.
-- **Leadership roles** (ceo, cto, cmo, cfo, pm): Do NOT exit yet — proceed to your role-specific oversight duties (goal tree review, project progress, hiring decisions) before exiting. Leaders must ensure goals have owners, projects have leads, and capacity gaps are addressed even when their own tasks are blocked.
+- **IC roles** (engineer, designer, qa, researcher, general, specialist, creator, analyst, support, and any custom role with `classification: "ic"`): Exit immediately after Step 3. Output "All tasks blocked, no new context. Exiting." and stop.
+- **Leadership roles** (ceo, cto, cmo, cfo, pm, manager, executive, and any custom role with `classification: "leadership"`): Do NOT exit yet — proceed to your role-specific oversight duties (goal tree review, project progress, hiring decisions) before exiting. Leaders must ensure goals have owners, projects have leads, and capacity gaps are addressed even when their own tasks are blocked.
+
+To determine your classification, check the `roleClassification` field from `GET /api/agents/me` (returns `"ic"` or `"leadership"`).
 
 **Step 4 — Checkout.** You MUST checkout before doing any work. Include the run ID header:
 

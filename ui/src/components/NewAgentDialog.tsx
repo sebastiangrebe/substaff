@@ -4,8 +4,8 @@ import { useNavigate } from "@/lib/router";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
 import { agentsApi } from "../api/agents";
+import { companyRolesApi } from "../api/companyRoles";
 import { queryKeys } from "../lib/queryKeys";
-import { AGENT_ROLES } from "@substaff/shared";
 import {
   Dialog,
   DialogContent,
@@ -52,6 +52,12 @@ export function NewAgentDialog() {
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
     queryFn: () => agentsApi.list(selectedCompanyId!),
+    enabled: !!selectedCompanyId && newAgentOpen,
+  });
+
+  const { data: roles } = useQuery({
+    queryKey: queryKeys.roles.list(selectedCompanyId!),
+    queryFn: () => companyRolesApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId && newAgentOpen,
   });
 
@@ -189,22 +195,39 @@ export function NewAgentDialog() {
                   disabled={isFirstAgent}
                 >
                   <Shield className="h-3 w-3 text-muted-foreground" />
-                  {roleLabels[effectiveRole] ?? effectiveRole}
+                  {roles?.find((r) => r.slug === effectiveRole)?.displayLabel ?? roleLabels[effectiveRole] ?? effectiveRole}
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-36 p-1" align="start">
-                {AGENT_ROLES.map((r) => (
+              <PopoverContent className="w-44 p-1 max-h-64 overflow-y-auto" align="start">
+                {(roles ?? []).filter((r) => r.source === "system").map((r) => (
                   <button
-                    key={r}
+                    key={r.slug}
                     className={cn(
                       "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
-                      r === role && "bg-accent"
+                      r.slug === role && "bg-accent"
                     )}
-                    onClick={() => { setRole(r); setRoleOpen(false); }}
+                    onClick={() => { setRole(r.slug); setRoleOpen(false); }}
                   >
-                    {roleLabels[r] ?? r}
+                    {r.displayLabel}
                   </button>
                 ))}
+                {(roles ?? []).some((r) => r.source === "custom") && (
+                  <>
+                    <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider">Custom</div>
+                    {(roles ?? []).filter((r) => r.source === "custom").map((r) => (
+                      <button
+                        key={r.slug}
+                        className={cn(
+                          "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+                          r.slug === role && "bg-accent"
+                        )}
+                        onClick={() => { setRole(r.slug); setRoleOpen(false); }}
+                      >
+                        {r.displayLabel}
+                      </button>
+                    ))}
+                  </>
+                )}
               </PopoverContent>
             </Popover>
 

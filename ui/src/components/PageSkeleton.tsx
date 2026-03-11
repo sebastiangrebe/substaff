@@ -24,7 +24,7 @@ export function PageSkeleton({ variant = "list" }: PageSkeletonProps) {
           <Skeleton className="h-6 w-20" />
           <Skeleton className="h-4 w-72" />
         </div>
-        <Skeleton className="h-32 w-full border border-border" />
+        <Skeleton className="h-32 w-full border border-border/50" />
 
         <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -92,7 +92,7 @@ export function PageSkeleton({ variant = "list" }: PageSkeletonProps) {
           {Array.from({ length: 3 }).map((_, section) => (
             <div key={section} className="space-y-2">
               <Skeleton className="h-4 w-40" />
-              <div className="space-y-1 border border-border">
+              <div className="space-y-1 border border-border/50">
                 {Array.from({ length: 3 }).map((_, row) => (
                   <Skeleton key={row} className="h-14 w-full rounded-none" />
                 ))}
@@ -111,7 +111,7 @@ export function PageSkeleton({ variant = "list" }: PageSkeletonProps) {
           <Skeleton className="h-6 w-28" />
           <Skeleton className="h-4 w-80" />
         </div>
-        <Skeleton className="h-[calc(100vh-8rem)] w-full rounded-lg border border-border" />
+        <Skeleton className="h-[calc(100vh-8rem)] w-full rounded-lg border border-border/50" />
       </div>
     );
   }
@@ -169,7 +169,7 @@ export function PageSkeleton({ variant = "list" }: PageSkeletonProps) {
 
         <div className="space-y-3">
           <Skeleton className="h-4 w-32" />
-          <div className="space-y-1 border border-border rounded-xl overflow-hidden">
+          <div className="space-y-1 border border-border/50 rounded-xl overflow-hidden">
             {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-14 w-full rounded-none" />
             ))}
@@ -249,7 +249,7 @@ export function PageSkeleton({ variant = "list" }: PageSkeletonProps) {
             <span />
           </div>
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="grid grid-cols-[1fr_100px_160px_36px] gap-2 px-4 py-2 border-t border-border">
+            <div key={i} className="grid grid-cols-[1fr_100px_160px_36px] gap-2 px-4 py-2 border-t border-border/50">
               <div className="flex items-center gap-2">
                 <Skeleton className="h-4 w-4" />
                 <Skeleton className="h-4 w-32" />

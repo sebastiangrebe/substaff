@@ -227,7 +227,7 @@ export function Billing() {
   const costs = costsQuery.data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Billing</h1>
@@ -251,7 +251,7 @@ export function Billing() {
       {/* ── Metric Cards ── */}
       <div className="grid md:grid-cols-3 gap-4">
         {/* Credit Balance */}
-        <div className="relative overflow-hidden rounded-xl border border-border p-4">
+        <div className="relative overflow-hidden rounded-xl border border-border/50 p-4">
           {balanceHistory.length >= 2 && (
             <div className="absolute bottom-0 left-0 right-0 h-12 opacity-60">
               <Sparkline
@@ -264,7 +264,7 @@ export function Billing() {
           <div className="relative space-y-1">
             <div className="flex items-center gap-2">
               <Wallet className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              <span className="text-xs text-muted-foreground font-medium ">
                 Credit Balance
               </span>
             </div>
@@ -280,7 +280,7 @@ export function Billing() {
         </div>
 
         {/* Period Spend */}
-        <div className="relative overflow-hidden rounded-xl border border-border p-4">
+        <div className="relative overflow-hidden rounded-xl border border-border/50 p-4">
           {spendingData.length >= 2 && (
             <div className="absolute bottom-0 left-0 right-0 h-12 opacity-60">
               <Sparkline data={spendingData} color="var(--chart-1)" className="w-full h-full" />
@@ -289,7 +289,7 @@ export function Billing() {
           <div className="relative space-y-1">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              <span className="text-xs text-muted-foreground font-medium ">
                 {PRESET_LABELS[preset]}
               </span>
             </div>
@@ -303,11 +303,11 @@ export function Billing() {
         </div>
 
         {/* Billing Model */}
-        <div className="relative overflow-hidden rounded-xl border border-border p-4">
+        <div className="relative overflow-hidden rounded-xl border border-border/50 p-4">
           <div className="relative space-y-1">
             <div className="flex items-center gap-2">
               <CreditCard className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+              <span className="text-xs text-muted-foreground font-medium ">
                 Billing Model
               </span>
             </div>
@@ -318,7 +318,7 @@ export function Billing() {
       </div>
 
       {/* ── Add Credits ── */}
-      <div className="rounded-xl border border-border p-4 space-y-3">
+      <div className="rounded-xl border border-border/50 p-4 space-y-3">
         <h3 className="text-sm font-semibold">Add Credits</h3>
         <p className="text-sm text-muted-foreground">
           Credits are consumed as your agents run. Top up to keep agents active.
@@ -331,7 +331,7 @@ export function Billing() {
                 "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
                 selectedTopUp === amount && !customAmount
                   ? "border-primary bg-primary/10 text-primary"
-                  : "border-border hover:border-foreground/30 hover:bg-accent/50"
+                  : "border-border hover:border-foreground/30 hover:bg-accent/40"
               )}
               onClick={() => { setSelectedTopUp(amount); setCustomAmount(""); }}
             >
@@ -343,7 +343,7 @@ export function Billing() {
               "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
               customAmount !== ""
                 ? "border-primary bg-primary/10 text-primary"
-                : "border-border hover:border-foreground/30 hover:bg-accent/50"
+                : "border-border hover:border-foreground/30 hover:bg-accent/40"
             )}
             onClick={() => { setSelectedTopUp(null); setCustomAmount(customAmount || "0"); }}
           >
@@ -366,7 +366,7 @@ export function Billing() {
                 setSelectedTopUp(cents > 0 ? cents : null);
               }}
               autoFocus
-              className="w-40 rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
+              className="w-40 rounded-md border border-border/50 bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
             />
           </div>
         )}
@@ -393,7 +393,7 @@ export function Billing() {
                   "px-2.5 py-1 text-xs rounded-md transition-colors",
                   preset === p
                     ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
                 )}
                 onClick={() => setPreset(p)}
               >
@@ -409,7 +409,7 @@ export function Billing() {
           <>
             {/* Summary bar */}
             {costs.summary.budgetCents > 0 && (
-              <div className="rounded-xl border border-border p-4 space-y-2">
+              <div className="rounded-xl border border-border/50 p-4 space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
                     Spend: <span className="text-foreground font-medium">{formatCents(costs.summary.platformSpendCents)}</span>
@@ -438,7 +438,7 @@ export function Billing() {
 
             <div className="grid md:grid-cols-2 gap-4">
               {/* By Agent */}
-              <div className="rounded-xl border border-border p-4 space-y-3">
+              <div className="rounded-xl border border-border/50 p-4 space-y-3">
                 <h4 className="text-sm font-semibold">By Agent</h4>
                 {costs.byAgent.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No costs yet.</p>
@@ -454,7 +454,7 @@ export function Billing() {
               </div>
 
               {/* By Project */}
-              <div className="rounded-xl border border-border p-4 space-y-3">
+              <div className="rounded-xl border border-border/50 p-4 space-y-3">
                 <h4 className="text-sm font-semibold">By Project</h4>
                 {costs.byProject.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No costs yet.</p>
@@ -481,7 +481,7 @@ export function Billing() {
         ) : !credits || credits.length === 0 ? (
           <p className="text-sm text-muted-foreground">No transactions yet.</p>
         ) : (
-          <div className="rounded-xl border border-border overflow-hidden divide-y divide-border">
+          <div className="rounded-xl border border-border/50 overflow-hidden divide-y divide-border/50">
             {credits.map((tx) => (
               <div
                 key={tx.id}

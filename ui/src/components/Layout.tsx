@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type UIEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { HelpCircle, Moon, Sun } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronsUpDown, HelpCircle, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { Outlet, useLocation, useNavigate, useParams } from "@/lib/router";
 import {
   Sidebar,
   SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
   SidebarProvider,
   SidebarInset,
   useSidebar,
@@ -19,6 +22,15 @@ import { NewGoalDialog } from "./NewGoalDialog";
 import { NewAgentDialog } from "./NewAgentDialog";
 import { ToastViewport } from "./ToastViewport";
 import { MobileBottomNav } from "./MobileBottomNav";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useDialog } from "../context/DialogContext";
 import { usePanel } from "../context/PanelContext";
 import { useCompany } from "../context/CompanyContext";
@@ -27,6 +39,7 @@ import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useCompanyPageMemory } from "../hooks/useCompanyPageMemory";
 import { healthApi } from "../api/health";
 import { agentsApi } from "../api/agents";
+import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,10 +48,16 @@ import { useTour } from "./Tour";
 
 export function Layout() {
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-dvh !min-h-0 overflow-hidden">
       <LayoutInner />
     </SidebarProvider>
   );
+}
+
+function deriveInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
 }
 
 function LayoutInner() {
@@ -48,6 +67,7 @@ function LayoutInner() {
   const { companies, loading: companiesLoading, selectedCompanyId, setSelectedCompanyId } = useCompany();
   const { theme, toggleTheme } = useTheme();
   const tour = useTour();
+  const queryClient = useQueryClient();
   const { companyPrefix } = useParams<{ companyPrefix: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -55,6 +75,14 @@ function LayoutInner() {
   const lastMainScrollTop = useRef(0);
   const [mobileNavVisible, setMobileNavVisible] = useState(true);
   const nextTheme = theme === "dark" ? "light" : "dark";
+
+  const { data: session } = useQuery({
+    queryKey: queryKeys.auth.session,
+    queryFn: () => authApi.getSession(),
+  });
+  const userName = session?.user?.name ?? session?.user?.email ?? "User";
+  const userEmail = session?.user?.email ?? "";
+
   const { data: health } = useQuery({
     queryKey: queryKeys.health,
     queryFn: () => healthApi.get(),
@@ -191,7 +219,7 @@ function LayoutInner() {
       <Sidebar>
         <AppSidebar />
         <SidebarFooter>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 px-2">
             <Button
               type="button"
               variant="ghost"
@@ -214,10 +242,52 @@ function LayoutInner() {
               Take a tour
             </Button>
           </div>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+                    <Avatar size="sm" className="rounded-lg">
+                      <AvatarFallback className="rounded-lg">{deriveInitials(userName)}</AvatarFallback>
+                    </Avatar>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-medium">{userName}</span>
+                      {userEmail && <span className="truncate text-xs text-muted-foreground">{userEmail}</span>}
+                    </div>
+                    <ChevronsUpDown className="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+                  side={isMobile ? "bottom" : "right"}
+                  align="end"
+                  sideOffset={4}
+                >
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={() => navigate("/account")}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Account settings
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      await authApi.signOut();
+                      queryClient.clear();
+                      navigate("/login", { replace: true });
+                    }}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset>
+      <SidebarInset className="h-full overflow-hidden">
         {isMobile && <BreadcrumbBar />}
         <div className="flex flex-1 min-h-0">
           <main

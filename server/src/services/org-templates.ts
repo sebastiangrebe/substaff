@@ -5,13 +5,15 @@
  * ready to be applied to a company's orgChartData (React Flow format).
  */
 
+import type { AgentRole } from "@substaff/shared";
+
 export interface OrgTemplateNode {
   id: string;
   type: string;
   position: { x: number; y: number };
   data: {
     label: string;
-    role: string;
+    role: AgentRole;
     title: string;
     capabilities: string;
   };

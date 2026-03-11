@@ -20,6 +20,7 @@ import {
   agentService,
   accessService,
   approvalService,
+  companyRoleService,
   heartbeatService,
   issueApprovalService,
   issueService,
@@ -41,10 +42,17 @@ export function agentRoutes(db: Db) {
   const svc = agentService(db);
   const access = accessService(db);
   const approvalsSvc = approvalService(db);
+  const roleSvc = companyRoleService(db);
   const heartbeat = heartbeatService(db);
   const issueApprovalsSvc = issueApprovalService(db);
   const secretsSvc = secretService(db);
   const strictSecretsMode = process.env.SUBSTAFF_SECRETS_STRICT_MODE === "true";
+
+  async function assertValidRole(companyId: string, role?: string) {
+    if (!role || role === "general") return;
+    const valid = await roleSvc.isValidRole(companyId, role);
+    if (!valid) throw unprocessable(`Invalid role: "${role}". Must be a built-in role or a custom role defined for this company.`);
+  }
 
   function canCreateAgents(agent: { role: string; permissions: Record<string, unknown> | null | undefined }) {
     if (!agent.permissions || typeof agent.permissions !== "object") return false;
@@ -384,8 +392,11 @@ export function agentRoutes(db: Db) {
       res.status(404).json({ error: "Agent not found" });
       return;
     }
-    const chainOfCommand = await svc.getChainOfCommand(agent.id);
-    res.json({ ...agent, chainOfCommand });
+    const [chainOfCommand, roleClassification] = await Promise.all([
+      svc.getChainOfCommand(agent.id),
+      roleSvc.classifyRole(agent.companyId, agent.role),
+    ]);
+    res.json({ ...agent, chainOfCommand, roleClassification });
   });
 
   router.get("/agents/:id", async (req, res) => {
@@ -548,6 +559,7 @@ export function agentRoutes(db: Db) {
   router.post("/companies/:companyId/agent-hires", validate(createAgentHireSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
     await assertCanCreateAgentsForCompany(req, companyId);
+    await assertValidRole(companyId, req.body.role);
     const sourceIssueIds = parseSourceIssueIds(req.body);
     const { sourceIssueId: _sourceIssueId, sourceIssueIds: _sourceIssueIds, ...hireInput } = req.body;
     const requestedAdapterConfig = applyCreateDefaultsByAdapterType(
@@ -580,6 +592,7 @@ export function agentRoutes(db: Db) {
       ...normalizedHireInput,
       status,
       spentMonthlyCents: 0,
+      platformSpentMonthlyCents: 0,
       lastHeartbeatAt: null,
     });
 
@@ -685,6 +698,8 @@ export function agentRoutes(db: Db) {
       assertBoard(req);
     }
 
+    await assertValidRole(companyId, req.body.role);
+
     const requestedAdapterConfig = applyCreateDefaultsByAdapterType(
       req.body.adapterType,
       ((req.body.adapterConfig ?? {}) as Record<string, unknown>),
@@ -700,6 +715,7 @@ export function agentRoutes(db: Db) {
       adapterConfig: normalizedAdapterConfig,
       status: "idle",
       spentMonthlyCents: 0,
+      platformSpentMonthlyCents: 0,
       lastHeartbeatAt: null,
     });
 
@@ -847,6 +863,10 @@ export function agentRoutes(db: Db) {
       return;
     }
     await assertCanUpdateAgent(req, existing);
+
+    if (req.body.role) {
+      await assertValidRole(existing.companyId, req.body.role);
+    }
 
     if (Object.prototype.hasOwnProperty.call(req.body, "permissions")) {
       res.status(422).json({ error: "Use /api/agents/:id/permissions for permission changes" });

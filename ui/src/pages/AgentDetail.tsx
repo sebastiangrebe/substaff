@@ -453,7 +453,7 @@ export function AgentDetail() {
           </PopoverTrigger>
           <PopoverContent className="w-48 p-1" align="end">
             <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
               onClick={() => {
                 agentAction.mutate("invoke");
                 setMoreOpen(false);
@@ -465,7 +465,7 @@ export function AgentDetail() {
             </button>
             {agent.status === "paused" ? (
               <button
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
                 onClick={() => {
                   agentAction.mutate("resume");
                   setMoreOpen(false);
@@ -477,7 +477,7 @@ export function AgentDetail() {
               </button>
             ) : (
               <button
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
                 onClick={() => {
                   agentAction.mutate("pause");
                   setMoreOpen(false);
@@ -489,7 +489,7 @@ export function AgentDetail() {
               </button>
             )}
             <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
               onClick={() => {
                 openNewIssue({ assigneeAgentId: agent.id });
                 setMoreOpen(false);
@@ -500,7 +500,7 @@ export function AgentDetail() {
             </button>
             <div className="h-px bg-border my-1" />
             <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
               onClick={() => {
                 navigate(`/agents/${canonicalAgentRef}/configure`);
                 setMoreOpen(false);
@@ -510,7 +510,7 @@ export function AgentDetail() {
               Configure
             </button>
             <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
               onClick={() => {
                 navigator.clipboard.writeText(agent.id);
                 setMoreOpen(false);
@@ -520,7 +520,7 @@ export function AgentDetail() {
               Copy ID
             </button>
             <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
               onClick={() => {
                 resetTaskSession.mutate(null);
                 setMoreOpen(false);
@@ -531,7 +531,7 @@ export function AgentDetail() {
             </button>
             <div className="h-px bg-border my-1" />
             <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/50 text-destructive"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40 text-destructive"
               onClick={() => {
                 agentAction.mutate("terminate");
                 setMoreOpen(false);
@@ -561,7 +561,7 @@ export function AgentDetail() {
               : "opacity-0 pointer-events-none"
           )}
         >
-          <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm border border-border rounded-lg px-3 py-1.5 shadow-lg">
+          <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm border border-border/50 rounded-xl px-3 py-1.5 shadow-lg">
             <Button
               variant="ghost"
               size="sm"
@@ -771,7 +771,7 @@ function AgentOverview({
         {assignedIssues.length === 0 ? (
           <p className="text-sm text-muted-foreground">No assigned tasks.</p>
         ) : (
-          <div className="border border-border rounded-lg">
+          <div className="border border-border/50 rounded-xl">
             {assignedIssues.slice(0, 10).map((issue) => (
               <EntityRow
                 key={issue.id}
@@ -835,7 +835,7 @@ function AgentConfigurePage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-8">
       <ConfigurationTab
         agent={agent}
         onDirtyChange={onDirtyChange}
@@ -944,7 +944,7 @@ function ConfigurationTab({
   }, [onSavingChange, updateAgent.isPending]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <AgentConfigForm
         mode="edit"
         agent={agent}
@@ -960,7 +960,7 @@ function ConfigurationTab({
 
       <div>
         <h3 className="text-sm font-medium mb-3">Permissions</h3>
-        <div className="border border-border rounded-lg p-4">
+        <div className="border border-border/50 rounded-xl p-4">
           <div className="flex items-center justify-between text-sm">
             <span>Can create new agents</span>
             <Button
@@ -995,7 +995,7 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
     <Link
       to={isSelected ? `/agents/${agentId}/runs` : `/agents/${agentId}/runs/${run.id}`}
       className={cn(
-        "flex flex-col gap-1 w-full px-3 py-2.5 text-left border-b border-border last:border-b-0 transition-colors no-underline text-inherit",
+        "flex flex-col gap-1 w-full px-3 py-2.5 text-left border-b border-border/50 last:border-b-0 transition-colors no-underline text-inherit",
         isSelected ? "bg-accent/40" : "hover:bg-accent/20",
       )}
     >
@@ -1075,7 +1075,7 @@ function RunsTab({
       );
     }
     return (
-      <div className="border border-border rounded-lg overflow-x-hidden">
+      <div className="border border-border/50 rounded-xl overflow-x-hidden">
         {sorted.map((run) => (
           <RunListItem key={run.id} run={run} isSelected={false} agentId={agentRouteId} />
         ))}
@@ -1088,7 +1088,7 @@ function RunsTab({
     <div className="flex gap-0">
       {/* Left: run list — border stretches full height, content sticks */}
       <div className={cn(
-        "shrink-0 border border-border rounded-lg",
+        "shrink-0 border border-border/50 rounded-xl",
         selectedRun ? "w-72" : "w-full",
       )}>
         <div className="sticky top-4 overflow-y-auto" style={{ maxHeight: "calc(100vh - 2rem)" }}>
@@ -1240,7 +1240,7 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
       {touchedIssues && touchedIssues.length > 0 && (
         <div className="space-y-1.5">
           <span className="text-sm font-medium text-muted-foreground">Tasks ({touchedIssues.length})</span>
-          <div className="border border-border rounded-lg divide-y divide-border">
+          <div className="border border-border/50 rounded-xl divide-y divide-border/50">
             {touchedIssues.map((issue) => (
               <Link
                 key={issue.issueId}
@@ -1918,7 +1918,7 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
   const revokedKeys = (keys ?? []).filter((k: AgentKey) => k.revokedAt);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* New token banner */}
       {newToken && (
         <div className="border border-yellow-300 dark:border-yellow-600/40 bg-yellow-50 dark:bg-yellow-500/5 rounded-lg p-4 space-y-2">
@@ -1959,7 +1959,7 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
       )}
 
       {/* Create new key */}
-      <div className="border border-border rounded-lg p-4 space-y-3">
+      <div className="border border-border/50 rounded-xl p-4 space-y-3">
         <h3 className="text-xs font-medium text-muted-foreground flex items-center gap-2">
           <Key className="h-3.5 w-3.5" />
           Create API Key
@@ -2000,7 +2000,7 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
           <h3 className="text-xs font-medium text-muted-foreground mb-2">
             Active Keys
           </h3>
-          <div className="border border-border rounded-lg divide-y divide-border">
+          <div className="border border-border/50 rounded-xl divide-y divide-border/50">
             {activeKeys.map((key: AgentKey) => (
               <div key={key.id} className="flex items-center justify-between px-4 py-2.5">
                 <div>
@@ -2030,7 +2030,7 @@ function KeysTab({ agentId, companyId }: { agentId: string; companyId?: string }
           <h3 className="text-xs font-medium text-muted-foreground mb-2">
             Revoked Keys
           </h3>
-          <div className="border border-border rounded-lg divide-y divide-border opacity-50">
+          <div className="border border-border/50 rounded-xl divide-y divide-border/50 opacity-50">
             {revokedKeys.map((key: AgentKey) => (
               <div key={key.id} className="flex items-center justify-between px-4 py-2.5">
                 <div>

@@ -15,6 +15,7 @@ export const companies = pgTable(
     issueCounter: integer("issue_counter").notNull().default(0),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
     spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),
+    platformSpentMonthlyCents: integer("platform_spent_monthly_cents").notNull().default(0),
     requirePlanApproval: boolean("require_plan_approval").notNull().default(true),
     requireHireApproval: boolean("require_hire_approval").notNull().default(true),
     orgChartData: jsonb("org_chart_data"),

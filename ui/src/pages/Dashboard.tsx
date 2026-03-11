@@ -14,7 +14,7 @@ import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
 import { Identity } from "../components/Identity";
 import { timeAgo } from "../lib/timeAgo";
-import { cn, formatCents } from "../lib/utils";
+import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Target, FolderKanban, AlertTriangle, CheckCircle2, Plus, ShieldCheck, CircleDot, Zap } from "lucide-react";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -25,7 +25,7 @@ function ProgressRing({ percent, size = 40, strokeWidth = 3.5, className }: { pe
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.min(Math.max(percent, 0), 100);
   const offset = circumference - (clamped / 100) * circumference;
-  const color = clamped >= 100 ? "stroke-green-500" : clamped >= 50 ? "stroke-blue-500" : "stroke-amber-500";
+  const color = clamped >= 100 ? "stroke-emerald-500" : clamped >= 50 ? "stroke-primary" : "stroke-amber-500";
 
   return (
     <div className={cn("relative inline-flex items-center justify-center shrink-0", className)}>
@@ -74,10 +74,10 @@ function ProgressBar({ percent, className }: { percent: number; className?: stri
 
 function GoalStatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
-    planned: "bg-muted text-muted-foreground",
-    active: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-    achieved: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-    cancelled: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+    planned: "bg-secondary text-secondary-foreground",
+    active: "bg-primary/10 text-primary",
+    achieved: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    cancelled: "bg-destructive/10 text-destructive",
   };
   const labels: Record<string, string> = {
     planned: "Planned",
@@ -120,6 +120,19 @@ function dedupeRunsByTask(runs: LiveRunForIssue[]): LiveRunForIssue[] {
     }
   }
   return [...seen.values(), ...noIssue];
+}
+
+function SectionHeading({ children, subtitle }: { children: React.ReactNode; subtitle?: string }) {
+  return (
+    <div className="mb-3">
+      <h3 className="text-[13px] font-medium text-muted-foreground">
+        {children}
+      </h3>
+      {subtitle && (
+        <p className="text-xs text-muted-foreground/60 mt-0.5">{subtitle}</p>
+      )}
+    </div>
+  );
 }
 
 export function Dashboard() {
@@ -196,18 +209,61 @@ export function Dashboard() {
   const hasNoAgents = agents !== undefined && agents.length === 0;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-semibold">Home</h1>
-        <p className="mt-1 text-sm text-muted-foreground">An overview of your team's progress and recent activity.</p>
+    <div className="space-y-8">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {(() => {
+              const hour = new Date().getHours();
+              if (hour < 12) return "Good morning";
+              if (hour < 17) return "Good afternoon";
+              return "Good evening";
+            })()}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {data ? (
+              currentWork.length > 0 ? (
+                <>
+                  <span className="text-foreground font-medium">{currentWork.length} {currentWork.length === 1 ? "task" : "tasks"}</span> being worked on right now
+                  {data.tasks.blocked > 0 && (
+                    <span className="text-destructive"> &middot; {data.tasks.blocked} stuck</span>
+                  )}
+                </>
+              ) : data.tasks.inProgress > 0 ? (
+                <>
+                  <span className="text-foreground font-medium">{data.tasks.inProgress} {data.tasks.inProgress === 1 ? "task" : "tasks"}</span> in progress
+                  {data.tasks.blocked > 0 && (
+                    <span className="text-destructive"> &middot; {data.tasks.blocked} stuck</span>
+                  )}
+                </>
+              ) : data.tasks.open > 0 ? (
+                <>
+                  <span className="text-foreground font-medium">{data.tasks.open} {data.tasks.open === 1 ? "task" : "tasks"}</span> waiting to be picked up
+                </>
+              ) : data.tasks.done > 0 ? (
+                <>All {data.tasks.done} tasks complete</>
+              ) : (
+                "An overview of your team's progress and recent activity."
+              )
+            ) : (
+              "An overview of your team's progress and recent activity."
+            )}
+          </p>
+        </div>
+        <Button onClick={() => openNewIssue()} className="shrink-0">
+          <Plus className="h-4 w-4" />
+          Create Task
+        </Button>
       </div>
+
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 
       {hasNoAgents && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-500/25 dark:bg-amber-950/60">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200/50 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/30">
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-            <p className="text-sm text-amber-900 dark:text-amber-100">
+            <p className="text-sm text-amber-900 dark:text-amber-200">
               Your team is empty. Add your first team member to start getting work done.
             </p>
           </div>
@@ -220,65 +276,14 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Welcome banner + status summary */}
-      {data && (
-        <div className="rounded-xl border border-border bg-gradient-to-r from-primary/5 via-background to-primary/5 px-6 py-5 animate-fade-up">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground mb-1">
-                {(() => {
-                  const hour = new Date().getHours();
-                  if (hour < 12) return "Good morning!";
-                  if (hour < 17) return "Good afternoon!";
-                  return "Good evening!";
-                })()}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {currentWork.length > 0 ? (
-                  <>
-                    <span className="font-medium text-foreground">{currentWork.length} {currentWork.length === 1 ? "task" : "tasks"}</span> being worked on right now
-                    {data.tasks.blocked > 0 && (
-                      <span className="text-destructive"> &middot; {data.tasks.blocked} stuck</span>
-                    )}
-                  </>
-                ) : data.tasks.inProgress > 0 ? (
-                  <>
-                    <span className="font-medium text-foreground">{data.tasks.inProgress} {data.tasks.inProgress === 1 ? "task" : "tasks"}</span> in progress
-                    {data.tasks.blocked > 0 && (
-                      <span className="text-destructive"> &middot; {data.tasks.blocked} stuck</span>
-                    )}
-                  </>
-                ) : data.tasks.open > 0 ? (
-                  <>
-                    <span className="font-medium text-foreground">{data.tasks.open} {data.tasks.open === 1 ? "task" : "tasks"}</span> waiting to be picked up
-                  </>
-                ) : data.tasks.done > 0 ? (
-                  <>All <span className="font-medium text-foreground">{data.tasks.done} tasks</span> are complete</>
-                ) : (
-                  <>No tasks yet &mdash; create one to get started</>
-                )}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              className="shrink-0"
-              onClick={() => openNewIssue()}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Create Task
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Pending Approvals alert */}
+      {/* Pending Approvals */}
       {data && data.pendingApprovals > 0 && (
         <Link
           to="/approvals"
-          className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 hover:bg-amber-100/80 transition-colors no-underline text-inherit dark:border-amber-500/25 dark:bg-amber-950/40 dark:hover:bg-amber-950/60"
+          className="flex items-center gap-3 rounded-lg border border-amber-200/50 bg-amber-50/50 px-4 py-3 hover:bg-amber-50 transition-colors no-underline text-inherit dark:border-amber-500/20 dark:bg-amber-950/30 dark:hover:bg-amber-950/50"
         >
           <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-900 dark:text-amber-100 flex-1">
+          <p className="text-sm text-amber-900 dark:text-amber-200 flex-1">
             <span className="font-medium">{data.pendingApprovals}</span> {data.pendingApprovals === 1 ? "request" : "requests"} waiting for your review
           </p>
           <span className="text-xs text-amber-700 dark:text-amber-300 font-medium shrink-0">Review &rarr;</span>
@@ -287,12 +292,9 @@ export function Dashboard() {
 
       {/* Currently Working On */}
       <div>
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-          <Zap className="h-3.5 w-3.5" />
-          Currently Working On
-        </h3>
+        <SectionHeading subtitle="Tasks agents are actively executing">Currently working on</SectionHeading>
         {currentWork.length > 0 ? (
-          <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
+          <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
             {currentWork.map((run) => {
               const issue = run.issueId ? issueById.get(run.issueId) : undefined;
               const isActive = run.status === "running" || run.status === "queued";
@@ -300,16 +302,16 @@ export function Dashboard() {
                 <Link
                   key={run.id}
                   to={issue ? `/issues/${issue.identifier ?? run.issueId}` : `/agents/${run.agentId}/runs/${run.id}`}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors no-underline text-inherit"
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-accent/40 transition-colors no-underline text-inherit"
                 >
                   {isActive ? (
                     <span className="relative flex h-2 w-2 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                     </span>
                   ) : (
                     <span className="flex h-2 w-2 shrink-0">
-                      <span className="inline-flex rounded-full h-2 w-2 bg-muted-foreground/40" />
+                      <span className="inline-flex rounded-full h-2 w-2 bg-muted-foreground/30" />
                     </span>
                   )}
                   <div className="flex-1 min-w-0">
@@ -317,7 +319,7 @@ export function Dashboard() {
                       {issue ? (
                         <>
                           <span className="text-muted-foreground">{issue.identifier}</span>
-                          <span className="mx-1.5 text-muted-foreground/50">&middot;</span>
+                          <span className="mx-1.5 text-border">&middot;</span>
                           {issue.title}
                         </>
                       ) : (
@@ -331,7 +333,7 @@ export function Dashboard() {
             })}
           </div>
         ) : (
-          <div className="border border-border rounded-lg">
+          <div className="rounded-xl border border-border/50">
             <EmptyState
               icon={Zap}
               message="No tasks are being worked on right now. Create a task and your team will pick it up automatically."
@@ -343,21 +345,18 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* Goals & Projects Progress */}
+      {/* Goals & Projects */}
       {data && (
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-              <Target className="h-3.5 w-3.5" />
-              Goals
-            </h3>
+            <SectionHeading subtitle="Progress toward your objectives">Goals</SectionHeading>
             {data.goals.length > 0 ? (
-              <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
+              <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
                 {data.goals.map((goal: GoalProgress) => (
                   <Link
                     key={goal.goalId}
                     to={`/goals/${goal.goalId}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors no-underline text-inherit"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent/40 transition-colors no-underline text-inherit"
                   >
                     <ProgressRing percent={goal.completionPercent} size={42} />
                     <div className="flex-1 min-w-0">
@@ -377,7 +376,7 @@ export function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="border border-border rounded-lg">
+              <div className="rounded-xl border border-border/50">
                 <EmptyState
                   icon={Target}
                   message="No goals yet. Goals help track high-level objectives across projects."
@@ -388,17 +387,14 @@ export function Dashboard() {
           </div>
 
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-              <FolderKanban className="h-3.5 w-3.5" />
-              Projects
-            </h3>
+            <SectionHeading subtitle="Active projects and their task progress">Projects</SectionHeading>
             {data.projects.length > 0 ? (
-              <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
+              <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
                 {data.projects.map((project: ProjectProgress) => (
                   <Link
                     key={project.projectId}
                     to={`/projects/${project.projectId}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors no-underline text-inherit"
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-accent/40 transition-colors no-underline text-inherit"
                   >
                     <ProgressRing percent={project.completionPercent} size={42} />
                     <div className="flex-1 min-w-0">
@@ -418,7 +414,7 @@ export function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="border border-border rounded-lg">
+              <div className="rounded-xl border border-border/50">
                 <EmptyState
                   icon={FolderKanban}
                   message="No projects yet. Projects group related tasks together."
@@ -430,35 +426,28 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Recently Completed + Recent Tasks side by side */}
-      <div className="grid md:grid-cols-2 gap-4">
+      {/* Recently Completed + Recent Tasks */}
+      <div className="grid md:grid-cols-2 gap-6">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Recently Completed
-          </h3>
+          <SectionHeading subtitle="Tasks finished by your team">Recently completed</SectionHeading>
           {completedIssues.length > 0 ? (
-            <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
+            <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
               {completedIssues.map((issue) => (
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="px-4 py-2 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent/40 transition-colors no-underline text-inherit"
                 >
-                  <div className="flex gap-3">
-                    <div className="flex items-start gap-2 min-w-0 flex-1">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
-                      <p className="min-w-0 flex-1 truncate">{issue.title}</p>
-                    </div>
-                    <span className="text-xs text-muted-foreground shrink-0 pt-0.5">
-                      {timeAgo(issue.updatedAt)}
-                    </span>
-                  </div>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{issue.title}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {timeAgo(issue.updatedAt)}
+                  </span>
                 </Link>
               ))}
             </div>
           ) : (
-            <div className="border border-border rounded-lg">
+            <div className="rounded-xl border border-border/50">
               <EmptyState
                 icon={CheckCircle2}
                 message="No completed tasks yet. Tasks will appear here once finished."
@@ -469,12 +458,9 @@ export function Dashboard() {
         </div>
 
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-            <CircleDot className="h-3.5 w-3.5" />
-            Recent Tasks
-          </h3>
+          <SectionHeading subtitle="Latest tasks across your workspace">Recent tasks</SectionHeading>
           {recentIssues.length === 0 ? (
-            <div className="border border-border rounded-lg">
+            <div className="rounded-xl border border-border/50">
               <EmptyState
                 icon={CircleDot}
                 message="No tasks yet. Create your first task to get things moving."
@@ -484,33 +470,29 @@ export function Dashboard() {
               />
             </div>
           ) : (
-            <div className="border border-border divide-y divide-border rounded-lg overflow-hidden stagger-children">
+            <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
               {recentIssues.slice(0, 10).map((issue) => (
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="px-4 py-2 text-sm cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit block"
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent/40 transition-colors no-underline text-inherit"
                 >
-                  <div className="flex gap-3">
-                    <div className="flex items-start gap-2 min-w-0 flex-1">
-                      <div className="flex items-center gap-2 shrink-0 mt-0.5">
-                        <PriorityIcon priority={issue.priority} />
-                        <StatusIcon status={issue.status} />
-                      </div>
-                      <p className="min-w-0 flex-1 truncate">
-                        <span>{issue.title}</span>
-                        {issue.assigneeAgentId && (() => {
-                          const name = agentName(issue.assigneeAgentId);
-                          return name
-                            ? <span className="hidden sm:inline"><Identity name={name} size="sm" className="ml-2 inline-flex" /></span>
-                            : null;
-                        })()}
-                      </p>
-                    </div>
-                    <span className="text-xs text-muted-foreground shrink-0 pt-0.5">
-                      {timeAgo(issue.updatedAt)}
-                    </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <PriorityIcon priority={issue.priority} />
+                    <StatusIcon status={issue.status} />
                   </div>
+                  <span className="min-w-0 flex-1 truncate">
+                    {issue.title}
+                  </span>
+                  {issue.assigneeAgentId && (() => {
+                    const name = agentName(issue.assigneeAgentId);
+                    return name
+                      ? <Identity name={name} size="sm" className="hidden sm:inline-flex shrink-0" />
+                      : null;
+                  })()}
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {timeAgo(issue.updatedAt)}
+                  </span>
                 </Link>
               ))}
             </div>

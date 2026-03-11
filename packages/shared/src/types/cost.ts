@@ -10,7 +10,7 @@ export interface CostEvent {
   model: string;
   inputTokens: number;
   outputTokens: number;
-  costCents: number;
+  /** Platform cost with markup applied. Raw LLM cost is internal only. */
   platformCostCents: number;
   occurredAt: Date;
   createdAt: Date;
@@ -18,7 +18,6 @@ export interface CostEvent {
 
 export interface CostSummary {
   companyId: string;
-  spendCents: number;
   platformSpendCents: number;
   budgetCents: number;
   utilizationPercent: number;
@@ -28,7 +27,6 @@ export interface CostByAgent {
   agentId: string;
   agentName: string | null;
   agentStatus: string | null;
-  costCents: number;
   platformCostCents: number;
   inputTokens: number;
   outputTokens: number;
@@ -41,7 +39,6 @@ export interface CostByAgent {
 export interface CostByProject {
   projectId: string;
   projectName: string;
-  costCents: number;
   platformCostCents: number;
   inputTokens: number;
   outputTokens: number;
@@ -66,6 +63,7 @@ export interface BillingInfo {
   markupBasisPoints: number;
   billingEmail: string;
   stripeCustomerId: string | null;
+  /** Platform cost (with markup applied). */
   usedCostCents: number;
   platformCostCents: number;
 }

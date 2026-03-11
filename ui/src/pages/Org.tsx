@@ -8,7 +8,9 @@ import { queryKeys } from "../lib/queryKeys";
 import { StatusBadge } from "../components/StatusBadge";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { ChevronRight, GitBranch } from "lucide-react";
+import { RolesPanel } from "../components/RolesPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronRight, GitBranch, Shield } from "lucide-react";
 import { cn } from "../lib/utils";
 
 function OrgTree({
@@ -45,7 +47,7 @@ function OrgTreeNode({
     <div>
       <Link
         to={hrefFn(node.id)}
-        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer hover:bg-accent/50 no-underline text-inherit"
+        className="flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors cursor-pointer hover:bg-accent/40 no-underline text-inherit"
         style={{ paddingLeft: `${depth * 16 + 12}px` }}
       >
         {hasChildren ? (
@@ -107,30 +109,45 @@ export function Org() {
     return <EmptyState icon={GitBranch} message="Select a company to view org chart." />;
   }
 
-  if (isLoading) {
-    return <PageSkeleton variant="list" />;
-  }
-
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-lg font-semibold">Org Chart</h1>
-        <p className="mt-1 text-sm text-muted-foreground">See how your agents are structured and who reports to whom.</p>
+        <h1 className="text-lg font-semibold">Organization</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Manage your agent org chart and define roles.</p>
       </div>
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
 
-      {data && data.length === 0 && (
-        <EmptyState
-          icon={GitBranch}
-          message="No agents in the organization. Create agents to build your org chart."
-        />
-      )}
+      <Tabs defaultValue="chart">
+        <TabsList>
+          <TabsTrigger value="chart">
+            <GitBranch className="h-3.5 w-3.5 mr-1.5" />
+            Org Chart
+          </TabsTrigger>
+          <TabsTrigger value="roles">
+            <Shield className="h-3.5 w-3.5 mr-1.5" />
+            Roles
+          </TabsTrigger>
+        </TabsList>
 
-      {data && data.length > 0 && (
-        <div className="border border-border py-1">
-          <OrgTree nodes={data} hrefFn={(id) => `/agents/${id}`} />
-        </div>
-      )}
+        <TabsContent value="chart" className="mt-4">
+          {error && <p className="text-sm text-destructive">{error.message}</p>}
+          {isLoading && <PageSkeleton variant="list" />}
+          {data && data.length === 0 && (
+            <EmptyState
+              icon={GitBranch}
+              message="No agents in the organization. Create agents to build your org chart."
+            />
+          )}
+          {data && data.length > 0 && (
+            <div className="border border-border/50 py-1">
+              <OrgTree nodes={data} hrefFn={(id) => `/agents/${id}`} />
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="roles" className="mt-4">
+          <RolesPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

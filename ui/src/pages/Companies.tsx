@@ -88,7 +88,7 @@ export function Companies() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-end">
         <Button size="sm" onClick={() => openOnboarding()}>
           <Plus className="h-3.5 w-3.5 mr-1.5" />
@@ -112,7 +112,7 @@ export function Companies() {
           const budgetPct =
             company.budgetMonthlyCents > 0
               ? Math.round(
-                  (company.spentMonthlyCents / company.budgetMonthlyCents) * 100,
+                  (company.platformSpentMonthlyCents / company.budgetMonthlyCents) * 100,
                 )
               : 0;
 
@@ -247,7 +247,7 @@ export function Companies() {
                 <div className="flex items-center gap-1.5">
                   <DollarSign className="h-3.5 w-3.5" />
                   <span>
-                    {formatCents(company.spentMonthlyCents)}
+                    {formatCents(company.platformSpentMonthlyCents)}
                     {company.budgetMonthlyCents > 0
                       ? <> / {formatCents(company.budgetMonthlyCents)} <span className="text-xs">({budgetPct}%)</span></>
                       : <span className="text-xs ml-1">Unlimited budget</span>}

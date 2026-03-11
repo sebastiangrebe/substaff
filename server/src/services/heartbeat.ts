@@ -13,7 +13,9 @@ import {
   costEvents,
   issues,
   projectWorkspaces,
+  vendors,
 } from "@substaff/db";
+import { ACTIVE_HEARTBEAT_RUN_STATUSES } from "@substaff/shared";
 import { conflict, notFound } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { publishLiveEvent } from "./live-events.js";
@@ -924,7 +926,7 @@ export function heartbeatService(db: Db) {
     const activeRuns = await db
       .select()
       .from(heartbeatRuns)
-      .where(inArray(heartbeatRuns.status, ["queued", "running"]));
+      .where(inArray(heartbeatRuns.status, [...ACTIVE_HEARTBEAT_RUN_STATUSES]));
 
     const reaped: string[] = [];
     const resumed: string[] = [];
@@ -1112,10 +1114,20 @@ export function heartbeatService(db: Db) {
       // Fallback: if queue is unavailable, do inline budget update
       if (!enqueued) {
         if (additionalCostCents > 0) {
+          // Look up vendor markup for platform cost calculation
+          const [vendorRow] = await db
+            .select({ markupBasisPoints: vendors.markupBasisPoints })
+            .from(vendors)
+            .where(eq(vendors.id, vendorId));
+          const platformCost = Math.round(
+            (additionalCostCents * (vendorRow?.markupBasisPoints ?? 15000)) / 10000,
+          );
+
           await db
             .update(agents)
             .set({
               spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${additionalCostCents}`,
+              platformSpentMonthlyCents: sql`${agents.platformSpentMonthlyCents} + ${platformCost}`,
               updatedAt: new Date(),
             })
             .where(eq(agents.id, agent.id));
@@ -1973,7 +1985,7 @@ export function heartbeatService(db: Db) {
             .where(
               and(
                 eq(heartbeatRuns.companyId, issue.companyId),
-                inArray(heartbeatRuns.status, ["queued", "running"]),
+                inArray(heartbeatRuns.status, [...ACTIVE_HEARTBEAT_RUN_STATUSES]),
                 sql`${heartbeatRuns.contextSnapshot} ->> 'issueId' = ${issue.id}`,
               ),
             )
@@ -2192,7 +2204,7 @@ export function heartbeatService(db: Db) {
     const activeRuns = await db
       .select()
       .from(heartbeatRuns)
-      .where(and(eq(heartbeatRuns.agentId, agentId), inArray(heartbeatRuns.status, ["queued", "running"])))
+      .where(and(eq(heartbeatRuns.agentId, agentId), inArray(heartbeatRuns.status, [...ACTIVE_HEARTBEAT_RUN_STATUSES])))
       .orderBy(desc(heartbeatRuns.createdAt));
 
     const sameScopeQueuedRun = activeRuns.find(
@@ -2525,7 +2537,7 @@ export function heartbeatService(db: Db) {
       const runs = await db
         .select()
         .from(heartbeatRuns)
-        .where(and(eq(heartbeatRuns.agentId, agentId), inArray(heartbeatRuns.status, ["queued", "running"])));
+        .where(and(eq(heartbeatRuns.agentId, agentId), inArray(heartbeatRuns.status, [...ACTIVE_HEARTBEAT_RUN_STATUSES])));
 
       for (const run of runs) {
         await setRunStatus(run.id, "cancelled", {

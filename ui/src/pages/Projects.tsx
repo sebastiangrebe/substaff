@@ -13,6 +13,8 @@ import { EmptyState } from "../components/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
 import { Identity } from "../components/Identity";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { ListPreviewLayout } from "../components/ListPreviewLayout";
+import { ProjectPreview } from "../components/ProjectPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -200,12 +202,62 @@ export function Projects() {
       .map((s) => ({ key: s, label: statusLabel(s), items: groups[s]! }));
   }, [filtered, viewState.groupBy]);
 
+  // Preview panel state — always show a preview, falling back to first project
+  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null);
+  const [previewLocked, setPreviewLocked] = useState(false);
+  const firstProjectId = filtered[0]?.id ?? null;
+  const activePreviewId = hoveredProjectId ?? firstProjectId;
+  const activeProject = useMemo(() => {
+    if (!activePreviewId) return null;
+    return visibleProjects.find((p) => p.id === activePreviewId) ?? null;
+  }, [visibleProjects, activePreviewId]);
+
+  const previewContent = activeProject ? (
+    <ProjectPreview project={activeProject} agentName={agentName} />
+  ) : null;
+
+  const handleRowHover = useCallback((projectId: string | null) => {
+    if (!previewLocked && projectId) setHoveredProjectId(projectId);
+    if (projectId) {
+      const p = projects?.find((x) => x.id === projectId);
+      if (p) queryClient.setQueryData(
+        [...queryKeys.projects.detail(p.urlKey || p.id), selectedCompanyId ?? null],
+        p,
+      );
+    }
+  }, [previewLocked, projects, queryClient, selectedCompanyId]);
+
+  const handlePreviewClose = useCallback(() => {
+    setHoveredProjectId(null);
+    setPreviewLocked(false);
+  }, []);
+
+  const hoveredProjectRef = useRef(activeProject);
+  if (activeProject) hoveredProjectRef.current = activeProject;
+
+  const seedDetailCache = useCallback(() => {
+    const p = hoveredProjectRef.current;
+    if (!p) return;
+    queryClient.setQueryData(
+      [...queryKeys.projects.detail(p.urlKey || p.id), selectedCompanyId ?? null],
+      p,
+    );
+  }, [queryClient, selectedCompanyId]);
+
   if (!selectedCompanyId) {
     return <EmptyState icon={Hexagon} message="Select a workspace to view projects." />;
   }
 
   return (
-    <div className="space-y-4">
+    <ListPreviewLayout
+      previewContent={previewContent}
+      previewKey={activePreviewId}
+      detailUrl={activeProject ? `${projectUrl(activeProject)}/issues` : null}
+      onBeforeNavigate={seedDetailCache}
+      onPreviewClose={handlePreviewClose}
+      alwaysOpen
+    >
+    <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">Projects</h1>
         <p className="mt-1 text-sm text-muted-foreground">Organize work into projects with deadlines and owners.</p>
@@ -294,7 +346,7 @@ export function Projects() {
                   <span className="text-xs text-muted-foreground">Status</span>
                   <div className="space-y-0.5">
                     {projectStatusOrder.map((s) => (
-                      <label key={s} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
+                      <label key={s} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/40 cursor-pointer">
                         <Checkbox
                           checked={viewState.statuses.includes(s)}
                           onCheckedChange={() => updateView({ statuses: toggleInArray(viewState.statuses, s) })}
@@ -328,7 +380,7 @@ export function Projects() {
                   <button
                     key={field}
                     className={`flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-sm ${
-                      viewState.sortField === field ? "bg-accent/50 text-foreground" : "hover:bg-accent/50 text-muted-foreground"
+                      viewState.sortField === field ? "bg-accent/50 text-foreground" : "hover:bg-accent/40 text-muted-foreground"
                     }`}
                     onClick={() => {
                       if (viewState.sortField === field) {
@@ -367,7 +419,7 @@ export function Projects() {
                   <button
                     key={value}
                     className={`flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-sm ${
-                      viewState.groupBy === value ? "bg-accent/50 text-foreground" : "hover:bg-accent/50 text-muted-foreground"
+                      viewState.groupBy === value ? "bg-accent/50 text-foreground" : "hover:bg-accent/40 text-muted-foreground"
                     }`}
                     onClick={() => updateView({ groupBy: value })}
                   >
@@ -428,18 +480,25 @@ export function Projects() {
               {group.items.map((project) => (
                 <Link
                   key={project.id}
-                  to={projectUrl(project)}
+                  to={`${projectUrl(project)}/issues`}
+                  viewTransition
                   className={cn(
-                    "flex items-center gap-2 py-2 pr-3 text-sm border-b border-border last:border-b-0 cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit",
-                    viewState.groupBy !== "none" ? "pl-1" : "pl-3"
+                    "flex items-center gap-2 py-2 pr-3 text-sm border-b border-border/50 last:border-b-0 cursor-pointer hover:bg-accent/40 transition-colors no-underline text-inherit",
+                    viewState.groupBy !== "none" ? "pl-1" : "pl-3",
+                    activePreviewId === project.id && "bg-accent/30",
                   )}
+                  onMouseEnter={() => handleRowHover(project.id)}
+                  onMouseLeave={() => handleRowHover(null)}
                 >
                   {viewState.groupBy !== "none" && <div className="w-3.5 shrink-0 hidden sm:block" />}
                   <span
                     className="shrink-0 h-3.5 w-3.5 rounded-sm"
                     style={{ backgroundColor: project.color ?? "#6366f1" }}
                   />
-                  <span className="truncate flex-1 min-w-0">{project.name}</span>
+                  <span
+                    className="truncate flex-1 min-w-0"
+                    style={{ viewTransitionName: `entity-title-${project.id}` } as React.CSSProperties}
+                  >{project.name}</span>
                   {project.description && (
                     <span className="hidden lg:inline text-xs text-muted-foreground truncate max-w-[200px]">
                       {project.description}
@@ -456,7 +515,9 @@ export function Projects() {
                         {formatDate(project.targetDate)}
                       </span>
                     )}
-                    <StatusBadge status={project.status} />
+                    <span style={{ viewTransitionName: `entity-status-${project.id}` } as React.CSSProperties}>
+                      <StatusBadge status={project.status} />
+                    </span>
                   </div>
                 </Link>
               ))}
@@ -465,5 +526,6 @@ export function Projects() {
         ))
       }
     </div>
+    </ListPreviewLayout>
   );
 }

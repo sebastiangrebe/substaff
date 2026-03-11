@@ -111,11 +111,12 @@ export function stripeService(db: Db) {
           ),
         );
 
+      const monthlyPlatformCostCents = Number(usage?.totalPlatformCostCents ?? 0);
       return {
         creditBalanceCents: vendor.creditBalanceCents,
         markupBasisPoints: vendor.markupBasisPoints,
-        monthlyLlmCostCents: Number(usage?.totalCostCents ?? 0),
-        monthlyPlatformCostCents: Number(usage?.totalPlatformCostCents ?? 0),
+        monthlyLlmCostCents: monthlyPlatformCostCents,
+        monthlyPlatformCostCents,
         monthlyTokens: Number(usage?.totalTokens ?? 0),
       };
     },

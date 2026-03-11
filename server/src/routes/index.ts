@@ -19,3 +19,4 @@ export { fileRoutes } from "./files.js";
 export { knowledgeRoutes } from "./knowledge.js";
 export { integrationRoutes } from "./integrations.js";
 export { integrationOAuthRoutes } from "./integration-oauth.js";
+export { companyRoleRoutes } from "./company-roles.js";

@@ -17,14 +17,12 @@ import {
   projects,
   taskPlans,
 } from "@substaff/db";
-import { extractProjectMentionIds } from "@substaff/shared";
+import { extractProjectMentionIds, ISSUE_STATUSES, ISSUE_PRIORITIES, ACTIVE_HEARTBEAT_RUN_STATUSES, TERMINAL_HEARTBEAT_RUN_STATUSES } from "@substaff/shared";
 import { conflict, notFound, unprocessable } from "../errors.js";
-
-const ALL_ISSUE_STATUSES = ["backlog", "todo", "in_progress", "in_review", "blocked", "done", "cancelled"];
 
 function assertTransition(from: string, to: string) {
   if (from === to) return;
-  if (!ALL_ISSUE_STATUSES.includes(to)) {
+  if (!(ISSUE_STATUSES as readonly string[]).includes(to)) {
     throw conflict(`Unknown issue status: ${to}`);
   }
 }
@@ -76,7 +74,7 @@ function sameRunLock(checkoutRunId: string | null, actorRunId: string | null) {
   return checkoutRunId == null;
 }
 
-const TERMINAL_HEARTBEAT_RUN_STATUSES = new Set(["succeeded", "failed", "cancelled", "timed_out"]);
+const TERMINAL_HEARTBEAT_RUN_STATUSES_SET = new Set<string>(TERMINAL_HEARTBEAT_RUN_STATUSES);
 
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&");
@@ -116,7 +114,7 @@ async function withIssueLabels(dbOrTx: any, rows: IssueRow[]): Promise<IssueWith
   });
 }
 
-const ACTIVE_RUN_STATUSES = ["queued", "running"];
+const ACTIVE_RUN_STATUSES = [...ACTIVE_HEARTBEAT_RUN_STATUSES];
 
 async function activeRunMapForIssues(
   dbOrTx: any,
@@ -242,7 +240,7 @@ export function issueService(db: Db) {
       .where(eq(heartbeatRuns.id, runId))
       .then((rows) => rows[0] ?? null);
     if (!run) return true;
-    return TERMINAL_HEARTBEAT_RUN_STATUSES.has(run.status);
+    return TERMINAL_HEARTBEAT_RUN_STATUSES_SET.has(run.status);
   }
 
   async function adoptStaleCheckoutRun(input: {
@@ -336,7 +334,8 @@ export function issueService(db: Db) {
       }
       conditions.push(isNull(issues.hiddenAt));
 
-      const priorityOrder = sql`CASE ${issues.priority} WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END`;
+      const priorityCaseSql = sql.raw(ISSUE_PRIORITIES.map((p, i) => `WHEN '${p}' THEN ${i}`).join(" "));
+      const priorityOrder = sql`CASE ${issues.priority} ${priorityCaseSql} ELSE ${ISSUE_PRIORITIES.length} END`;
       const searchOrder = sql<number>`
         CASE
           WHEN ${titleStartsWithMatch} THEN 0

@@ -2,11 +2,10 @@ import { Router } from "express";
 import type { Db } from "@substaff/db";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { issues, joinRequests } from "@substaff/db";
+import { OPEN_ISSUE_STATUSES } from "@substaff/shared";
 import { sidebarBadgeService } from "../services/sidebar-badges.js";
 import { accessService } from "../services/access.js";
 import { assertCompanyAccess } from "./authz.js";
-
-const INBOX_ISSUE_STATUSES = ["backlog", "todo", "in_progress", "in_review", "blocked"] as const;
 
 export function sidebarBadgeRoutes(db: Db) {
   const router = Router();
@@ -42,7 +41,7 @@ export function sidebarBadgeRoutes(db: Db) {
             and(
               eq(issues.companyId, companyId),
               eq(issues.assigneeUserId, req.actor.userId),
-              inArray(issues.status, [...INBOX_ISSUE_STATUSES]),
+              inArray(issues.status, [...OPEN_ISSUE_STATUSES]),
               isNull(issues.hiddenAt),
             ),
           )

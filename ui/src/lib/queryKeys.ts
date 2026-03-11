@@ -84,6 +84,9 @@ export const queryKeys = {
   },
   orgChart: (companyId: string) => ["org-chart", companyId] as const,
   files: (companyId: string, prefix: string) => ["files", companyId, prefix] as const,
+  roles: {
+    list: (companyId: string) => ["roles", companyId] as const,
+  },
   integrations: {
     definitions: (companyId: string) => ["integrations", "definitions", companyId] as const,
     list: (companyId: string) => ["integrations", companyId] as const,

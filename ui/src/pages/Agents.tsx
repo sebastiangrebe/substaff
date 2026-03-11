@@ -117,7 +117,7 @@ export function Agents() {
   const filteredOrg = filterOrgTree(orgTree ?? [], tab, showTerminated);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">Team</h1>
         <p className="mt-1 text-sm text-muted-foreground">Your AI agents and their current status.</p>
@@ -141,7 +141,7 @@ export function Agents() {
             <button
               className={cn(
                 "flex items-center gap-1.5 px-2 py-1.5 text-xs transition-colors border border-border",
-                filtersOpen || showTerminated ? "text-foreground bg-accent" : "text-muted-foreground hover:bg-accent/50"
+                filtersOpen || showTerminated ? "text-foreground bg-accent" : "text-muted-foreground hover:bg-accent/40"
               )}
               onClick={() => setFiltersOpen(!filtersOpen)}
             >
@@ -152,7 +152,7 @@ export function Agents() {
             {filtersOpen && (
               <div className="absolute right-0 top-full mt-1 z-50 w-48 border border-border bg-popover shadow-md p-1">
                 <button
-                  className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-left hover:bg-accent/50 transition-colors"
+                  className="flex items-center gap-2 w-full px-2 py-1.5 text-xs text-left hover:bg-accent/40 transition-colors"
                   onClick={() => setShowTerminated(!showTerminated)}
                 >
                   <span className={cn(
@@ -168,11 +168,11 @@ export function Agents() {
           </div>
           {/* View toggle */}
           {!forceListView && (
-            <div className="flex items-center border border-border rounded-lg overflow-hidden">
+            <div className="flex items-center border border-border/50 rounded-xl overflow-hidden">
               <button
                 className={cn(
                   "p-1.5 transition-colors",
-                  effectiveView === "list" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
+                  effectiveView === "list" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/40"
                 )}
                 onClick={() => setView("list")}
               >
@@ -181,7 +181,7 @@ export function Agents() {
               <button
                 className={cn(
                   "p-1.5 transition-colors",
-                  effectiveView === "org" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50"
+                  effectiveView === "org" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/40"
                 )}
                 onClick={() => setView("org")}
               >
@@ -213,7 +213,7 @@ export function Agents() {
 
       {/* List view */}
       {effectiveView === "list" && filtered.length > 0 && (
-        <div className="border border-border rounded-xl overflow-hidden stagger-children">
+        <div className="border border-border/50 rounded-xl overflow-hidden stagger-children">
           {filtered.map((agent) => {
             return (
               <EntityRow
@@ -269,7 +269,7 @@ export function Agents() {
 
       {/* Org chart view */}
       {effectiveView === "org" && filteredOrg.length > 0 && (
-        <div className="border border-border rounded-xl overflow-hidden py-1">
+        <div className="border border-border/50 rounded-xl overflow-hidden py-1">
           {filteredOrg.map((node) => (
             <OrgTreeNode key={node.id} node={node} depth={0} agentMap={agentMap} liveRunByAgent={liveRunByAgent} />
           ))}

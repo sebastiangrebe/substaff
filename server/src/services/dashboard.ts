@@ -78,7 +78,7 @@ export function dashboardService(db: Db) {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const [{ monthSpend }] = await db
         .select({
-          monthSpend: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
+          monthSpend: sql<number>`coalesce(sum(${costEvents.platformCostCents}), 0)::int`,
         })
         .from(costEvents)
         .where(

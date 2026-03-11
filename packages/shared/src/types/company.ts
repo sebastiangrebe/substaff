@@ -9,7 +9,8 @@ export interface Company {
   issuePrefix: string;
   issueCounter: number;
   budgetMonthlyCents: number;
-  spentMonthlyCents: number;
+  /** Platform cost with markup applied. Raw LLM cost is internal only. */
+  platformSpentMonthlyCents: number;
   requirePlanApproval: boolean;
   requireHireApproval: boolean;
   orgChartData: unknown;

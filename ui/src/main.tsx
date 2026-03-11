@@ -1,8 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "@/lib/router";
+import { RouterProvider } from "react-router-dom";
 import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { App } from "./App";
+import { routes } from "./App";
+import { createAppRouter } from "./lib/router";
 import { CompanyProvider } from "./context/CompanyContext";
 import { LiveUpdatesProvider } from "./context/LiveUpdatesProvider";
 import { BreadcrumbProvider } from "./context/BreadcrumbContext";
@@ -13,6 +14,7 @@ import { ToastProvider } from "./context/ToastContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BudgetExhaustedListener } from "./components/BudgetExhaustedListener";
+import { AppErrorBoundary } from "./components/ErrorBoundary";
 import { ApiError } from "./api/client";
 import "@mdxeditor/editor/style.css";
 import "./index.css";
@@ -37,6 +39,8 @@ const queryClient = new QueryClient({
   }),
 });
 
+const router = createAppRouter(routes);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -45,19 +49,19 @@ createRoot(document.getElementById("root")!).render(
           <ToastProvider>
             <BudgetExhaustedListener />
             <LiveUpdatesProvider>
-              <BrowserRouter>
-                <TooltipProvider>
-                  <BreadcrumbProvider>
-                    <PanelProvider>
-                      <DialogProvider>
-                        <TourProvider>
-                          <App />
-                        </TourProvider>
-                      </DialogProvider>
-                    </PanelProvider>
-                  </BreadcrumbProvider>
-                </TooltipProvider>
-              </BrowserRouter>
+              <TooltipProvider>
+                <BreadcrumbProvider>
+                  <PanelProvider>
+                    <DialogProvider>
+                      <TourProvider>
+                        <AppErrorBoundary>
+                          <RouterProvider router={router} />
+                        </AppErrorBoundary>
+                      </TourProvider>
+                    </DialogProvider>
+                  </PanelProvider>
+                </BreadcrumbProvider>
+              </TooltipProvider>
             </LiveUpdatesProvider>
           </ToastProvider>
         </CompanyProvider>

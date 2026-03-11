@@ -1,10 +1,7 @@
 import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { agents, approvals, heartbeatRuns, issues, taskPlans } from "@substaff/db";
-import type { SidebarBadges } from "@substaff/shared";
-
-const ACTIONABLE_APPROVAL_STATUSES = ["pending", "revision_requested"];
-const FAILED_HEARTBEAT_STATUSES = ["failed", "timed_out"];
+import { ACTIONABLE_APPROVAL_STATUSES, FAILED_HEARTBEAT_RUN_STATUSES, type SidebarBadges } from "@substaff/shared";
 
 export function sidebarBadgeService(db: Db) {
   return {
@@ -18,7 +15,7 @@ export function sidebarBadgeService(db: Db) {
         .where(
           and(
             eq(approvals.companyId, companyId),
-            inArray(approvals.status, ACTIONABLE_APPROVAL_STATUSES),
+            inArray(approvals.status, [...ACTIONABLE_APPROVAL_STATUSES]),
           ),
         )
         .then((rows) => Number(rows[0]?.count ?? 0));
@@ -39,7 +36,7 @@ export function sidebarBadgeService(db: Db) {
         .orderBy(heartbeatRuns.agentId, desc(heartbeatRuns.createdAt));
 
       const failedRuns = latestRunByAgent.filter((row) =>
-        FAILED_HEARTBEAT_STATUSES.includes(row.runStatus),
+        (FAILED_HEARTBEAT_RUN_STATUSES as readonly string[]).includes(row.runStatus),
       ).length;
 
       const pendingPlans = await db

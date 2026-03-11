@@ -94,11 +94,12 @@ export function createCostProcessingWorker(redisUrl: string, db: Db) {
         description: `Agent run cost (${rawCostCents}¢ LLM × markup → ${platformCostCents}¢)`,
       });
 
-      // 6. Increment agent and company monthly spend (raw LLM cost for budget tracking)
+      // 6. Increment agent and company monthly spend (raw for internal budget, platform for user-facing)
       await db
         .update(agents)
         .set({
           spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${rawCostCents}`,
+          platformSpentMonthlyCents: sql`${agents.platformSpentMonthlyCents} + ${platformCostCents}`,
           updatedAt: new Date(),
         })
         .where(eq(agents.id, agentId));
@@ -107,6 +108,7 @@ export function createCostProcessingWorker(redisUrl: string, db: Db) {
         .update(companies)
         .set({
           spentMonthlyCents: sql`${companies.spentMonthlyCents} + ${rawCostCents}`,
+          platformSpentMonthlyCents: sql`${companies.platformSpentMonthlyCents} + ${platformCostCents}`,
           updatedAt: new Date(),
         })
         .where(eq(companies.id, companyId));

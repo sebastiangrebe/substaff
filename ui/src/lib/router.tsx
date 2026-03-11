@@ -74,3 +74,8 @@ export function useNavigate(): ReturnType<typeof RouterDom.useNavigate> {
     [navigate, companyPrefix],
   );
 }
+
+/** Create the data router with view transition support */
+export function createAppRouter(routes: RouterDom.RouteObject[]) {
+  return RouterDom.createBrowserRouter(routes);
+}

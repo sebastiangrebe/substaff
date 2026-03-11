@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import { useParams, useNavigate, useLocation, Navigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PROJECT_COLORS, isUuidLike, type ProjectProgress } from "@substaff/shared";
@@ -49,7 +49,7 @@ function ColorPicker({
         aria-label="Change project color"
       />
       {open && (
-        <div className="absolute top-full left-0 mt-2 p-2 bg-popover border border-border rounded-lg shadow-lg z-50 w-max">
+        <div className="absolute top-full left-0 mt-2 p-2 bg-popover border border-border/50 rounded-xl shadow-lg z-50 w-max">
           <div className="grid grid-cols-5 gap-1.5">
             {PROJECT_COLORS.map((color) => (
               <button
@@ -276,7 +276,7 @@ export function ProjectDetail() {
   if (!project) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-start gap-3">
         <div className="h-7 flex items-center">
           <ColorPicker
@@ -284,12 +284,14 @@ export function ProjectDetail() {
             onSelect={(color) => updateProject.mutate({ color })}
           />
         </div>
-        <InlineEditor
-          value={project.name}
-          onSave={(name) => updateProject.mutate({ name })}
-          as="h2"
-          className="text-lg font-semibold"
-        />
+        <div style={{ viewTransitionName: `entity-title-${project.id}` } as CSSProperties}>
+          <InlineEditor
+            value={project.name}
+            onSave={(name) => updateProject.mutate({ name })}
+            as="h2"
+            className="text-lg font-semibold"
+          />
+        </div>
       </div>
 
       <InlineEditor

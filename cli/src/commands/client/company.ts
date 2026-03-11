@@ -226,7 +226,7 @@ export function registerCompanyCommands(program: Command): void {
             name: row.name,
             status: row.status,
             budgetMonthlyCents: row.budgetMonthlyCents,
-            spentMonthlyCents: row.spentMonthlyCents,
+            platformSpentMonthlyCents: row.platformSpentMonthlyCents,
             requirePlanApproval: row.requirePlanApproval,
             requireHireApproval: row.requireHireApproval,
           }));

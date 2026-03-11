@@ -70,13 +70,13 @@ export function createBillingSyncWorker(redisUrl: string, db: Db) {
         case "monthly-spend-reset": {
           await db
             .update(agents)
-            .set({ spentMonthlyCents: 0, updatedAt: new Date() })
-            .where(sql`${agents.spentMonthlyCents} > 0`);
+            .set({ spentMonthlyCents: 0, platformSpentMonthlyCents: 0, updatedAt: new Date() })
+            .where(sql`${agents.spentMonthlyCents} > 0 OR ${agents.platformSpentMonthlyCents} > 0`);
 
           await db
             .update(companies)
-            .set({ spentMonthlyCents: 0, updatedAt: new Date() })
-            .where(sql`${companies.spentMonthlyCents} > 0`);
+            .set({ spentMonthlyCents: 0, platformSpentMonthlyCents: 0, updatedAt: new Date() })
+            .where(sql`${companies.spentMonthlyCents} > 0 OR ${companies.platformSpentMonthlyCents} > 0`);
 
           logger.info("Monthly spend reset complete");
           break;

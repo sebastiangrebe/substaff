@@ -76,7 +76,7 @@ export function TemplateGallery() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="rounded-lg border border-border bg-card p-5 animate-pulse">
+          <div key={i} className="rounded-lg border border-border/50 bg-card p-5 animate-pulse">
             <div className="h-4 bg-muted rounded w-2/3 mb-3" />
             <div className="h-3 bg-muted rounded w-full mb-2" />
             <div className="h-3 bg-muted rounded w-4/5" />
@@ -102,7 +102,7 @@ export function TemplateGallery() {
                 setPreviewTemplate(template);
                 setCreateAgents(false);
               }}
-              className="text-left rounded-lg border border-border bg-card p-5 transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="text-left rounded-lg border border-border/50 bg-card p-5 transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className={"p-2 rounded-md " + colorClass}>
@@ -146,14 +146,14 @@ export function TemplateGallery() {
               <div className="space-y-4 py-2">
                 {/* Roles list */}
                 <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                  <h4 className="text-xs font-medium text-muted-foreground  mb-2">
                     Roles ({previewTemplate.nodes.length})
                   </h4>
                   <div className="space-y-2">
                     {previewTemplate.nodes.map((node) => (
                       <div
                         key={node.id}
-                        className="flex items-start gap-3 rounded-md border border-border p-3"
+                        className="flex items-start gap-3 rounded-md border border-border/50 p-3"
                       >
                         <div className="bg-muted p-1.5 rounded-md mt-0.5">
                           <Users className="h-3.5 w-3.5 text-muted-foreground" />
@@ -174,7 +174,7 @@ export function TemplateGallery() {
 
                 {/* Reporting structure */}
                 <div>
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                  <h4 className="text-xs font-medium text-muted-foreground  mb-2">
                     Reporting Structure
                   </h4>
                   <div className="space-y-1.5">

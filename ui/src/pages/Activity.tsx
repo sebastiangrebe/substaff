@@ -140,7 +140,7 @@ export function Activity() {
       )}
 
       {filtered && filtered.length > 0 && (
-        <div className="border border-border divide-y divide-border rounded-xl overflow-hidden">
+        <div className="border border-border/50 divide-y divide-border/50 rounded-xl overflow-hidden">
           {filtered.map((event) => (
             <ActivityRow
               key={event.id}

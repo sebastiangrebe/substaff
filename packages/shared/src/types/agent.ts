@@ -1,6 +1,5 @@
 import type {
   AgentAdapterType,
-  AgentRole,
   AgentStatus,
 } from "../constants.js";
 
@@ -13,7 +12,8 @@ export interface Agent {
   companyId: string;
   name: string;
   urlKey: string;
-  role: AgentRole;
+  /** Built-in role slug or custom company role slug. */
+  role: string;
   title: string | null;
   icon: string | null;
   status: AgentStatus;
@@ -23,7 +23,8 @@ export interface Agent {
   adapterConfig: Record<string, unknown>;
   runtimeConfig: Record<string, unknown>;
   budgetMonthlyCents: number;
-  spentMonthlyCents: number;
+  /** Platform cost with markup applied. Raw LLM cost is internal only. */
+  platformSpentMonthlyCents: number;
   integrations: string[] | null;
   permissions: AgentPermissions;
   lastHeartbeatAt: Date | null;

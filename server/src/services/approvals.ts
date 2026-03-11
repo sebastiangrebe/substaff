@@ -1,12 +1,13 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { approvalComments, approvals } from "@substaff/db";
+import { ACTIONABLE_APPROVAL_STATUSES } from "@substaff/shared";
 import { notFound, unprocessable } from "../errors.js";
 import { agentService } from "./agents.js";
 
 export function approvalService(db: Db) {
   const agentsSvc = agentService(db);
-  const canResolveStatuses = new Set(["pending", "revision_requested"]);
+  const canResolveStatuses = new Set<string>(ACTIONABLE_APPROVAL_STATUSES);
 
   async function getExistingApproval(id: string) {
     const existing = await db
@@ -84,6 +85,7 @@ export function approvalService(db: Db) {
                 : null,
             status: "idle",
             spentMonthlyCents: 0,
+            platformSpentMonthlyCents: 0,
             permissions: undefined,
             lastHeartbeatAt: null,
           });

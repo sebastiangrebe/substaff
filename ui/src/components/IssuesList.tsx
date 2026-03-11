@@ -1,6 +1,6 @@
 import { useEffect, useDeferredValue, useMemo, useState, useCallback, useRef } from "react";
 import { Link } from "@/lib/router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
 import { issuesApi } from "../api/issues";
@@ -12,6 +12,8 @@ import { PriorityIcon } from "./PriorityIcon";
 import { EmptyState } from "./EmptyState";
 import { Identity } from "./Identity";
 import { PageSkeleton } from "./PageSkeleton";
+import { ListPreviewLayout } from "./ListPreviewLayout";
+import { IssuePreview } from "./IssuePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -262,7 +264,57 @@ export function IssuesList({
     setAssigneeSearch("");
   };
 
+  // Preview panel state — always show a preview, falling back to first issue
+  const [hoveredIssueId, setHoveredIssueId] = useState<string | null>(null);
+  const [previewLocked, setPreviewLocked] = useState(false);
+  const firstIssueId = filtered[0]?.id ?? null;
+  const activePreviewId = hoveredIssueId ?? firstIssueId;
+  const activeIssue = useMemo(() => {
+    if (!activePreviewId) return null;
+    const sourceIssues = normalizedIssueSearch.length > 0 ? searchedIssues : issues;
+    return sourceIssues.find((i) => i.id === activePreviewId) ?? null;
+  }, [issues, searchedIssues, normalizedIssueSearch, activePreviewId]);
+
+  const previewContent = activeIssue ? (
+    <IssuePreview
+      issue={activeIssue}
+      agentName={agentName}
+      isLive={liveIssueIds?.has(activeIssue.id)}
+    />
+  ) : null;
+
+  const queryClient = useQueryClient();
+
+  const handleRowHover = useCallback((issueId: string | null) => {
+    if (!previewLocked && issueId) setHoveredIssueId(issueId);
+    if (issueId) {
+      const i = issues.find((x) => x.id === issueId);
+      if (i) queryClient.setQueryData(queryKeys.issues.detail(i.identifier ?? i.id), i);
+    }
+  }, [previewLocked, issues, queryClient]);
+
+  const handlePreviewClose = useCallback(() => {
+    setHoveredIssueId(null);
+    setPreviewLocked(false);
+  }, []);
+  const hoveredIssueRef = useRef(activeIssue);
+  if (activeIssue) hoveredIssueRef.current = activeIssue;
+
+  const seedDetailCache = useCallback(() => {
+    const i = hoveredIssueRef.current;
+    if (!i) return;
+    queryClient.setQueryData(queryKeys.issues.detail(i.identifier ?? i.id), i);
+  }, [queryClient]);
+
   return (
+    <ListPreviewLayout
+      previewContent={previewContent}
+      previewKey={activePreviewId}
+      detailUrl={activeIssue ? `/issues/${activeIssue.identifier ?? activeIssue.id}` : null}
+      onBeforeNavigate={seedDetailCache}
+      onPreviewClose={handlePreviewClose}
+      alwaysOpen
+    >
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">Tasks</h1>
       {/* Toolbar */}
@@ -286,7 +338,7 @@ export function IssuesList({
 
         <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
           {/* View mode toggle */}
-          <div className="flex items-center border border-border rounded-md overflow-hidden mr-1">
+          <div className="flex items-center border border-border/50 rounded-md overflow-hidden mr-1">
             <button
               className={`p-1.5 transition-colors ${viewState.viewMode === "list" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}
               onClick={() => updateView({ viewMode: "list" })}
@@ -360,7 +412,7 @@ export function IssuesList({
                   </div>
                 </div>
 
-                <div className="border-t border-border" />
+                <div className="border-t border-border/50" />
 
                 {/* Multi-column filter sections */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
@@ -369,7 +421,7 @@ export function IssuesList({
                     <span className="text-xs text-muted-foreground">Status</span>
                     <div className="space-y-0.5">
                       {statusOrder.map((s) => (
-                        <label key={s} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
+                        <label key={s} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/40 cursor-pointer">
                           <Checkbox
                             checked={viewState.statuses.includes(s)}
                             onCheckedChange={() => updateView({ statuses: toggleInArray(viewState.statuses, s) })}
@@ -388,7 +440,7 @@ export function IssuesList({
                       <span className="text-xs text-muted-foreground">Priority</span>
                       <div className="space-y-0.5">
                         {priorityOrder.map((p) => (
-                          <label key={p} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
+                          <label key={p} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/40 cursor-pointer">
                             <Checkbox
                               checked={viewState.priorities.includes(p)}
                               onCheckedChange={() => updateView({ priorities: toggleInArray(viewState.priorities, p) })}
@@ -406,7 +458,7 @@ export function IssuesList({
                         <span className="text-xs text-muted-foreground">Assignee</span>
                         <div className="space-y-0.5 max-h-32 overflow-y-auto">
                           {agents.map((agent) => (
-                            <label key={agent.id} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
+                            <label key={agent.id} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/40 cursor-pointer">
                               <Checkbox
                                 checked={viewState.assignees.includes(agent.id)}
                                 onCheckedChange={() => updateView({ assignees: toggleInArray(viewState.assignees, agent.id) })}
@@ -423,7 +475,7 @@ export function IssuesList({
                         <span className="text-xs text-muted-foreground">Labels</span>
                         <div className="space-y-0.5 max-h-32 overflow-y-auto">
                           {labels.map((label) => (
-                            <label key={label.id} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
+                            <label key={label.id} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/40 cursor-pointer">
                               <Checkbox
                                 checked={viewState.labels.includes(label.id)}
                                 onCheckedChange={() => updateView({ labels: toggleInArray(viewState.labels, label.id) })}
@@ -462,7 +514,7 @@ export function IssuesList({
                     <button
                       key={field}
                       className={`flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-sm ${
-                        viewState.sortField === field ? "bg-accent/50 text-foreground" : "hover:bg-accent/50 text-muted-foreground"
+                        viewState.sortField === field ? "bg-accent/50 text-foreground" : "hover:bg-accent/40 text-muted-foreground"
                       }`}
                       onClick={() => {
                         if (viewState.sortField === field) {
@@ -505,7 +557,7 @@ export function IssuesList({
                     <button
                       key={value}
                       className={`flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-sm ${
-                        viewState.groupBy === value ? "bg-accent/50 text-foreground" : "hover:bg-accent/50 text-muted-foreground"
+                        viewState.groupBy === value ? "bg-accent/50 text-foreground" : "hover:bg-accent/40 text-muted-foreground"
                       }`}
                       onClick={() => updateView({ groupBy: value })}
                     >
@@ -556,7 +608,7 @@ export function IssuesList({
               <div className="flex items-center py-1.5 pl-1 pr-3">
                 <CollapsibleTrigger className="flex items-center gap-1.5">
                   <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform [[data-state=open]>&]:rotate-90" />
-                  <span className="text-sm font-semibold uppercase tracking-wide">
+                  <span className="text-sm font-semibold ">
                     {group.label}
                   </span>
                 </CollapsibleTrigger>
@@ -575,10 +627,14 @@ export function IssuesList({
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
+                  viewTransition
                   className={cn(
-                    "flex items-center gap-2 py-2 pr-3 text-sm border-b border-border last:border-b-0 cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit",
-                    viewState.groupBy !== "none" ? "pl-1" : "pl-3"
+                    "flex items-center gap-2 py-2 pr-3 text-sm border-b border-border/50 last:border-b-0 cursor-pointer hover:bg-accent/40 transition-colors no-underline text-inherit",
+                    viewState.groupBy !== "none" ? "pl-1" : "pl-3",
+                    activePreviewId === issue.id && "bg-accent/30",
                   )}
+                  onMouseEnter={() => handleRowHover(issue.id)}
+                  onMouseLeave={() => handleRowHover(null)}
                 >
                   {/* Spacer matching caret width so status icon aligns with group title (hidden on mobile) */}
                   {viewState.groupBy !== "none" && <div className="w-3.5 shrink-0 hidden sm:block" />}
@@ -591,7 +647,10 @@ export function IssuesList({
                   <span className="text-sm text-muted-foreground font-mono shrink-0">
                     {issue.identifier ?? issue.id.slice(0, 8)}
                   </span>
-                  <span className="truncate flex-1 min-w-0">{issue.title}</span>
+                  <span
+                    className="truncate flex-1 min-w-0"
+                    style={{ viewTransitionName: `entity-title-${issue.id}` } as React.CSSProperties}
+                  >{issue.title}</span>
                   {(issue.labels ?? []).length > 0 && (
                     <div className="hidden md:flex items-center gap-1 max-w-[240px] overflow-hidden">
                       {(issue.labels ?? []).slice(0, 3).map((label) => (
@@ -632,7 +691,7 @@ export function IssuesList({
                       >
                         <PopoverTrigger asChild>
                           <button
-                            className="flex w-[180px] shrink-0 items-center rounded-md px-2 py-1 hover:bg-accent/50 transition-colors"
+                            className="flex w-[180px] shrink-0 items-center rounded-md px-2 py-1 hover:bg-accent/40 transition-colors"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
@@ -657,7 +716,7 @@ export function IssuesList({
                           onPointerDownOutside={() => setAssigneeSearch("")}
                         >
                           <input
-                            className="w-full px-2 py-1.5 text-xs bg-transparent outline-none border-b border-border mb-1 placeholder:text-muted-foreground/50"
+                            className="w-full px-2 py-1.5 text-xs bg-transparent outline-none border-b border-border/50 mb-1 placeholder:text-muted-foreground/50"
                             placeholder="Search team members..."
                             value={assigneeSearch}
                             onChange={(e) => setAssigneeSearch(e.target.value)}
@@ -666,7 +725,7 @@ export function IssuesList({
                           <div className="max-h-48 overflow-y-auto overscroll-contain">
                             <button
                               className={cn(
-                                "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50",
+                                "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/40",
                                 !issue.assigneeAgentId && "bg-accent"
                               )}
                               onClick={(e) => {
@@ -686,7 +745,7 @@ export function IssuesList({
                                 <button
                                   key={agent.id}
                                   className={cn(
-                                    "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-left",
+                                    "flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/40 text-left",
                                     issue.assigneeAgentId === agent.id && "bg-accent"
                                   )}
                                   onClick={(e) => {
@@ -713,5 +772,6 @@ export function IssuesList({
         ))
       )}
     </div>
+    </ListPreviewLayout>
   );
 }

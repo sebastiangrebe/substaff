@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
@@ -584,7 +584,7 @@ export function IssueDetail() {
   const isImageAttachment = (attachment: IssueAttachment) => attachment.contentType.startsWith("image/");
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-8">
       {/* Parent chain breadcrumb */}
       {ancestors.length > 0 && (
         <nav className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
@@ -702,7 +702,7 @@ export function IssueDetail() {
               </PopoverTrigger>
             <PopoverContent className="w-44 p-1" align="end">
               <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-destructive"
+                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/40 text-destructive"
                 onClick={() => {
                   updateIssue.mutate(
                     { hiddenAt: new Date().toISOString() },
@@ -719,12 +719,14 @@ export function IssueDetail() {
           </div>
         </div>
 
-        <InlineEditor
-          value={issue.title}
-          onSave={(title) => updateIssue.mutate({ title })}
-          as="h2"
-          className="text-lg font-semibold"
-        />
+        <div style={{ viewTransitionName: `entity-title-${issue.id}` } as CSSProperties}>
+          <InlineEditor
+            value={issue.title}
+            onSave={(title) => updateIssue.mutate({ title })}
+            as="h2"
+            className="text-lg font-semibold"
+          />
+        </div>
 
         <InlineEditor
           value={issue.description ?? ""}
@@ -872,7 +874,7 @@ export function IssueDetail() {
           {childIssues.length === 0 ? (
             <p className="text-xs text-muted-foreground">No sub-issues.</p>
           ) : (
-            <div className="border border-border rounded-lg divide-y divide-border">
+            <div className="border border-border/50 rounded-xl divide-y divide-border/50">
               {childIssues.map((child) => (
                 <Link
                   key={child.id}
@@ -903,7 +905,7 @@ export function IssueDetail() {
           {(!dependencies || dependencies.length === 0) ? (
             <p className="text-xs text-muted-foreground">No dependencies.</p>
           ) : (
-            <div className="border border-border rounded-lg divide-y divide-border">
+            <div className="border border-border/50 rounded-xl divide-y divide-border/50">
               {dependencies.map((dep) => {
                 const depIssue = allIssues?.find((i) => i.id === dep.dependsOnIssueId);
                 return (
@@ -1077,7 +1079,7 @@ export function IssueDetail() {
             />
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="border-t border-border divide-y divide-border">
+            <div className="border-t border-border divide-y divide-border/50">
               {linkedApprovals.map((approval) => (
                 <Link
                   key={approval.id}

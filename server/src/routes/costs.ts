@@ -34,10 +34,12 @@ export function costRoutes(db: Db) {
       action: "cost.reported",
       entityType: "cost_event",
       entityId: event.id,
-      details: { costCents: event.costCents, model: event.model },
+      details: { costCents: event.platformCostCents || event.costCents, model: event.model },
     });
 
-    res.status(201).json(event);
+    // Strip raw cost from response — only expose platform cost
+    const { costCents: _raw, ...safeEvent } = event;
+    res.status(201).json(safeEvent);
   });
 
   function parseDateRange(query: Record<string, unknown>) {

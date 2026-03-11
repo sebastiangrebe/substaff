@@ -131,6 +131,13 @@ export {
 } from "./integration.js";
 
 export {
+  createCompanyRoleSchema,
+  updateCompanyRoleSchema,
+  type CreateCompanyRole,
+  type UpdateCompanyRole,
+} from "./company-role.js";
+
+export {
   createCompanyInviteSchema,
   acceptInviteSchema,
   listJoinRequestsQuerySchema,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
 import type { Goal } from "@substaff/shared";
@@ -137,36 +137,40 @@ export function GoalProperties({ goal, onUpdate }: GoalPropertiesProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
       <PropertyRow label="Status">
-        {onUpdate ? (
-          <PickerButton
-            current={goal.status}
-            options={GOAL_STATUSES}
-            onChange={(status) => onUpdate({ status })}
-          >
+        <span style={{ viewTransitionName: `entity-status-${goal.id}` } as CSSProperties}>
+          {onUpdate ? (
+            <PickerButton
+              current={goal.status}
+              options={GOAL_STATUSES}
+              onChange={(status) => onUpdate({ status })}
+            >
+              <StatusBadge status={goal.status} />
+            </PickerButton>
+          ) : (
             <StatusBadge status={goal.status} />
-          </PickerButton>
-        ) : (
-          <StatusBadge status={goal.status} />
-        )}
+          )}
+        </span>
       </PropertyRow>
 
       <PropertyRow label="Owner">
-        {onUpdate ? (
-          <OwnerPicker
-            agents={agents ?? []}
-            currentId={goal.ownerAgentId}
-            onChange={(ownerAgentId) => onUpdate({ ownerAgentId })}
-          />
-        ) : ownerAgent ? (
-          <Link
-            to={agentUrl(ownerAgent)}
-            className="text-sm hover:underline"
-          >
-            {ownerAgent.name}
-          </Link>
-        ) : (
-          <span className="text-sm text-muted-foreground">None</span>
-        )}
+        <span style={{ viewTransitionName: `entity-owner-${goal.id}` } as CSSProperties}>
+          {onUpdate ? (
+            <OwnerPicker
+              agents={agents ?? []}
+              currentId={goal.ownerAgentId}
+              onChange={(ownerAgentId) => onUpdate({ ownerAgentId })}
+            />
+          ) : ownerAgent ? (
+            <Link
+              to={agentUrl(ownerAgent)}
+              className="text-sm hover:underline"
+            >
+              {ownerAgent.name}
+            </Link>
+          ) : (
+            <span className="text-sm text-muted-foreground">None</span>
+          )}
+        </span>
       </PropertyRow>
 
       <PropertyRow label="Created">

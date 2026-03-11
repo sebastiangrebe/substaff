@@ -97,7 +97,7 @@ export function Costs() {
   const presetKeys: DatePreset[] = ["mtd", "7d", "30d", "ytd", "all", "custom"];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">Spending</h1>
         <p className="mt-1 text-sm text-muted-foreground">Cost breakdown by agent and time period.</p>
@@ -149,7 +149,7 @@ export function Costs() {
                 )}
               </div>
               <p className="text-2xl font-bold">
-                {formatCents(data.summary.spendCents)}{" "}
+                {formatCents(data.summary.platformSpendCents)}{" "}
                 <span className="text-base font-normal text-muted-foreground">
                   {data.summary.budgetCents > 0
                     ? `/ ${formatCents(data.summary.budgetCents)}`
@@ -197,7 +197,7 @@ export function Costs() {
                           )}
                         </div>
                         <div className="text-right shrink-0 ml-2">
-                          <span className="font-medium block">{formatCents(row.costCents)}</span>
+                          <span className="font-medium block">{formatCents(row.platformCostCents)}</span>
                           <span className="text-xs text-muted-foreground block">
                             in {formatTokens(row.inputTokens)} / out {formatTokens(row.outputTokens)} tok
                           </span>
@@ -233,7 +233,7 @@ export function Costs() {
                         <span className="truncate">
                           {row.projectName ?? row.projectId ?? "Unattributed"}
                         </span>
-                        <span className="font-medium">{formatCents(row.costCents)}</span>
+                        <span className="font-medium">{formatCents(row.platformCostCents)}</span>
                       </div>
                     ))}
                   </div>

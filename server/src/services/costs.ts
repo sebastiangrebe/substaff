@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { agents, companies, costEvents, heartbeatRuns, issues, projects } from "@substaff/db";
+import { agents, companies, costEvents, heartbeatRuns, issues, projects, vendors } from "@substaff/db";
+import { DEFAULT_MARKUP_BASIS_POINTS } from "@substaff/shared";
 import { notFound, unprocessable } from "../errors.js";
 
 export interface CostDateRange {
@@ -39,10 +40,19 @@ export function costService(db: Db) {
 
       // Fallback: inline budget update if queue unavailable
       if (!enqueued && event.costCents > 0) {
+        // Look up vendor markup for platform cost calculation
+        const [vendor] = await db
+          .select({ markupBasisPoints: vendors.markupBasisPoints })
+          .from(vendors)
+          .where(eq(vendors.id, event.vendorId));
+        const markup = vendor?.markupBasisPoints ?? DEFAULT_MARKUP_BASIS_POINTS;
+        const platformCost = Math.round((event.costCents * markup) / 10000);
+
         await db
           .update(agents)
           .set({
             spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${event.costCents}`,
+            platformSpentMonthlyCents: sql`${agents.platformSpentMonthlyCents} + ${platformCost}`,
             updatedAt: new Date(),
           })
           .where(eq(agents.id, event.agentId));
@@ -51,6 +61,7 @@ export function costService(db: Db) {
           .update(companies)
           .set({
             spentMonthlyCents: sql`${companies.spentMonthlyCents} + ${event.costCents}`,
+            platformSpentMonthlyCents: sql`${companies.platformSpentMonthlyCents} + ${platformCost}`,
             updatedAt: new Date(),
           })
           .where(eq(companies.id, companyId));
@@ -100,16 +111,14 @@ export function costService(db: Db) {
         .from(costEvents)
         .where(and(...conditions));
 
-      const spendCents = Number(total);
       const platformSpendCents = Number(platformTotal);
       const utilization =
         company.budgetMonthlyCents > 0
-          ? (spendCents / company.budgetMonthlyCents) * 100
+          ? (platformSpendCents / company.budgetMonthlyCents) * 100
           : 0;
 
       return {
         companyId,
-        spendCents,
         platformSpendCents,
         budgetCents: company.budgetMonthlyCents,
         utilizationPercent: Number(utilization.toFixed(2)),
@@ -126,7 +135,6 @@ export function costService(db: Db) {
           agentId: costEvents.agentId,
           agentName: agents.name,
           agentStatus: agents.status,
-          costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
           platformCostCents: sql<number>`coalesce(sum(${costEvents.platformCostCents}), 0)::int`,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
@@ -135,7 +143,7 @@ export function costService(db: Db) {
         .leftJoin(agents, eq(costEvents.agentId, agents.id))
         .where(and(...conditions))
         .groupBy(costEvents.agentId, agents.name, agents.status)
-        .orderBy(desc(sql`coalesce(sum(${costEvents.costCents}), 0)::int`));
+        .orderBy(desc(sql`coalesce(sum(${costEvents.platformCostCents}), 0)::int`));
 
       const runConditions: ReturnType<typeof eq>[] = [eq(heartbeatRuns.companyId, companyId)];
       if (range?.from) runConditions.push(gte(heartbeatRuns.finishedAt, range.from));
@@ -177,11 +185,10 @@ export function costService(db: Db) {
       if (range?.from) conditions.push(gte(costEvents.occurredAt, range.from));
       if (range?.to) conditions.push(lte(costEvents.occurredAt, range.to));
 
-      // Get per-agent cost totals
+      // Get per-agent cost totals (platform costs only — never expose raw LLM costs)
       const agentCosts = await db
         .select({
           agentId: costEvents.agentId,
-          costCents: sql<number>`coalesce(sum(${costEvents.costCents}), 0)::int`,
           platformCostCents: sql<number>`coalesce(sum(${costEvents.platformCostCents}), 0)::int`,
           inputTokens: sql<number>`coalesce(sum(${costEvents.inputTokens}), 0)::int`,
           outputTokens: sql<number>`coalesce(sum(${costEvents.outputTokens}), 0)::int`,
@@ -225,7 +232,6 @@ export function costService(db: Db) {
       // Distribute each agent's costs proportionally across projects
       const projectTotals = new Map<string, {
         projectName: string;
-        costCents: number;
         platformCostCents: number;
         inputTokens: number;
         outputTokens: number;
@@ -240,12 +246,10 @@ export function costService(db: Db) {
           const fraction = pw.weight / totalWeight;
           const existing = projectTotals.get(pw.projectId) ?? {
             projectName: pw.projectName,
-            costCents: 0,
             platformCostCents: 0,
             inputTokens: 0,
             outputTokens: 0,
           };
-          existing.costCents += Math.round(ac.costCents * fraction);
           existing.platformCostCents += Math.round(ac.platformCostCents * fraction);
           existing.inputTokens += Math.round(ac.inputTokens * fraction);
           existing.outputTokens += Math.round(ac.outputTokens * fraction);

@@ -342,11 +342,11 @@ export function ActiveAgentsPanel({ companyId }: ActiveAgentsPanelProps) {
 
   return (
     <div>
-      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+      <h3 className="text-sm font-semibold text-muted-foreground mb-3">
         Agents
       </h3>
       {runs.length === 0 ? (
-        <div className="border border-border rounded-lg p-4">
+        <div className="border border-border/50 rounded-xl p-4">
           <p className="text-sm text-muted-foreground">No recent agent runs.</p>
         </div>
       ) : (

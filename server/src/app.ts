@@ -35,6 +35,7 @@ import { knowledgeRoutes } from "./routes/knowledge.js";
 import { projectStateRoutes } from "./routes/project-state.js";
 import { integrationRoutes } from "./routes/integrations.js";
 import { integrationOAuthRoutes } from "./routes/integration-oauth.js";
+import { companyRoleRoutes } from "./routes/company-roles.js";
 import type { BetterAuthSessionResult } from "./auth/better-auth.js";
 
 type UiMode = "none" | "static" | "vite-dev";
@@ -150,6 +151,7 @@ export async function createApp(
   api.use(knowledgeRoutes(db));
   api.use(integrationRoutes(db));
   api.use(integrationOAuthRoutes(db));
+  api.use(companyRoleRoutes(db));
   api.use("/companies", projectStateRoutes(db));
   api.use((_req, res) => {
     res.status(404).json({ error: "Not found" });

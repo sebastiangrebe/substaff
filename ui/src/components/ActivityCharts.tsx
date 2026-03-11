@@ -38,7 +38,7 @@ function ChartTooltip({ day, lines, x, visible }: { day: string; lines: TooltipL
   if (!visible) return null;
   return (
     <div
-      className="absolute z-50 pointer-events-none bg-popover border border-border rounded-md px-2.5 py-1.5 shadow-md text-xs whitespace-nowrap"
+      className="absolute z-50 pointer-events-none bg-popover border border-border/50 rounded-md px-2.5 py-1.5 shadow-md text-xs whitespace-nowrap"
       style={{ bottom: "calc(100% + 6px)", left: x, transform: "translateX(-50%)" }}
     >
       <div className="font-medium mb-1">{formatDayLabel(day)}</div>
@@ -86,7 +86,7 @@ function ChartLegend({ items }: { items: { color: string; label: string }[] }) {
 
 export function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="border border-border rounded-lg p-4 space-y-3">
+    <div className="border border-border/50 rounded-xl p-4 space-y-3">
       <div>
         <h3 className="text-sm font-medium">{title}</h3>
         {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HelpCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { BUILTIN_ROLE_LABELS } from "@substaff/shared";
 import { cn } from "../lib/utils";
 
 /* ---- Help text for (?) tooltips ---- */
@@ -55,11 +56,8 @@ export const adapterLabels: Record<string, string> = {
   http: "HTTP",
 };
 
-export const roleLabels: Record<string, string> = {
-  ceo: "CEO", cto: "CTO", cmo: "CMO", cfo: "CFO",
-  engineer: "Engineer", designer: "Designer", pm: "PM",
-  qa: "QA", devops: "DevOps", researcher: "Researcher", general: "General",
-};
+/** Fallback role labels for built-in roles. For full role data (including custom), use the roles API. */
+export const roleLabels: Record<string, string> = { ...BUILTIN_ROLE_LABELS };
 
 /* ---- Primitive components ---- */
 

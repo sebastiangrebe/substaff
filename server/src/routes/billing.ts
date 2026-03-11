@@ -42,7 +42,7 @@ export function billingRoutes(db: Db) {
       markupBasisPoints: balance.markupBasisPoints,
       billingEmail: vendor.billingEmail,
       stripeCustomerId: vendor.stripeCustomerId,
-      usedCostCents: balance.monthlyLlmCostCents,
+      usedCostCents: balance.monthlyPlatformCostCents,
       platformCostCents: balance.monthlyPlatformCostCents,
     });
   });
@@ -69,7 +69,7 @@ export function billingRoutes(db: Db) {
       markupBasisPoints: balance.markupBasisPoints,
       billingEmail: vendor.billingEmail,
       stripeCustomerId: vendor.stripeCustomerId,
-      usedCostCents: balance.monthlyLlmCostCents,
+      usedCostCents: balance.monthlyPlatformCostCents,
       platformCostCents: balance.monthlyPlatformCostCents,
     });
   });

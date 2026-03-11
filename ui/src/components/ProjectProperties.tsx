@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Link } from "@/lib/router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PROJECT_STATUSES, type Project } from "@substaff/shared";
@@ -132,6 +132,7 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-6 gap-y-3">
         <PropertyRow label="Status">
+          <span style={{ viewTransitionName: `entity-status-${project.id}` } as CSSProperties}>
           {onUpdate ? (
             <Popover open={statusOpen} onOpenChange={setStatusOpen}>
               <PopoverTrigger asChild>
@@ -158,6 +159,7 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
           ) : (
             <StatusBadge status={project.status} />
           )}
+          </span>
         </PropertyRow>
         <PropertyRow label="Lead">
           {onUpdate ? (

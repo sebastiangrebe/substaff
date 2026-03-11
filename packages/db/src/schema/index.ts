@@ -41,3 +41,4 @@ export { mcpServerDefinitions } from "./mcp_server_definitions.js";
 export { integrationConnections } from "./integration_connections.js";
 export { indexedArtifacts } from "./indexed_artifacts.js";
 export { creditTransactions } from "./credit_transactions.js";
+export { companyRoles } from "./company_roles.js";

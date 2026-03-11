@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type CSSProperties } from "react";
 import { useParams } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Agent, GoalProgress } from "@substaff/shared";
@@ -165,14 +165,16 @@ export function GoalDetail() {
   if (!goal) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="space-y-3">
-        <InlineEditor
-          value={goal.title}
-          onSave={(title) => updateGoal.mutate({ title })}
-          as="h2"
-          className="text-lg font-semibold"
-        />
+        <div style={{ viewTransitionName: `entity-title-${goal.id}` } as CSSProperties}>
+          <InlineEditor
+            value={goal.title}
+            onSave={(title) => updateGoal.mutate({ title })}
+            as="h2"
+            className="text-lg font-semibold"
+          />
+        </div>
 
         <InlineEditor
           value={goal.description ?? ""}
@@ -201,7 +203,7 @@ export function GoalDetail() {
         {linkedProjects.length === 0 ? (
           <p className="text-sm text-muted-foreground">No linked projects.</p>
         ) : (
-          <div className="border border-border rounded-xl overflow-hidden">
+          <div className="border border-border/50 rounded-xl overflow-hidden">
             {linkedProjects.map((project) => (
               <EntityRow
                 key={project.id}
@@ -226,7 +228,7 @@ export function GoalDetail() {
           <h3 className="text-sm font-semibold">
             Pending Tasks ({pendingIssues.length})
           </h3>
-          <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
+          <div className="border border-border/50 rounded-xl overflow-hidden divide-y divide-border/50">
             {pendingIssues.map((issue) => (
               <EntityRow
                 key={issue.id}
@@ -255,7 +257,7 @@ export function GoalDetail() {
       {activity && activity.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold">Activity</h3>
-          <div className="border border-border rounded-xl overflow-hidden">
+          <div className="border border-border/50 rounded-xl overflow-hidden">
             {activity.slice(0, 10).map((event) => (
               <ActivityRow
                 key={event.id}

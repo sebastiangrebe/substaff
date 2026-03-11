@@ -73,7 +73,7 @@ curl -sS -X POST "$SUBSTAFF_API_URL/api/companies/$SUBSTAFF_COMPANY_ID/agent-hir
   }'
 ```
 
-**Role enum:** `role` MUST be one of: `ceo`, `cto`, `cmo`, `cfo`, `engineer`, `designer`, `pm`, `qa`, `devops`, `researcher`, `general`.
+**Role enum:** `role` MUST be one of: `ceo`, `cto`, `cmo`, `cfo`, `engineer`, `designer`, `pm`, `qa`, `devops`, `researcher`, `general`, `manager`, `specialist`, `creator`, `analyst`, `executive`, `support`.
 
 5. Handle governance state:
 - if response has `approval`, hire is `pending_approval`

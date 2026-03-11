@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   AGENT_ADAPTER_TYPES,
   AGENT_ICON_NAMES,
-  AGENT_ROLES,
   AGENT_STATUSES,
 } from "../constants.js";
 import { envConfigSchema } from "./secret.js";
@@ -26,7 +25,8 @@ const adapterConfigSchema = z.record(z.unknown()).superRefine((value, ctx) => {
 
 export const createAgentSchema = z.object({
   name: z.string().min(1),
-  role: z.enum(AGENT_ROLES).optional().default("general"),
+  // Accepts built-in roles and custom company roles. Service layer validates existence.
+  role: z.string().min(1).optional().default("general"),
   title: z.string().optional().nullable(),
   icon: z.enum(AGENT_ICON_NAMES).optional().nullable(),
   reportsTo: z.string().uuid().optional().nullable(),

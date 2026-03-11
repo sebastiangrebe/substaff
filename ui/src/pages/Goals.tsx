@@ -12,6 +12,8 @@ import { EmptyState } from "../components/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
 import { Identity } from "../components/Identity";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { ListPreviewLayout } from "../components/ListPreviewLayout";
+import { GoalPreview } from "../components/GoalPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -205,12 +207,59 @@ export function Goals() {
     return agents.find((a) => a.id === id)?.name ?? null;
   }, [agents]);
 
+  // Preview panel state — always show a preview, falling back to first goal
+  const [hoveredGoalId, setHoveredGoalId] = useState<string | null>(null);
+  const [previewLocked, setPreviewLocked] = useState(false);
+  const firstGoalId = filtered[0]?.id ?? null;
+  const activePreviewId = hoveredGoalId ?? firstGoalId;
+  const activeGoal = useMemo(() => {
+    if (!activePreviewId) return null;
+    return (goals ?? []).find((g) => g.id === activePreviewId) ?? null;
+  }, [goals, activePreviewId]);
+
+  const previewContent = activeGoal ? (
+    <GoalPreview goal={activeGoal} agentName={agentName} />
+  ) : null;
+
+  const handleRowHover = useCallback((goalId: string | null) => {
+    if (!previewLocked && goalId) setHoveredGoalId(goalId);
+    // Seed detail cache on hover so navigating to the detail page skips the skeleton
+    if (goalId) {
+      const g = goals?.find((x) => x.id === goalId);
+      if (g) queryClient.setQueryData(queryKeys.goals.detail(goalId), g);
+    }
+  }, [previewLocked, goals, queryClient]);
+
+  const handlePreviewClose = useCallback(() => {
+    setHoveredGoalId(null);
+    setPreviewLocked(false);
+  }, []);
+
+  // Keep a ref to the active preview goal so the seed callback
+  // still works after the mouse leaves the row and enters the panel.
+  const hoveredGoalRef = useRef(activeGoal);
+  if (activeGoal) hoveredGoalRef.current = activeGoal;
+
+  const seedDetailCache = useCallback(() => {
+    const g = hoveredGoalRef.current;
+    if (!g) return;
+    queryClient.setQueryData(queryKeys.goals.detail(g.id), g);
+  }, [queryClient]);
+
   if (!selectedCompanyId) {
     return <EmptyState icon={Target} message="Select a workspace to view goals." />;
   }
 
   return (
-    <div className="space-y-4">
+    <ListPreviewLayout
+      previewContent={previewContent}
+      previewKey={activePreviewId}
+      detailUrl={activePreviewId ? `/goals/${activePreviewId}` : null}
+      onBeforeNavigate={seedDetailCache}
+      onPreviewClose={handlePreviewClose}
+      alwaysOpen
+    >
+    <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">Goals</h1>
         <p className="mt-1 text-sm text-muted-foreground">Track objectives and key results for your company.</p>
@@ -299,7 +348,7 @@ export function Goals() {
                   <span className="text-xs text-muted-foreground">Status</span>
                   <div className="space-y-0.5">
                     {goalStatusOrder.map((s) => (
-                      <label key={s} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/50 cursor-pointer">
+                      <label key={s} className="flex items-center gap-2 px-2 py-1 rounded-sm hover:bg-accent/40 cursor-pointer">
                         <Checkbox
                           checked={viewState.statuses.includes(s)}
                           onCheckedChange={() => updateView({ statuses: toggleInArray(viewState.statuses, s) })}
@@ -332,7 +381,7 @@ export function Goals() {
                   <button
                     key={field}
                     className={`flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-sm ${
-                      viewState.sortField === field ? "bg-accent/50 text-foreground" : "hover:bg-accent/50 text-muted-foreground"
+                      viewState.sortField === field ? "bg-accent/50 text-foreground" : "hover:bg-accent/40 text-muted-foreground"
                     }`}
                     onClick={() => {
                       if (viewState.sortField === field) {
@@ -371,7 +420,7 @@ export function Goals() {
                   <button
                     key={value}
                     className={`flex items-center justify-between w-full px-2 py-1.5 text-sm rounded-sm ${
-                      viewState.groupBy === value ? "bg-accent/50 text-foreground" : "hover:bg-accent/50 text-muted-foreground"
+                      viewState.groupBy === value ? "bg-accent/50 text-foreground" : "hover:bg-accent/40 text-muted-foreground"
                     }`}
                     onClick={() => updateView({ groupBy: value })}
                   >
@@ -433,21 +482,30 @@ export function Goals() {
                 <Link
                   key={goal.id}
                   to={`/goals/${goal.id}`}
+                  viewTransition
                   className={cn(
-                    "flex items-center gap-2 py-2 pr-3 text-sm border-b border-border last:border-b-0 cursor-pointer hover:bg-accent/50 transition-colors no-underline text-inherit",
-                    viewState.groupBy !== "none" ? "pl-1" : "pl-3"
+                    "flex items-center gap-2 py-2 pr-3 text-sm border-b border-border/50 last:border-b-0 cursor-pointer hover:bg-accent/40 transition-colors no-underline text-inherit",
+                    viewState.groupBy !== "none" ? "pl-1" : "pl-3",
+                    activePreviewId === goal.id && "bg-accent/30",
                   )}
+                  onMouseEnter={() => handleRowHover(goal.id)}
+                  onMouseLeave={() => handleRowHover(null)}
                 >
                   {viewState.groupBy !== "none" && <div className="w-3.5 shrink-0 hidden sm:block" />}
                   <Target className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate flex-1 min-w-0">{goal.title}</span>
+                  <span
+                    className="truncate flex-1 min-w-0"
+                    style={{ viewTransitionName: `entity-title-${goal.id}` } as React.CSSProperties}
+                  >{goal.title}</span>
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
                     {goal.ownerAgentId && agentName(goal.ownerAgentId) && (
-                      <div className="hidden sm:block">
+                      <div className="hidden sm:block" style={{ viewTransitionName: `entity-owner-${goal.id}` } as React.CSSProperties}>
                         <Identity name={agentName(goal.ownerAgentId)!} size="sm" />
                       </div>
                     )}
-                    <StatusBadge status={goal.status} />
+                    <span style={{ viewTransitionName: `entity-status-${goal.id}` } as React.CSSProperties}>
+                      <StatusBadge status={goal.status} />
+                    </span>
                   </div>
                 </Link>
               ))}
@@ -456,5 +514,6 @@ export function Goals() {
         ))
       }
     </div>
+    </ListPreviewLayout>
   );
 }

@@ -109,7 +109,7 @@ export function CompanySettings() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-lg font-semibold">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">Manage your company profile, approvals, and preferences.</p>
@@ -117,10 +117,10 @@ export function CompanySettings() {
 
       {/* General */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+        <h2 className="text-sm font-semibold text-muted-foreground ">
           General
         </h2>
-        <div className="space-y-4 rounded-xl border border-border px-4 py-4">
+        <div className="space-y-4 rounded-xl border border-border/50 px-4 py-4">
           <SettingsField label="Company name" hint="The display name for your company.">
             <input
               className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
@@ -197,10 +197,10 @@ export function CompanySettings() {
 
       {/* Approvals */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+        <h2 className="text-sm font-semibold text-muted-foreground ">
           Approvals
         </h2>
-        <div className="space-y-4 rounded-xl border border-border px-4 py-4">
+        <div className="space-y-4 rounded-xl border border-border/50 px-4 py-4">
           <SettingsToggle
             label="Require board approval for new hires"
             hint="New agent hires stay pending until approved by board."
@@ -218,10 +218,10 @@ export function CompanySettings() {
 
       {/* Invites */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+        <h2 className="text-sm font-semibold text-muted-foreground ">
           Invites
         </h2>
-        <div className="space-y-3 rounded-xl border border-border px-4 py-4">
+        <div className="space-y-3 rounded-xl border border-border/50 px-4 py-4">
           <p className="text-sm text-muted-foreground">
             Generate a link to invite humans or agents to this company. Links expire after 72 hours.
           </p>
@@ -253,10 +253,10 @@ export function CompanySettings() {
 
       {/* Knowledge */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+        <h2 className="text-sm font-semibold text-muted-foreground ">
           Knowledge
         </h2>
-        <div className="space-y-3 rounded-xl border border-border px-4 py-4">
+        <div className="space-y-3 rounded-xl border border-border/50 px-4 py-4">
           <p className="text-sm text-muted-foreground">
             Rebuild what your agents know by re-processing all comments and files.
             Runs in the background — may take a few minutes for larger workspaces.

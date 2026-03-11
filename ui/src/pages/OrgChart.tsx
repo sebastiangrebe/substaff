@@ -10,10 +10,12 @@ import { queryKeys } from "../lib/queryKeys";
 import { agentUrl } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { RolesPanel } from "../components/RolesPanel";
 import { AgentIcon } from "../components/AgentIconPicker";
 import { Button } from "@/components/ui/button";
-import { Network, Plus, MessageSquareText, X } from "lucide-react";
-import type { Agent } from "@substaff/shared";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Network, Plus, MessageSquareText, Shield, X } from "lucide-react";
+import { BUILTIN_ROLE_LABELS, type Agent } from "@substaff/shared";
 
 // Layout constants
 const CARD_W = 200;
@@ -134,7 +136,7 @@ export function OrgChart() {
   const { openNewAgent } = useDialog();
 
   useEffect(() => {
-    setBreadcrumbs([{ label: "Org Chart" }]);
+    setBreadcrumbs([{ label: "Organization" }]);
   }, [setBreadcrumbs]);
 
   if (!selectedCompanyId) {
@@ -142,10 +144,40 @@ export function OrgChart() {
   }
 
   return (
-    <OrgChartView
-      companyId={selectedCompanyId}
-      onAddAgent={openNewAgent}
-    />
+    <div>
+      <div className="mb-4">
+        <h1 className="text-xl font-bold">Organization</h1>
+        <p className="text-sm text-muted-foreground">
+          Manage your team structure and roles.
+        </p>
+      </div>
+
+      <Tabs defaultValue="chart">
+        <TabsList className="mb-3">
+          <TabsTrigger value="chart">
+            <Network className="h-3.5 w-3.5 mr-1.5" />
+            Org Chart
+          </TabsTrigger>
+          <TabsTrigger value="roles">
+            <Shield className="h-3.5 w-3.5 mr-1.5" />
+            Roles
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="chart" className="mt-0">
+          <div className="h-[calc(100vh-14rem)]">
+            <OrgChartView
+              companyId={selectedCompanyId}
+              onAddAgent={openNewAgent}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="roles" className="mt-0">
+          <RolesPanel />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
 
@@ -301,11 +333,7 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <div className="shrink-0 pb-3">
-        <h1 className="text-lg font-semibold">Org Chart</h1>
-        <p className="mt-1 text-sm text-muted-foreground">See how your agents are structured and who reports to whom.</p>
-      </div>
+    <div className="flex flex-col h-full">
       {/* Prompt-to-Org panel */}
       {showPrompt && (
         <div className="border-b border-border bg-card px-4 py-3 space-y-2 shrink-0">
@@ -506,11 +534,7 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
   );
 }
 
-const roleLabels: Record<string, string> = {
-  ceo: "CEO", cto: "CTO", cmo: "CMO", cfo: "CFO",
-  engineer: "Engineer", designer: "Designer", pm: "PM",
-  qa: "QA", devops: "DevOps", researcher: "Researcher", general: "General",
-};
+const roleLabels: Record<string, string> = BUILTIN_ROLE_LABELS;
 
 function roleLabel(role: string): string {
   return roleLabels[role] ?? role;

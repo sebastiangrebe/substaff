@@ -45,7 +45,7 @@ export function registerAgentCommands(program: Command): void {
                 status: row.status,
                 reportsTo: row.reportsTo,
                 budgetMonthlyCents: row.budgetMonthlyCents,
-                spentMonthlyCents: row.spentMonthlyCents,
+                platformSpentMonthlyCents: row.platformSpentMonthlyCents,
               }),
             );
           }

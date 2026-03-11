@@ -27,6 +27,7 @@ export const agents = pgTable(
     runtimeConfig: jsonb("runtime_config").$type<Record<string, unknown>>().notNull().default({}),
     budgetMonthlyCents: integer("budget_monthly_cents").notNull().default(0),
     spentMonthlyCents: integer("spent_monthly_cents").notNull().default(0),
+    platformSpentMonthlyCents: integer("platform_spent_monthly_cents").notNull().default(0),
     permissions: jsonb("permissions").$type<Record<string, unknown>>().notNull().default({}),
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
     integrations: jsonb("integrations").$type<string[]>(),
