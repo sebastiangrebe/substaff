@@ -34,6 +34,7 @@ import { resolveDefaultAgentWorkspaceDir } from "../home-paths.js";
 import { getStorageService } from "../storage/index.js";
 import { projectStateService } from "./project-state.js";
 import { integrationService } from "./integrations.js";
+import { enqueueRunExecution } from "../queues/heartbeat-runs.js";
 
 const MAX_LIVE_LOG_CHUNK_BYTES = 8 * 1024;
 const HEARTBEAT_MAX_CONCURRENT_RUNS_DEFAULT = 1;
@@ -418,6 +419,10 @@ export function heartbeatService(db: Db) {
   const runLogStore = getRunLogStore();
   const secretsSvc = secretService(db);
   const llmKeys = llmKeyManagerService(db);
+
+  function dispatchRunExecution(runId: string) {
+    enqueueRunExecution(runId);
+  }
 
   async function getAgent(agentId: string) {
     return db
@@ -973,9 +978,7 @@ export function heartbeatService(db: Db) {
                   level: "info",
                   message: `Reconnected to external runtime after server restart`,
                 });
-                void executeRun(run.id).catch((err) => {
-                  logger.error({ err, runId: run.id }, "resumed run execution failed");
-                });
+                void dispatchRunExecution(run.id);
                 resumed.push(run.id);
                 continue;
               }
@@ -1161,9 +1164,7 @@ export function heartbeatService(db: Db) {
       if (claimedRuns.length === 0) return [];
 
       for (const claimedRun of claimedRuns) {
-        void executeRun(claimedRun.id).catch((err) => {
-          logger.error({ err, runId: claimedRun.id }, "queued heartbeat execution failed");
-        });
+        void dispatchRunExecution(claimedRun.id);
       }
       return claimedRuns;
     });
@@ -2442,6 +2443,8 @@ export function heartbeatService(db: Db) {
       }),
 
     wakeup: enqueueWakeup,
+
+    executeRun,
 
     reapOrphanedRuns,
 

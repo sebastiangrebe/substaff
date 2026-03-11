@@ -122,15 +122,16 @@ const db = createDb(config.databaseUrl);
 logger.info("Using external PostgreSQL via DATABASE_URL/config");
 const startupDbInfo = { mode: "external-postgres" as const, connectionString: config.databaseUrl };
 
-// Initialize Redis pub/sub if configured
-if (config.redisUrl) {
-  const { initRedis } = await import("./services/redis.js");
-  await initRedis(config.redisUrl);
+// Initialize Redis pub/sub
+const { initRedis } = await import("./services/redis.js");
+await initRedis(config.redisUrl!);
 
-  // Initialize BullMQ queues and workers (requires Redis)
-  const { initQueues } = await import("./queues/index.js");
-  await initQueues(config.redisUrl, db as any);
-}
+// Initialize BullMQ queues and workers
+const { initQueues } = await import("./queues/index.js");
+await initQueues(config.redisUrl!, db as any, {
+  heartbeatSchedulerEnabled: config.heartbeatSchedulerEnabled,
+  heartbeatSchedulerIntervalMs: config.heartbeatSchedulerIntervalMs,
+});
 
 // Initialize email service if configured
 if (process.env.RESEND_API_KEY) {
@@ -218,30 +219,11 @@ setupLiveEventsWebSocketServer(server, db as any, {
 if (config.heartbeatSchedulerEnabled) {
   const heartbeat = heartbeatService(db as any);
 
-  // Reap orphaned runs at startup (no threshold -- runningProcesses is empty)
+  // Reap orphaned runs at startup (no threshold -- runningProcesses is empty).
+  // Periodic tick + reap is handled by BullMQ repeatable jobs in heartbeat-scheduler queue.
   void heartbeat.reapOrphanedRuns().catch((err) => {
     logger.error({ err }, "startup reap of orphaned heartbeat runs failed");
   });
-
-  setInterval(() => {
-    void heartbeat
-      .tickTimers(new Date())
-      .then((result) => {
-        if (result.enqueued > 0) {
-          logger.info({ ...result }, "heartbeat timer tick enqueued runs");
-        }
-      })
-      .catch((err) => {
-        logger.error({ err }, "heartbeat timer tick failed");
-      });
-
-    // Periodically reap orphaned runs (5-min staleness threshold)
-    void heartbeat
-      .reapOrphanedRuns({ staleThresholdMs: 5 * 60 * 1000 })
-      .catch((err) => {
-        logger.error({ err }, "periodic reap of orphaned heartbeat runs failed");
-      });
-  }, config.heartbeatSchedulerIntervalMs);
 }
 
 server.listen(listenPort, config.host, () => {
@@ -272,3 +254,47 @@ server.listen(listenPort, config.host, () => {
   });
 
 });
+
+// ── Graceful shutdown ──────────────────────────────────────────────────
+
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal: string) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  logger.info({ signal }, "Graceful shutdown initiated");
+
+  // 1. Stop accepting new connections
+  server.close(() => {
+    logger.info("HTTP server closed");
+  });
+
+  // 2. Shut down BullMQ workers (waits for in-progress jobs to finish)
+  try {
+    const { shutdownQueues } = await import("./queues/index.js");
+    await shutdownQueues();
+  } catch (err) {
+    logger.error({ err }, "Error shutting down queues");
+  }
+
+  // 3. Shut down Redis pub/sub
+  try {
+    const { shutdownRedis } = await import("./services/redis.js");
+    await shutdownRedis();
+  } catch (err) {
+    logger.error({ err }, "Error shutting down Redis");
+  }
+
+  // 4. Force exit after timeout (safety net for hung jobs)
+  const forceExitTimer = setTimeout(() => {
+    logger.warn("Shutdown timeout exceeded, forcing exit");
+    process.exit(1);
+  }, 30_000);
+  forceExitTimer.unref();
+
+  logger.info("Graceful shutdown complete");
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => void gracefulShutdown("SIGINT"));
