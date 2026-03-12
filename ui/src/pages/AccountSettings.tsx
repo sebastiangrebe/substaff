@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authApi } from "../api/auth";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { Camera, Trash2, User } from "lucide-react";
 
 export function AccountSettings() {
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: session, isLoading } = useQuery({
     queryKey: queryKeys.auth.session,
@@ -50,6 +52,20 @@ export function AccountSettings() {
     },
   });
 
+  const uploadAvatarMutation = useMutation({
+    mutationFn: (file: File) => authApi.uploadAvatar(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
+    },
+  });
+
+  const deleteAvatarMutation = useMutation({
+    mutationFn: () => authApi.deleteAvatar(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
+    },
+  });
+
   const changePasswordMutation = useMutation({
     mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
       const res = await fetch("/api/auth/change-password", {
@@ -72,12 +88,26 @@ export function AccountSettings() {
     },
   });
 
+  function handleAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) uploadAvatarMutation.mutate(file);
+    // Reset so the same file can be re-selected
+    e.target.value = "";
+  }
+
   if (isLoading) return <PageSkeleton variant="settings" />;
 
   const passwordValid =
     currentPassword.length > 0 &&
     newPassword.length >= 8 &&
     newPassword === confirmPassword;
+
+  const avatarUrl = session?.user?.image;
+  const initials = (session?.user?.name ?? session?.user?.email ?? "?")
+    .split(/[\s@]+/)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? "")
+    .join("");
 
   return (
     <div className="space-y-8">
@@ -94,6 +124,84 @@ export function AccountSettings() {
           Profile
         </h2>
         <div className="space-y-4 rounded-xl border border-border/50 px-4 py-4">
+          {/* Avatar */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <label className="text-sm font-medium">Avatar</label>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="relative group">
+                <div className="w-16 h-16 rounded-full overflow-hidden bg-muted flex items-center justify-center border border-border">
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-lg font-medium text-muted-foreground">
+                      {initials || <User className="h-6 w-6" />}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >
+                  <Camera className="h-4 w-4 text-white" />
+                </button>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadAvatarMutation.isPending}
+                  >
+                    {uploadAvatarMutation.isPending ? "Uploading..." : "Upload"}
+                  </Button>
+                  {avatarUrl && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => deleteAvatarMutation.mutate()}
+                      disabled={deleteAvatarMutation.isPending}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  JPG, PNG, WebP, or GIF. Max 2 MB.
+                </p>
+                {uploadAvatarMutation.isError && (
+                  <p className="text-xs text-destructive">
+                    {uploadAvatarMutation.error instanceof Error
+                      ? uploadAvatarMutation.error.message
+                      : "Upload failed"}
+                  </p>
+                )}
+                {deleteAvatarMutation.isError && (
+                  <p className="text-xs text-destructive">
+                    {deleteAvatarMutation.error instanceof Error
+                      ? deleteAvatarMutation.error.message
+                      : "Failed to remove avatar"}
+                  </p>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarFileChange}
+              />
+            </div>
+          </div>
+
+          {/* Name */}
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
               <label className="text-sm font-medium">Name</label>
@@ -213,7 +321,7 @@ export function AccountSettings() {
               ? changePasswordMutation.error.message
               : "Failed to update password"}
           </span>
-        )}
+          )}
       </div>
     </div>
   );

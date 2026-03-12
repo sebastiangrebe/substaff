@@ -1,6 +1,6 @@
 export type AuthSession = {
   session: { id: string; userId: string };
-  user: { id: string; email: string | null; name: string | null };
+  user: { id: string; email: string | null; name: string | null; image: string | null };
 };
 
 function toSession(value: unknown): AuthSession | null {
@@ -20,6 +20,7 @@ function toSession(value: unknown): AuthSession | null {
       id: user.id,
       email: typeof user.email === "string" ? user.email : null,
       name: typeof user.name === "string" ? user.name : null,
+      image: typeof user.image === "string" ? user.image : null,
     },
   };
 }
@@ -70,5 +71,35 @@ export const authApi = {
 
   signOut: async () => {
     await authPost("/sign-out", {});
+  },
+
+  uploadAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/auth/avatar", {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(
+        (payload as { error?: string } | null)?.error ?? `Upload failed (${res.status})`,
+      );
+    }
+    return payload as { image: string };
+  },
+
+  deleteAvatar: async () => {
+    const res = await fetch("/api/auth/avatar", {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error(
+        (payload as { error?: string } | null)?.error ?? `Delete failed (${res.status})`,
+      );
+    }
   },
 };

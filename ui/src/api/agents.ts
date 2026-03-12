@@ -40,6 +40,7 @@ export interface OrgNode {
   managerId: string | null;
   managerName: string | null;
   nodeType?: "human";
+  image?: string | null;
   reports: OrgNode[];
 }
 

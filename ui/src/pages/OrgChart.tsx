@@ -35,6 +35,7 @@ interface LayoutNode {
   managerId: string | null;
   managerName: string | null;
   nodeType?: "human";
+  image?: string | null;
   x: number;
   y: number;
   children: LayoutNode[];
@@ -73,6 +74,7 @@ function layoutTree(node: OrgNode, x: number, y: number): LayoutNode {
     managerId: node.managerId,
     managerName: node.managerName,
     nodeType: node.nodeType,
+    image: node.image,
     x: x + (totalW - CARD_W) / 2,
     y,
     children: layoutChildren,
@@ -527,10 +529,12 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
               >
                 <div className="flex items-center px-4 py-3 gap-3">
                   <div className="relative shrink-0">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden ${
                       isHuman ? "bg-primary/10" : "bg-muted"
                     }`}>
-                      {isHuman ? (
+                      {isHuman && node.image ? (
+                        <img src={node.image} alt={node.name} className="w-full h-full object-cover" />
+                      ) : isHuman ? (
                         <User className="h-4.5 w-4.5 text-primary" />
                       ) : (
                         <AgentIcon icon={agent?.icon} className="h-4.5 w-4.5 text-foreground/70" />

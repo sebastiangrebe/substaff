@@ -292,7 +292,7 @@ export function agentRoutes(db: Db) {
 
   function toLeanOrgNode(
     node: Record<string, unknown>,
-    userMap: Map<string, string>,
+    userMap: Map<string, { name: string; image: string | null }>,
   ): Record<string, unknown> {
     const reports = Array.isArray(node.reports)
       ? (node.reports as Array<Record<string, unknown>>).map((report) => toLeanOrgNode(report, userMap))
@@ -304,7 +304,7 @@ export function agentRoutes(db: Db) {
       role: String(node.role),
       status: String(node.status),
       managerId,
-      managerName: managerId ? (userMap.get(managerId) ?? null) : null,
+      managerName: managerId ? (userMap.get(managerId)?.name ?? null) : null,
       reports,
     };
   }
@@ -399,13 +399,13 @@ export function agentRoutes(db: Db) {
     const tree = await svc.orgForCompany(companyId);
     const rawNodes = tree as Array<Record<string, unknown>>;
     const managerIds = collectManagerIds(rawNodes);
-    const userMap = new Map<string, string>();
+    const userMap = new Map<string, { name: string; image: string | null }>();
     if (managerIds.size > 0) {
       const users = await db
         .select({ id: authUsers.id, name: authUsers.name, image: authUsers.image })
         .from(authUsers)
         .where(inArray(authUsers.id, Array.from(managerIds)));
-      for (const u of users) userMap.set(u.id, u.name);
+      for (const u of users) userMap.set(u.id, { name: u.name, image: u.image });
     }
 
     // Group root-level nodes by managerId so human managers appear as org chart nodes
@@ -425,14 +425,16 @@ export function agentRoutes(db: Db) {
 
     const result: Array<Record<string, unknown>> = [...unmanaged];
     for (const [userId, children] of managerGroups) {
+      const userData = userMap.get(userId);
       result.push({
         id: `user:${userId}`,
-        name: userMap.get(userId) ?? "Unknown",
+        name: userData?.name ?? "Unknown",
         role: "manager",
         status: "active",
         managerId: null,
         managerName: null,
         nodeType: "human",
+        image: userData?.image ?? null,
         reports: children,
       });
     }

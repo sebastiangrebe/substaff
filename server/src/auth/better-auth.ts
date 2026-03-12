@@ -20,6 +20,7 @@ export type BetterAuthSessionUser = {
   id: string;
   email?: string | null;
   name?: string | null;
+  image?: string | null;
 };
 
 export type BetterAuthSessionResult = {
@@ -157,6 +158,7 @@ export async function resolveBetterAuthSessionFromHeaders(
         id: value.user.id,
         email: value.user.email ?? null,
         name: value.user.name ?? null,
+        image: (value.user as { image?: string | null }).image ?? null,
       }
     : null;
 

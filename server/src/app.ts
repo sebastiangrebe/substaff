@@ -3,6 +3,8 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Db } from "@substaff/db";
+import { authUsers } from "@substaff/db";
+import { eq } from "drizzle-orm";
 import type { DeploymentMode } from "@substaff/shared";
 import type { StorageService } from "./storage/types.js";
 import { httpLogger, errorHandler } from "./middleware/index.js";
@@ -36,6 +38,7 @@ import { projectStateRoutes } from "./routes/project-state.js";
 import { integrationRoutes } from "./routes/integrations.js";
 import { integrationOAuthRoutes } from "./routes/integration-oauth.js";
 import { companyRoleRoutes } from "./routes/company-roles.js";
+import { avatarRoutes } from "./routes/avatar.js";
 import type { BetterAuthSessionResult } from "./auth/better-auth.js";
 
 type UiMode = "none" | "static" | "vite-dev";
@@ -93,11 +96,16 @@ export async function createApp(
     }),
   );
   app.use(rlsContextMiddleware(db));
-  app.get("/api/auth/get-session", (req, res) => {
+  app.get("/api/auth/get-session", async (req, res) => {
     if (req.actor.type !== "board" || !req.actor.userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
+    const userRow = await db
+      .select({ name: authUsers.name, email: authUsers.email, image: authUsers.image })
+      .from(authUsers)
+      .where(eq(authUsers.id, req.actor.userId))
+      .then((rows) => rows[0] ?? null);
     res.json({
       session: {
         id: `substaff:${req.actor.source}:${req.actor.userId}`,
@@ -105,11 +113,13 @@ export async function createApp(
       },
       user: {
         id: req.actor.userId,
-        email: null,
-        name: null,
+        email: userRow?.email ?? null,
+        name: userRow?.name ?? null,
+        image: userRow?.image ?? null,
       },
     });
   });
+  app.use("/api", avatarRoutes(db, opts.storageService));
   if (opts.betterAuthHandler) {
     app.all("/api/auth/*authPath", opts.betterAuthHandler);
   }
