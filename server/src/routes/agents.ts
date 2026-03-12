@@ -1,7 +1,7 @@
 import type { Request } from "express";
 import path from "node:path";
 import type { Db } from "@substaff/db";
-import { agents as agentsTable, companies, heartbeatRuns } from "@substaff/db";
+import { agents as agentsTable, authUsers, companies, heartbeatRuns } from "@substaff/db";
 import { and, desc, eq, inArray, not, sql } from "drizzle-orm";
 import {
   createAgentKeySchema,
@@ -11,6 +11,7 @@ import {
   resetAgentSessionSchema,
   testAdapterEnvironmentSchema,
   updateAgentPermissionsSchema,
+  updateAgentManagerSchema,
   updateAgentInstructionsPathSchema,
   wakeAgentSchema,
   updateAgentSchema,
@@ -289,17 +290,46 @@ export function agentRoutes(db: Db) {
     };
   }
 
-  function toLeanOrgNode(node: Record<string, unknown>): Record<string, unknown> {
+  function toLeanOrgNode(
+    node: Record<string, unknown>,
+    userMap: Map<string, string>,
+  ): Record<string, unknown> {
     const reports = Array.isArray(node.reports)
-      ? (node.reports as Array<Record<string, unknown>>).map((report) => toLeanOrgNode(report))
+      ? (node.reports as Array<Record<string, unknown>>).map((report) => toLeanOrgNode(report, userMap))
       : [];
+    const managerId = node.managerId != null ? String(node.managerId) : null;
     return {
       id: String(node.id),
       name: String(node.name),
       role: String(node.role),
       status: String(node.status),
+      managerId,
+      managerName: managerId ? (userMap.get(managerId) ?? null) : null,
       reports,
     };
+  }
+
+  async function resolveUserName(userId: string | null): Promise<string | null> {
+    if (!userId) return null;
+    const user = await db
+      .select({ name: authUsers.name })
+      .from(authUsers)
+      .where(eq(authUsers.id, userId))
+      .then((rows) => rows[0] ?? null);
+    return user?.name ?? null;
+  }
+
+  function collectManagerIds(nodes: Array<Record<string, unknown>>): Set<string> {
+    const ids = new Set<string>();
+    for (const node of nodes) {
+      if (node.managerId != null) ids.add(String(node.managerId));
+      if (Array.isArray(node.reports)) {
+        for (const id of collectManagerIds(node.reports as Array<Record<string, unknown>>)) {
+          ids.add(id);
+        }
+      }
+    }
+    return ids;
   }
 
   router.param("id", async (req, _res, next, rawId) => {
@@ -367,8 +397,47 @@ export function agentRoutes(db: Db) {
   router.get("/companies/:companyId/org", async (req, res) => {
     const companyId = req.params.companyId as string;
     const tree = await svc.orgForCompany(companyId);
-    const leanTree = tree.map((node) => toLeanOrgNode(node as Record<string, unknown>));
-    res.json(leanTree);
+    const rawNodes = tree as Array<Record<string, unknown>>;
+    const managerIds = collectManagerIds(rawNodes);
+    const userMap = new Map<string, string>();
+    if (managerIds.size > 0) {
+      const users = await db
+        .select({ id: authUsers.id, name: authUsers.name, image: authUsers.image })
+        .from(authUsers)
+        .where(inArray(authUsers.id, Array.from(managerIds)));
+      for (const u of users) userMap.set(u.id, u.name);
+    }
+
+    // Group root-level nodes by managerId so human managers appear as org chart nodes
+    const leanNodes = rawNodes.map((node) => toLeanOrgNode(node, userMap));
+    const managerGroups = new Map<string, Array<Record<string, unknown>>>();
+    const unmanaged: Array<Record<string, unknown>> = [];
+    for (const node of leanNodes) {
+      const mid = node.managerId as string | null;
+      if (mid) {
+        const group = managerGroups.get(mid) ?? [];
+        group.push(node);
+        managerGroups.set(mid, group);
+      } else {
+        unmanaged.push(node);
+      }
+    }
+
+    const result: Array<Record<string, unknown>> = [...unmanaged];
+    for (const [userId, children] of managerGroups) {
+      result.push({
+        id: `user:${userId}`,
+        name: userMap.get(userId) ?? "Unknown",
+        role: "manager",
+        status: "active",
+        managerId: null,
+        managerName: null,
+        nodeType: "human",
+        reports: children,
+      });
+    }
+
+    res.json(result);
   });
 
   router.get("/companies/:companyId/agent-configurations", async (req, res) => {
@@ -406,13 +475,21 @@ export function agentRoutes(db: Db) {
     if (req.actor.type === "agent" && req.actor.agentId !== id) {
       const canRead = await actorCanReadConfigurationsForCompany(req, agent.companyId);
       if (!canRead) {
-        const chainOfCommand = await svc.getChainOfCommand(agent.id);
-        res.json({ ...redactForRestrictedAgentView(agent), chainOfCommand });
+        const [chainOfCommand, effectiveManagerId] = await Promise.all([
+          svc.getChainOfCommand(agent.id),
+          svc.resolveEffectiveManager(agent.id),
+        ]);
+        const effectiveManagerName = await resolveUserName(effectiveManagerId);
+        res.json({ ...redactForRestrictedAgentView(agent), chainOfCommand, effectiveManagerId, effectiveManagerName });
         return;
       }
     }
-    const chainOfCommand = await svc.getChainOfCommand(agent.id);
-    res.json({ ...agent, chainOfCommand });
+    const [chainOfCommand, effectiveManagerId] = await Promise.all([
+      svc.getChainOfCommand(agent.id),
+      svc.resolveEffectiveManager(agent.id),
+    ]);
+    const effectiveManagerName = await resolveUserName(effectiveManagerId);
+    res.json({ ...agent, chainOfCommand, effectiveManagerId, effectiveManagerName });
   });
 
   router.get("/agents/:id/configuration", async (req, res) => {
@@ -572,6 +649,11 @@ export function agentRoutes(db: Db) {
       adapterConfig: normalizedAdapterConfig,
     };
 
+    // Auto-assign managerId: board users become the manager; agent hires inherit via chain
+    if (req.actor.type === "board" && !normalizedHireInput.managerId) {
+      normalizedHireInput.managerId = req.actor.userId ?? null;
+    }
+
     const company = await db
       .select()
       .from(companies)
@@ -705,9 +787,14 @@ export function agentRoutes(db: Db) {
       { strictMode: strictSecretsMode },
     );
 
+    // Auto-assign managerId for board-created agents
+    const createBody = { ...req.body, adapterConfig: normalizedAdapterConfig };
+    if (req.actor.type === "board" && !createBody.managerId) {
+      createBody.managerId = req.actor.userId ?? null;
+    }
+
     const agent = await svc.create(companyId, {
-      ...req.body,
-      adapterConfig: normalizedAdapterConfig,
+      ...createBody,
       status: "idle",
       spentMonthlyCents: 0,
       platformSpentMonthlyCents: 0,
@@ -768,6 +855,47 @@ export function agentRoutes(db: Db) {
       entityType: "agent",
       entityId: agent.id,
       details: req.body,
+    });
+
+    res.json(agent);
+  });
+
+  router.patch("/agents/:id/manager", validate(updateAgentManagerSchema), async (req, res) => {
+    assertBoard(req);
+    const id = req.params.id as string;
+    const existing = await svc.getById(id);
+    if (!existing) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+    assertCompanyAccess(req, existing.companyId);
+
+    const newManagerId: string | null = req.body.managerId;
+    if (newManagerId) {
+      const membership = await access.getMembership(existing.companyId, "user", newManagerId);
+      if (!membership || membership.status !== "active") {
+        res.status(422).json({ error: "Target user is not a member of this company" });
+        return;
+      }
+    }
+
+    const agent = await svc.update(id, { managerId: newManagerId });
+    if (!agent) {
+      res.status(404).json({ error: "Agent not found" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId: agent.companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "agent.manager_changed",
+      entityType: "agent",
+      entityId: agent.id,
+      details: { managerId: newManagerId },
     });
 
     res.json(agent);

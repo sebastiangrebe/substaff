@@ -15,7 +15,7 @@ import { RolesPanel } from "../components/RolesPanel";
 import { AgentIcon } from "../components/AgentIconPicker";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Network, Plus, MessageSquareText, Shield, UserPlus, X } from "lucide-react";
+import { Network, Plus, MessageSquareText, Shield, UserPlus, X, UserCheck, User } from "lucide-react";
 import { BUILTIN_ROLE_LABELS, type Agent } from "@substaff/shared";
 
 // Layout constants
@@ -32,6 +32,9 @@ interface LayoutNode {
   name: string;
   role: string;
   status: string;
+  managerId: string | null;
+  managerName: string | null;
+  nodeType?: "human";
   x: number;
   y: number;
   children: LayoutNode[];
@@ -67,6 +70,9 @@ function layoutTree(node: OrgNode, x: number, y: number): LayoutNode {
     name: node.name,
     role: node.role,
     status: node.status,
+    managerId: node.managerId,
+    managerName: node.managerName,
+    nodeType: node.nodeType,
     x: x + (totalW - CARD_W) / 2,
     y,
     children: layoutChildren,
@@ -208,6 +214,7 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
     queryFn: () => agentsApi.list(companyId),
     enabled: !!companyId,
   });
+
 
   // Load saved prompt-to-org text
   const { data: savedChart } = useQuery({
@@ -495,26 +502,39 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
           }}
         >
           {allNodes.map((node) => {
-            const agent = agentMap.get(node.id);
-            const dotColor = statusDotColor[node.status] ?? defaultDotColor;
+            const isHuman = node.nodeType === "human";
+            const agent = isHuman ? undefined : agentMap.get(node.id);
+            const dotColor = isHuman ? "#4ade80" : (statusDotColor[node.status] ?? defaultDotColor);
 
             return (
               <div
                 key={node.id}
                 data-org-card
-                className="absolute bg-card border border-border rounded-lg shadow-sm hover:shadow-md hover:border-foreground/20 transition-[box-shadow,border-color] duration-150 cursor-pointer select-none"
+                className={`absolute rounded-lg shadow-sm hover:shadow-md transition-[box-shadow,border-color] duration-150 select-none ${
+                  isHuman
+                    ? "bg-primary/5 border-2 border-primary/30 hover:border-primary/50"
+                    : "bg-card border border-border hover:border-foreground/20 cursor-pointer"
+                }`}
                 style={{
                   left: node.x,
                   top: node.y,
                   width: CARD_W,
                   minHeight: CARD_H,
                 }}
-                onClick={() => navigate(agent ? agentUrl(agent) : `/agents/${node.id}`)}
+                onClick={() => {
+                  if (!isHuman) navigate(agent ? agentUrl(agent) : `/agents/${node.id}`);
+                }}
               >
                 <div className="flex items-center px-4 py-3 gap-3">
                   <div className="relative shrink-0">
-                    <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
-                      <AgentIcon icon={agent?.icon} className="h-4.5 w-4.5 text-foreground/70" />
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                      isHuman ? "bg-primary/10" : "bg-muted"
+                    }`}>
+                      {isHuman ? (
+                        <User className="h-4.5 w-4.5 text-primary" />
+                      ) : (
+                        <AgentIcon icon={agent?.icon} className="h-4.5 w-4.5 text-foreground/70" />
+                      )}
                     </div>
                     <span
                       className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
@@ -526,9 +546,9 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
                       {node.name}
                     </span>
                     <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
-                      {agent?.title ?? roleLabel(node.role)}
+                      {isHuman ? "Manager" : (agent?.title ?? roleLabel(node.role))}
                     </span>
-                    {agent && (
+                    {!isHuman && agent && (
                       <span className="text-[10px] text-muted-foreground/60 font-mono leading-tight mt-1">
                         {adapterLabels[agent.adapterType] ?? agent.adapterType}
                       </span>

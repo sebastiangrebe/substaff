@@ -37,6 +37,7 @@ import { getUIAdapter } from "../adapters";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ChoosePathButton } from "./PathInstructionsModal";
 import { WorkingHoursEditor } from "./WorkingHoursEditor";
+import { InputDialog } from "./InputDialog";
 import type { WorkingHoursConfig } from "@substaff/shared";
 
 /* ---- Create mode values ---- */
@@ -913,6 +914,7 @@ function EnvVarEditor({
 
   const [rows, setRows] = useState<Row[]>(() => toRows(value));
   const [sealError, setSealError] = useState<string | null>(null);
+  const [sealTarget, setSealTarget] = useState<{ index: number; suggested: string } | null>(null);
   const valueRef = useRef(value);
 
   // Sync when value identity changes (overlay reset after save)
@@ -974,7 +976,7 @@ function EnvVarEditor({
       .slice(0, 64);
   }
 
-  async function sealRow(i: number) {
+  function sealRow(i: number) {
     const row = rows[i];
     if (!row) return;
     const key = row.key.trim();
@@ -982,19 +984,27 @@ function EnvVarEditor({
     if (!key || plain.length === 0) return;
 
     const suggested = defaultSecretName(key) || "secret";
-    const name = window.prompt("Secret name", suggested)?.trim();
-    if (!name) return;
+    setSealTarget({ index: i, suggested });
+  }
+
+  async function confirmSeal(name: string) {
+    if (!sealTarget) return;
+    const row = rows[sealTarget.index];
+    if (!row) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
 
     try {
       setSealError(null);
-      const created = await onCreateSecret(name, plain);
-      updateRow(i, {
+      const created = await onCreateSecret(trimmed, row.plainValue);
+      updateRow(sealTarget.index, {
         source: "secret",
         secretId: created.id,
       });
     } catch (err) {
       setSealError(err instanceof Error ? err.message : "Failed to create secret");
     }
+    setSealTarget(null);
   }
 
   return (
@@ -1084,6 +1094,16 @@ function EnvVarEditor({
         );
       })}
       {sealError && <p className="text-[11px] text-destructive">{sealError}</p>}
+      <InputDialog
+        open={!!sealTarget}
+        onOpenChange={(open) => { if (!open) setSealTarget(null); }}
+        title="Secret name"
+        description="Choose a name for this secret."
+        placeholder="secret_name"
+        defaultValue={sealTarget?.suggested ?? ""}
+        confirmLabel="Create secret"
+        onConfirm={confirmSeal}
+      />
     </div>
   );
 }

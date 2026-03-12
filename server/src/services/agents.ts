@@ -535,6 +535,19 @@ export function agentService(db: Db) {
         .from(heartbeatRuns)
         .where(and(eq(heartbeatRuns.agentId, agentId), inArray(heartbeatRuns.status, ["queued", "running"]))),
 
+    resolveEffectiveManager: async (agentId: string): Promise<string | null> => {
+      const visited = new Set<string>();
+      let currentId: string | null = agentId;
+      while (currentId && !visited.has(currentId)) {
+        visited.add(currentId);
+        const agent = await getById(currentId);
+        if (!agent) break;
+        if (agent.managerId) return agent.managerId;
+        currentId = agent.reportsTo ?? null;
+      }
+      return null;
+    },
+
     resolveByReference: async (companyId: string, reference: string) => {
       const raw = reference.trim();
       if (raw.length === 0) {

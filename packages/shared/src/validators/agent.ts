@@ -30,6 +30,7 @@ export const createAgentSchema = z.object({
   title: z.string().optional().nullable(),
   icon: z.enum(AGENT_ICON_NAMES).optional().nullable(),
   reportsTo: z.string().uuid().optional().nullable(),
+  managerId: z.string().min(1).optional().nullable(),
   capabilities: z.string().optional().nullable(),
   adapterType: z.enum(AGENT_ADAPTER_TYPES).optional().default("e2b_sandbox"),
   adapterConfig: adapterConfigSchema.optional().default({}),
@@ -100,3 +101,9 @@ export const updateAgentPermissionsSchema = z.object({
 });
 
 export type UpdateAgentPermissions = z.infer<typeof updateAgentPermissionsSchema>;
+
+export const updateAgentManagerSchema = z.object({
+  managerId: z.string().min(1).nullable(),
+});
+
+export type UpdateAgentManager = z.infer<typeof updateAgentManagerSchema>;

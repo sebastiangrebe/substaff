@@ -215,9 +215,6 @@ export function CompanySettings() {
             value={selectedCompany.workingHours as WorkingHoursConfig | null}
             onChange={(wh) => workingHoursMutation.mutate(wh)}
           />
-          {workingHoursMutation.isSuccess && (
-            <span className="text-sm text-muted-foreground">Saved</span>
-          )}
           {workingHoursMutation.isError && (
             <span className="text-sm text-destructive">
               {workingHoursMutation.error instanceof Error

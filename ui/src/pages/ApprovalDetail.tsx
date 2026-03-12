@@ -10,6 +10,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { Identity } from "../components/Identity";
 import { typeLabel, typeIcon, defaultTypeIcon, ApprovalPayloadRenderer } from "../components/ApprovalPayload";
 import { PageSkeleton } from "../components/PageSkeleton";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, ChevronRight, Sparkles } from "lucide-react";
@@ -26,6 +27,7 @@ export function ApprovalDetail() {
   const [commentBody, setCommentBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showRawPayload, setShowRawPayload] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const { data: approval, isLoading } = useQuery({
     queryKey: queryKeys.approvals.detail(approvalId!),
@@ -301,18 +303,26 @@ export function ApprovalDetail() {
             </Button>
           )}
           {approval.status === "rejected" && approval.type === "hire_agent" && linkedAgentId && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive border-destructive/40"
-              onClick={() => {
-                if (!window.confirm("Delete this disapproved agent? This cannot be undone.")) return;
-                deleteAgentMutation.mutate(linkedAgentId);
-              }}
-              disabled={deleteAgentMutation.isPending}
-            >
-              Delete disapproved agent
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive border-destructive/40"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={deleteAgentMutation.isPending}
+              >
+                Delete disapproved agent
+              </Button>
+              <ConfirmDialog
+                open={showDeleteConfirm}
+                onOpenChange={setShowDeleteConfirm}
+                title="Delete disapproved agent"
+                description="This will permanently delete the disapproved agent. This action cannot be undone."
+                confirmLabel="Delete"
+                variant="destructive"
+                onConfirm={() => deleteAgentMutation.mutate(linkedAgentId)}
+              />
+            </>
           )}
         </div>
       </div>

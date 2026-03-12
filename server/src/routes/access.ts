@@ -719,6 +719,7 @@ export function accessRoutes(
         title: null,
         status: "idle",
         reportsTo: null,
+        managerId: req.actor.userId ?? null,
         capabilities: existing.capabilities ?? null,
         adapterType: existing.adapterType ?? "process",
         adapterConfig:

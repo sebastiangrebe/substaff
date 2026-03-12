@@ -9,6 +9,7 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { companies } from "./companies.js";
+import { authUsers } from "./auth.js";
 
 export const agents = pgTable(
   "agents",
@@ -30,6 +31,7 @@ export const agents = pgTable(
     platformSpentMonthlyCents: integer("platform_spent_monthly_cents").notNull().default(0),
     permissions: jsonb("permissions").$type<Record<string, unknown>>().notNull().default({}),
     lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+    managerId: text("manager_id").references(() => authUsers.id),
     integrations: jsonb("integrations").$type<string[]>(),
     metadata: jsonb("metadata").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

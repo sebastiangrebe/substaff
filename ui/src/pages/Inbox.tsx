@@ -45,6 +45,7 @@ import {
 import { Identity } from "../components/Identity";
 import { MarkdownBody } from "../components/MarkdownBody";
 import { PageTabBar } from "../components/PageTabBar";
+import { InputDialog } from "../components/InputDialog";
 import type { HeartbeatRun, Issue, JoinRequest } from "@substaff/shared";
 
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -263,6 +264,7 @@ export function Inbox() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [allCategoryFilter, setAllCategoryFilter] = useState<InboxCategoryFilter>("everything");
   const [allApprovalFilter, setAllApprovalFilter] = useState<InboxApprovalFilter>("all");
+  const [rejectPlanTarget, setRejectPlanTarget] = useState<TaskPlanWithIssue | null>(null);
 
   const pathSegment = location.pathname.split("/").pop() ?? "new";
   const tab: InboxTab = pathSegment === "all" ? "all" : "new";
@@ -794,11 +796,7 @@ export function Inbox() {
                         size="sm"
                         variant="outline"
                         disabled={approvePlanMutation.isPending || rejectPlanMutation.isPending}
-                        onClick={() => {
-                          const comments = window.prompt("Rejection reason (optional):");
-                          if (comments === null) return; // cancelled
-                          rejectPlanMutation.mutate({ plan, comments: comments || undefined });
-                        }}
+                        onClick={() => setRejectPlanTarget(plan)}
                       >
                         <X className="mr-1.5 h-3.5 w-3.5" />
                         Reject
@@ -985,6 +983,22 @@ export function Inbox() {
           </div>
         </>
       )}
+
+      <InputDialog
+        open={!!rejectPlanTarget}
+        onOpenChange={(open) => { if (!open) setRejectPlanTarget(null); }}
+        title="Reject plan"
+        description="Provide an optional reason for rejecting this plan."
+        placeholder="Rejection reason (optional)"
+        multiline
+        confirmLabel="Reject"
+        onConfirm={(comments) => {
+          if (rejectPlanTarget) {
+            rejectPlanMutation.mutate({ plan: rejectPlanTarget, comments: comments || undefined });
+          }
+          setRejectPlanTarget(null);
+        }}
+      />
     </div>
   );
 }

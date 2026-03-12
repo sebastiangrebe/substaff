@@ -37,6 +37,9 @@ export interface OrgNode {
   name: string;
   role: string;
   status: string;
+  managerId: string | null;
+  managerName: string | null;
+  nodeType?: "human";
   reports: OrgNode[];
 }
 
@@ -139,6 +142,8 @@ export const agentsApi = {
     },
     companyId?: string,
   ) => api.post<HeartbeatRun | { status: "skipped" }>(agentPath(id, companyId, "/wakeup"), data),
+  updateManager: (id: string, managerId: string | null, companyId?: string) =>
+    api.patch<Agent>(agentPath(id, companyId, "/manager"), { managerId }),
   loginWithClaude: (id: string, companyId?: string) =>
     api.post<ClaudeLoginResult>(agentPath(id, companyId, "/claude-login"), {}),
 };

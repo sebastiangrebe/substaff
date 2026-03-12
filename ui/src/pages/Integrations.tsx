@@ -11,6 +11,7 @@ import { PageSkeleton } from "../components/PageSkeleton";
 import { Button } from "@/components/ui/button";
 import type { McpServerDefinition, CompanySecret } from "@substaff/shared";
 import { agentsApi } from "../api/agents";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 /** Slugs that support OAuth-based connection (browser redirect flow) */
 const OAUTH_SLUGS = new Set(["google-drive", "meta", "tiktok"]);
@@ -366,6 +367,7 @@ export function Integrations() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [oauthMessage, setOauthMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [search, setSearch] = useState("");
+  const [disconnectTarget, setDisconnectTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Handle OAuth redirect results (query params set by the callback redirect)
   useEffect(() => {
@@ -525,11 +527,7 @@ export function Integrations() {
                   size="sm"
                   className="text-xs"
                   disabled={disconnectMutation.isPending}
-                  onClick={() => {
-                    if (window.confirm(`Disconnect ${def.displayName}?`)) {
-                      disconnectMutation.mutate(conn.id);
-                    }
-                  }}
+                  onClick={() => setDisconnectTarget({ id: conn.id, name: def.displayName })}
                 >
                   Disconnect
                 </Button>
@@ -674,6 +672,19 @@ export function Integrations() {
           onClose={() => setConnectDef(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!disconnectTarget}
+        onOpenChange={(open) => { if (!open) setDisconnectTarget(null); }}
+        title="Disconnect integration"
+        description={`Are you sure you want to disconnect ${disconnectTarget?.name ?? "this integration"}?`}
+        confirmLabel="Disconnect"
+        variant="destructive"
+        onConfirm={() => {
+          if (disconnectTarget) disconnectMutation.mutate(disconnectTarget.id);
+          setDisconnectTarget(null);
+        }}
+      />
     </div>
   );
 }

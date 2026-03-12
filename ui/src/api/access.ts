@@ -84,4 +84,15 @@ export const accessApi = {
       { claimSecret },
     ),
 
+  listMembers: (companyId: string) =>
+    api.get<Array<{
+      id: string;
+      principalType: string;
+      principalId: string;
+      membershipRole: string | null;
+      status: string;
+      name?: string | null;
+      email?: string | null;
+    }>>(`/companies/${companyId}/members`),
+
 };

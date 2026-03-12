@@ -32,6 +32,10 @@ function PropertyRow({ label, children }: { label: string; children: React.React
 
 export function AgentProperties({ agent, runtimeState }: AgentPropertiesProps) {
   const { selectedCompanyId } = useCompany();
+  const agentWithExtra = agent as Agent & {
+    effectiveManagerId?: string | null;
+    effectiveManagerName?: string | null;
+  };
 
   const { data: agents } = useQuery({
     queryKey: queryKeys.agents.list(selectedCompanyId!),
@@ -40,6 +44,10 @@ export function AgentProperties({ agent, runtimeState }: AgentPropertiesProps) {
   });
 
   const reportsToAgent = agent.reportsTo ? agents?.find((a) => a.id === agent.reportsTo) : null;
+
+  const effectiveManagerId = agent.managerId ?? agentWithExtra.effectiveManagerId ?? null;
+  const effectiveManagerName = agentWithExtra.effectiveManagerName ?? null;
+  const isInherited = !agent.managerId && !!effectiveManagerId;
 
   return (
     <div className="space-y-4">
@@ -88,6 +96,16 @@ export function AgentProperties({ agent, runtimeState }: AgentPropertiesProps) {
               </Link>
             ) : (
               <span className="text-sm font-mono">{agent.reportsTo.slice(0, 8)}</span>
+            )}
+          </PropertyRow>
+        )}
+        {effectiveManagerId && (
+          <PropertyRow label="Manager">
+            <span className={`text-sm ${isInherited ? "text-muted-foreground/60" : ""}`}>
+              {effectiveManagerName ?? effectiveManagerId.slice(0, 8)}
+            </span>
+            {isInherited && (
+              <span className="text-[10px] text-muted-foreground/50 ml-1">(inherited)</span>
             )}
           </PropertyRow>
         )}
