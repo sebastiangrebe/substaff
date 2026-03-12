@@ -48,9 +48,11 @@ export const help: Record<string, string> = {
   cooldownSec: "Minimum seconds between consecutive work sessions.",
   maxConcurrentRuns: "Maximum number of work sessions that can run simultaneously for this agent.",
   budgetMonthlyCents: "Monthly spending limit in cents. 0 means no limit.",
+  workingHours: "Define when this agent runs automatic heartbeat sessions. Manual triggers and ticket responses still work outside working hours. Overrides the company-level working hours if set.",
 };
 
 export const adapterLabels: Record<string, string> = {
+  blaxel_sandbox: "Blaxel Sandbox",
   e2b_sandbox: "E2B Sandbox",
   process: "Process",
   http: "HTTP",

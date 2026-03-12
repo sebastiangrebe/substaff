@@ -51,7 +51,7 @@ function getContrastTextColor(hexColor: string): string {
   return luminance > 0.5 ? "#000000" : "#ffffff";
 }
 
-const ISSUE_OVERRIDE_ADAPTER_TYPES = new Set(["e2b_sandbox"]);
+const ISSUE_OVERRIDE_ADAPTER_TYPES = new Set(["blaxel_sandbox", "e2b_sandbox"]);
 
 const ISSUE_THINKING_EFFORT_OPTIONS = [
   { value: "", label: "Default" },

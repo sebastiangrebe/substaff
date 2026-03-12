@@ -114,6 +114,7 @@ function collectEdges(nodes: LayoutNode[]): Array<{ parent: LayoutNode; child: L
 // ── Status dot colors (raw hex for SVG) ─────────────────────────────────
 
 const adapterLabels: Record<string, string> = {
+  blaxel_sandbox: "Blaxel Sandbox",
   e2b_sandbox: "E2B Sandbox",
   process: "Process",
   http: "HTTP",

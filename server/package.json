@@ -33,6 +33,7 @@
     "@aws-sdk/client-s3": "^3.888.0",
     "@qdrant/js-client-rest": "^1.17.0",
     "@substaff/adapter-claude-local": "workspace:*",
+    "@substaff/adapter-blaxel-sandbox": "workspace:*",
     "@substaff/adapter-e2b-sandbox": "workspace:*",
     "@substaff/adapter-utils": "workspace:*",
     "@substaff/db": "workspace:*",

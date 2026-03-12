@@ -1,4 +1,5 @@
 import type { CompanyStatus } from "../constants.js";
+import type { WorkingHoursConfig } from "./working-hours.js";
 
 export interface Company {
   id: string;
@@ -15,6 +16,7 @@ export interface Company {
   requireHireApproval: boolean;
   orgChartData: unknown;
   brandColor: string | null;
+  workingHours: WorkingHoursConfig | null;
   createdAt: Date;
   updatedAt: Date;
 }

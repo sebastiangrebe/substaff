@@ -36,6 +36,8 @@ import { defaultCreateValues } from "./agent-config-defaults";
 import { getUIAdapter } from "../adapters";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ChoosePathButton } from "./PathInstructionsModal";
+import { WorkingHoursEditor } from "./WorkingHoursEditor";
+import type { WorkingHoursConfig } from "@substaff/shared";
 
 /* ---- Create mode values ---- */
 
@@ -75,6 +77,7 @@ interface Overlay {
   adapterType?: string;
   adapterConfig: Record<string, unknown>;
   heartbeat: Record<string, unknown>;
+  workingHours: Record<string, unknown>;
   runtime: Record<string, unknown>;
 }
 
@@ -82,6 +85,7 @@ const emptyOverlay: Overlay = {
   identity: {},
   adapterConfig: {},
   heartbeat: {},
+  workingHours: {},
   runtime: {},
 };
 
@@ -94,6 +98,7 @@ function isOverlayDirty(o: Overlay): boolean {
     o.adapterType !== undefined ||
     Object.keys(o.adapterConfig).length > 0 ||
     Object.keys(o.heartbeat).length > 0 ||
+    Object.keys(o.workingHours).length > 0 ||
     Object.keys(o.runtime).length > 0
   );
 }
@@ -231,10 +236,17 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       const existing = (agent.adapterConfig ?? {}) as Record<string, unknown>;
       patch.adapterConfig = { ...existing, ...overlay.adapterConfig };
     }
-    if (Object.keys(overlay.heartbeat).length > 0) {
-      const existingRc = (agent.runtimeConfig ?? {}) as Record<string, unknown>;
-      const existingHb = (existingRc.heartbeat ?? {}) as Record<string, unknown>;
-      patch.runtimeConfig = { ...existingRc, heartbeat: { ...existingHb, ...overlay.heartbeat } };
+    if (Object.keys(overlay.heartbeat).length > 0 || Object.keys(overlay.workingHours).length > 0) {
+      const existingRc = (patch.runtimeConfig ?? agent.runtimeConfig ?? {}) as Record<string, unknown>;
+      if (Object.keys(overlay.heartbeat).length > 0) {
+        const existingHb = (existingRc.heartbeat ?? {}) as Record<string, unknown>;
+        patch.runtimeConfig = { ...existingRc, heartbeat: { ...existingHb, ...overlay.heartbeat } };
+      }
+      if (Object.keys(overlay.workingHours).length > 0) {
+        const rc = (patch.runtimeConfig ?? existingRc) as Record<string, unknown>;
+        // _full contains the complete WorkingHoursConfig or null
+        patch.runtimeConfig = { ...rc, workingHours: overlay.workingHours._full ?? null };
+      }
     }
     if (Object.keys(overlay.runtime).length > 0) {
       Object.assign(patch, overlay.runtime);
@@ -261,11 +273,13 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const config = !isCreate ? ((props.agent.adapterConfig ?? {}) as Record<string, unknown>) : {};
   const runtimeConfig = !isCreate ? ((props.agent.runtimeConfig ?? {}) as Record<string, unknown>) : {};
   const heartbeat = !isCreate ? ((runtimeConfig.heartbeat ?? {}) as Record<string, unknown>) : {};
+  const agentWorkingHours = !isCreate ? (runtimeConfig.workingHours as WorkingHoursConfig | null ?? null) : null;
 
   const adapterType = isCreate
     ? props.values.adapterType
     : overlay.adapterType ?? props.agent.adapterType;
   const isLocal =
+    adapterType === "blaxel_sandbox" ||
     adapterType === "e2b_sandbox" ||
     adapterType === "process";
   const uiAdapter = useMemo(() => getUIAdapter(adapterType), [adapterType]);
@@ -299,6 +313,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
 
   // Section toggle state — advanced always starts collapsed
   const [runPolicyAdvancedOpen, setRunPolicyAdvancedOpen] = useState(false);
+  const [workingHoursOpen, setWorkingHoursOpen] = useState(false);
   // Popover states
   const [modelOpen, setModelOpen] = useState(false);
   const [thinkingEffortOpen, setThinkingEffortOpen] = useState(false);
@@ -478,7 +493,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
             </Button>
           </div>
           <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-3" : "px-4 pb-3 space-y-3")}>
-            {/* Adapter type is always e2b_sandbox — field hidden */}
+            {/* Adapter type defaults to blaxel_sandbox — field hidden */}
 
             {testEnvironment.error && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -710,6 +725,25 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
               </Field>
             </div>
           </CollapsibleSection>
+          <CollapsibleSection
+            title="Working Hours"
+            bordered={cards}
+            open={workingHoursOpen}
+            onToggle={() => setWorkingHoursOpen(!workingHoursOpen)}
+          >
+            <WorkingHoursEditor
+              value={eff("workingHours", "_full", agentWorkingHours) as WorkingHoursConfig | null}
+              onChange={(wh) => {
+                // Store the full config as a single overlay entry
+                if (wh) {
+                  mark("workingHours", "_full", wh);
+                } else {
+                  mark("workingHours", "_full", null);
+                }
+              }}
+              overrideMode
+            />
+          </CollapsibleSection>
           </div>
         </div>
       )}
@@ -755,7 +789,7 @@ function AdapterEnvironmentResult({ result }: { result: AdapterEnvironmentTestRe
 
 /* ---- Internal sub-components ---- */
 
-const ENABLED_ADAPTER_TYPES = new Set(["e2b_sandbox"]);
+const ENABLED_ADAPTER_TYPES = new Set(["blaxel_sandbox", "e2b_sandbox"]);
 
 /** Display list includes all real adapter types plus UI-only coming-soon entries. */
 const ADAPTER_DISPLAY_LIST: { value: string; label: string; comingSoon: boolean }[] = [

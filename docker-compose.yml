@@ -74,6 +74,7 @@ services:
       - /app/packages/adapters/claude-local/node_modules
       - /app/packages/adapters/codex-local/node_modules
       - /app/packages/adapters/cursor-local/node_modules
+      - /app/packages/adapters/blaxel-sandbox/node_modules
       - /app/packages/adapters/e2b-sandbox/node_modules
       - /app/packages/adapters/openclaw/node_modules
       - /app/packages/adapters/opencode-local/node_modules

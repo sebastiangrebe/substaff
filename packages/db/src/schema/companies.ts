@@ -20,6 +20,7 @@ export const companies = pgTable(
     requireHireApproval: boolean("require_hire_approval").notNull().default(true),
     orgChartData: jsonb("org_chart_data"),
     brandColor: text("brand_color"),
+    workingHours: jsonb("working_hours").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

@@ -27,7 +27,7 @@ export const AGENT_STATUSES = [
 ] as const;
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
-export const AGENT_ADAPTER_TYPES = ["e2b_sandbox", "process", "http"] as const;
+export const AGENT_ADAPTER_TYPES = ["blaxel_sandbox", "e2b_sandbox", "process", "http"] as const;
 export type AgentAdapterType = (typeof AGENT_ADAPTER_TYPES)[number];
 
 export const AGENT_ROLES = [

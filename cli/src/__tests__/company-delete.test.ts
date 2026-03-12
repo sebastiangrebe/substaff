@@ -17,6 +17,7 @@ function makeCompany(overrides: Partial<Company>): Company {
     requireHireApproval: true,
     orgChartData: null,
     brandColor: null,
+    workingHours: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

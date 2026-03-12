@@ -822,6 +822,63 @@ export function heartbeatService(db: Db) {
     });
   }
 
+  /**
+   * Check whether the current time falls within the effective working hours
+   * for an agent. Agent-level config overrides company-level config.
+   * Returns { allowed: true } if wakeup should proceed.
+   */
+  function isWithinWorkingHours(
+    agentRuntimeConfig: Record<string, unknown>,
+    companyWorkingHours: Record<string, unknown> | null | undefined,
+    now: Date = new Date(),
+  ): { allowed: boolean; reason?: string } {
+    const agentWH = parseObject(parseObject(agentRuntimeConfig).workingHours);
+    const companyWH = parseObject(companyWorkingHours);
+
+    // Agent-level overrides company-level if it has `enabled` defined
+    const effective = agentWH.enabled !== undefined ? agentWH : companyWH;
+
+    // If working hours not enabled or not configured, always allow
+    if (!effective.enabled) return { allowed: true };
+
+    const timezone = typeof effective.timezone === "string" ? effective.timezone : null;
+    if (!timezone) return { allowed: true };
+
+    const schedule = parseObject(effective.schedule);
+
+    // Convert current time to the configured timezone
+    const localParts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      minute: "numeric",
+      weekday: "long",
+      hour12: false,
+    }).formatToParts(now);
+
+    const weekdayPart = localParts.find((p) => p.type === "weekday")?.value?.toLowerCase();
+    const hourPart = Number(localParts.find((p) => p.type === "hour")?.value ?? 0);
+    const minutePart = Number(localParts.find((p) => p.type === "minute")?.value ?? 0);
+
+    if (!weekdayPart) return { allowed: true };
+
+    const dayConfig = parseObject(schedule[weekdayPart]);
+    if (!dayConfig.enabled) {
+      return { allowed: false, reason: `working_hours.${weekdayPart}.disabled` };
+    }
+
+    const currentMinutes = hourPart * 60 + minutePart;
+    const [startH, startM] = String(dayConfig.start ?? "00:00").split(":").map(Number);
+    const [endH, endM] = String(dayConfig.end ?? "23:59").split(":").map(Number);
+    const startMinutes = startH * 60 + startM;
+    const endMinutes = endH * 60 + endM;
+
+    if (currentMinutes < startMinutes || currentMinutes >= endMinutes) {
+      return { allowed: false, reason: "working_hours.outside_schedule" };
+    }
+
+    return { allowed: true };
+  }
+
   function parseHeartbeatPolicy(agent: typeof agents.$inferSelect) {
     const runtimeConfig = parseObject(agent.runtimeConfig);
     const heartbeat = parseObject(runtimeConfig.heartbeat);
@@ -1914,6 +1971,22 @@ export function heartbeatService(db: Db) {
       return null;
     }
 
+    // Working hours: only gate timer-based wakeups
+    if (source === "timer") {
+      const [companyRow] = await db
+        .select({ workingHours: companies.workingHours })
+        .from(companies)
+        .where(eq(companies.id, agent.companyId));
+      const whCheck = isWithinWorkingHours(
+        agent.runtimeConfig as Record<string, unknown>,
+        companyRow?.workingHours as Record<string, unknown> | null,
+      );
+      if (!whCheck.allowed) {
+        await writeSkippedRequest(`working_hours.outside: ${whCheck.reason}`);
+        return null;
+      }
+    }
+
     const bypassIssueExecutionLock =
       reason === "issue_comment_mentioned" ||
       readNonEmptyString(enrichedContextSnapshot.wakeReason) === "issue_comment_mentioned";
@@ -2450,15 +2523,31 @@ export function heartbeatService(db: Db) {
 
     tickTimers: async (now = new Date()) => {
       await setRlsAllTenantsContext(db);
-      const allAgents = await db.select().from(agents);
+      // Join companies to get working hours for pre-filtering
+      const allRows = await db
+        .select({ agent: agents, companyWorkingHours: companies.workingHours })
+        .from(agents)
+        .innerJoin(companies, eq(agents.companyId, companies.id));
       let checked = 0;
       let enqueued = 0;
       let skipped = 0;
 
-      for (const agent of allAgents) {
+      for (const row of allRows) {
+        const agent = row.agent;
         if (agent.status === "paused" || agent.status === "terminated" || agent.status === "pending_approval") continue;
         const policy = parseHeartbeatPolicy(agent);
         if (!policy.enabled || policy.intervalSec <= 0) continue;
+
+        // Pre-filter by working hours before checking interval
+        const whCheck = isWithinWorkingHours(
+          agent.runtimeConfig as Record<string, unknown>,
+          row.companyWorkingHours as Record<string, unknown> | null,
+          now,
+        );
+        if (!whCheck.allowed) {
+          skipped += 1;
+          continue;
+        }
 
         checked += 1;
         const baseline = new Date(agent.lastHeartbeatAt ?? agent.createdAt).getTime();

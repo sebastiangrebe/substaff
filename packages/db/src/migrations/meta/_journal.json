@@ -232,6 +232,34 @@
       "when": 1773073200000,
       "tag": "0032_billing_credits",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1773159600000,
+      "tag": "0033_platform_spent_monthly",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1773246000000,
+      "tag": "0034_company_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1773332400000,
+      "tag": "0035_join_request_name_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1773418800000,
+      "tag": "0036_working_hours",
+      "breakpoints": true
     }
   ]
 }

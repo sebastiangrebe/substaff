@@ -138,6 +138,11 @@ export {
 } from "./company-role.js";
 
 export {
+  workingHoursSchema,
+  type WorkingHoursInput,
+} from "./working-hours.js";
+
+export {
   createCompanyInviteSchema,
   acceptInviteSchema,
   listJoinRequestsQuerySchema,

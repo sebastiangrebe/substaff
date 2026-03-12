@@ -125,10 +125,10 @@ export function OnboardingWizard() {
   }
 
   function buildAdapterConfig(): Record<string, unknown> {
-    const adapter = getUIAdapter("e2b_sandbox");
+    const adapter = getUIAdapter("blaxel_sandbox");
     return adapter.buildAdapterConfig({
       ...defaultCreateValues,
-      adapterType: "e2b_sandbox",
+      adapterType: "blaxel_sandbox",
       cwd: "",
       model: "",
       command: "",
@@ -176,7 +176,7 @@ export function OnboardingWizard() {
       const agent = await agentsApi.create(createdCompanyId, {
         name: agentName.trim(),
         role: "ceo",
-        adapterType: "e2b_sandbox",
+        adapterType: "blaxel_sandbox",
         adapterConfig: buildAdapterConfig(),
         runtimeConfig: {
           heartbeat: {
@@ -461,7 +461,7 @@ export function OnboardingWizard() {
                           {agentName}
                         </p>
                         <p className="text-xs text-white/40">
-                          {getUIAdapter("e2b_sandbox").label}
+                          {getUIAdapter("blaxel_sandbox").label}
                         </p>
                       </div>
                       <Check className="h-4 w-4 text-green-400 shrink-0" />

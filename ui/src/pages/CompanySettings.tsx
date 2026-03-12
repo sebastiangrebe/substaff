@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { WorkingHoursConfig } from "@substaff/shared";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { companiesApi } from "../api/companies";
@@ -7,6 +8,7 @@ import { api } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { HintIcon } from "../components/agent-config-primitives";
+import { WorkingHoursEditor } from "../components/WorkingHoursEditor";
 import { cn } from "../lib/utils";
 
 export function CompanySettings() {
@@ -52,6 +54,14 @@ export function CompanySettings() {
   const planApprovalMutation = useMutation({
     mutationFn: (requirePlanApproval: boolean) =>
       companiesApi.update(selectedCompanyId!, { requirePlanApproval }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    },
+  });
+
+  const workingHoursMutation = useMutation({
+    mutationFn: (workingHours: WorkingHoursConfig | null) =>
+      companiesApi.update(selectedCompanyId!, { workingHours }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
     },
@@ -188,6 +198,33 @@ export function CompanySettings() {
             checked={!!selectedCompany.requirePlanApproval}
             onChange={(v) => planApprovalMutation.mutate(v)}
           />
+        </div>
+      </div>
+
+      {/* Working Hours */}
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-muted-foreground ">
+          Working Hours
+        </h2>
+        <div className="space-y-3 rounded-xl border border-border/50 px-4 py-4">
+          <p className="text-sm text-muted-foreground">
+            Define when agents are allowed to run automatic heartbeat sessions.
+            Manual triggers, ticket responses, and approvals still work outside working hours.
+          </p>
+          <WorkingHoursEditor
+            value={selectedCompany.workingHours as WorkingHoursConfig | null}
+            onChange={(wh) => workingHoursMutation.mutate(wh)}
+          />
+          {workingHoursMutation.isSuccess && (
+            <span className="text-sm text-muted-foreground">Saved</span>
+          )}
+          {workingHoursMutation.isError && (
+            <span className="text-sm text-destructive">
+              {workingHoursMutation.error instanceof Error
+                ? workingHoursMutation.error.message
+                : "Failed to save"}
+            </span>
+          )}
         </div>
       </div>
 

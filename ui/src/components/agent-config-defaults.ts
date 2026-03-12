@@ -1,7 +1,7 @@
 import type { CreateConfigValues } from "@substaff/adapter-utils";
 
 export const defaultCreateValues: CreateConfigValues = {
-  adapterType: "e2b_sandbox",
+  adapterType: "blaxel_sandbox",
   cwd: "",
   instructionsFilePath: "",
   promptTemplate: "",

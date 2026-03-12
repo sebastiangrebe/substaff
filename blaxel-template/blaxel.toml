@@ -1,0 +1,7 @@
+name = "substaff-claude"
+type = "sandbox"
+description = "Substaff agent sandbox with Node.js 20, Claude Code CLI, and jq pre-installed."
+
+[runtime]
+generation = "mk3"
+memory = 1024

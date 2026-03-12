@@ -168,9 +168,13 @@ export type {
   AgentEnvConfig,
   CompanySecret,
   SecretProviderDescriptor,
+  DaySchedule,
+  DayOfWeek,
+  WeekSchedule,
+  WorkingHoursConfig,
 } from "./types/index.js";
 
-export { LLM_PROVIDERS } from "./types/index.js";
+export { LLM_PROVIDERS, DAYS_OF_WEEK } from "./types/index.js";
 
 export {
   createCompanySchema,
@@ -289,6 +293,8 @@ export {
   updateIntegrationSchema,
   type ConnectIntegration,
   type UpdateIntegration,
+  workingHoursSchema,
+  type WorkingHoursInput,
 } from "./validators/index.js";
 
 export { API_PREFIX, API } from "./api.js";

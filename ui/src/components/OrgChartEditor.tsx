@@ -32,6 +32,7 @@ const ROLE_OPTIONS = [
 ] as const;
 
 const ADAPTER_OPTIONS = [
+  "blaxel_sandbox",
   "e2b_sandbox",
 ] as const;
 
@@ -189,7 +190,7 @@ function flattenOrgTree(
   function walk(node: OrgNode, x: number, y: number, parentId?: string) {
     const totalW = subtreeWidth(node);
     const nodeX = x + (totalW - CARD_W) / 2;
-    const adapter = agentLookup?.get(node.id)?.adapterType ?? "e2b_sandbox";
+    const adapter = agentLookup?.get(node.id)?.adapterType ?? "blaxel_sandbox";
     nodes.push({
       id: node.id,
       position: { x: nodeX, y },
@@ -312,7 +313,7 @@ export function OrgChartEditor({ companyId }: OrgChartEditorProps) {
         data: {
           name: n.data.name ?? "",
           role: n.data.role ?? "general",
-          adapterType: n.data.adapterType ?? "e2b_sandbox",
+          adapterType: n.data.adapterType ?? "blaxel_sandbox",
           onUpdate: handleNodeUpdate,
           onDelete: handleNodeDelete,
         },
@@ -389,7 +390,7 @@ export function OrgChartEditor({ companyId }: OrgChartEditorProps) {
       data: {
         name: "New Agent",
         role: "general",
-        adapterType: "e2b_sandbox",
+        adapterType: "blaxel_sandbox",
         onUpdate: handleNodeUpdate,
         onDelete: handleNodeDelete,
       },

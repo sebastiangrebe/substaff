@@ -1,5 +1,12 @@
 export type { Company } from "./company.js";
 export type {
+  DaySchedule,
+  DayOfWeek,
+  WeekSchedule,
+  WorkingHoursConfig,
+} from "./working-hours.js";
+export { DAYS_OF_WEEK } from "./working-hours.js";
+export type {
   Vendor,
   VendorMembership,
   VendorUsage,

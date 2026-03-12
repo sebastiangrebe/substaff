@@ -15,6 +15,7 @@ interface AgentPropertiesProps {
 }
 
 const adapterLabels: Record<string, string> = {
+  blaxel_sandbox: "Blaxel Sandbox",
   e2b_sandbox: "E2B Sandbox",
   process: "Process",
   http: "HTTP",

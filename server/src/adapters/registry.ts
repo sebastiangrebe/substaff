@@ -1,5 +1,12 @@
 import type { ServerAdapterModule } from "./types.js";
 import {
+  execute as blaxelExecute,
+  testEnvironment as blaxelTestEnvironment,
+  sessionCodec as blaxelSessionCodec,
+  tryResumeOrphanedRun as blaxelTryResumeOrphanedRun,
+} from "@substaff/adapter-blaxel-sandbox/server";
+import { agentConfigurationDoc as blaxelAgentConfigurationDoc, models as blaxelModels } from "@substaff/adapter-blaxel-sandbox";
+import {
   execute as e2bExecute,
   testEnvironment as e2bTestEnvironment,
   sessionCodec as e2bSessionCodec,
@@ -14,6 +21,17 @@ import {
 import { agentConfigurationDoc as claudeLocalAgentConfigurationDoc, models as claudeLocalModels } from "@substaff/adapter-claude-local";
 import { processAdapter } from "./process/index.js";
 import { httpAdapter } from "./http/index.js";
+
+const blaxelSandboxAdapter: ServerAdapterModule = {
+  type: "blaxel_sandbox",
+  execute: blaxelExecute,
+  testEnvironment: blaxelTestEnvironment,
+  sessionCodec: blaxelSessionCodec,
+  models: blaxelModels,
+  supportsLocalAgentJwt: true,
+  agentConfigurationDoc: blaxelAgentConfigurationDoc,
+  tryResumeOrphanedRun: blaxelTryResumeOrphanedRun,
+};
 
 const e2bSandboxAdapter: ServerAdapterModule = {
   type: "e2b_sandbox",
@@ -37,13 +55,13 @@ const claudeLocalAdapter: ServerAdapterModule = {
 };
 
 const adaptersByType = new Map<string, ServerAdapterModule>(
-  [e2bSandboxAdapter, claudeLocalAdapter, processAdapter, httpAdapter].map((a) => [a.type, a]),
+  [blaxelSandboxAdapter, e2bSandboxAdapter, claudeLocalAdapter, processAdapter, httpAdapter].map((a) => [a.type, a]),
 );
 
 export function getServerAdapter(type: string): ServerAdapterModule {
   const adapter = adaptersByType.get(type);
   if (!adapter) {
-    return e2bSandboxAdapter;
+    return blaxelSandboxAdapter;
   }
   return adapter;
 }

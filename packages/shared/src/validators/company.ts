@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { COMPANY_STATUSES } from "../constants.js";
+import { workingHoursSchema } from "./working-hours.js";
 
 export const createCompanySchema = z.object({
   name: z.string().min(1),
@@ -17,6 +18,7 @@ export const updateCompanySchema = createCompanySchema
     requirePlanApproval: z.boolean().optional(),
     requireHireApproval: z.boolean().optional(),
     brandColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+    workingHours: workingHoursSchema.nullable().optional(),
   });
 
 export type UpdateCompany = z.infer<typeof updateCompanySchema>;
