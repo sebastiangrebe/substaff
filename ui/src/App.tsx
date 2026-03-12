@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Navigate, Outlet, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Layout } from "./components/Layout";
 import { AppLoader } from "./components/AppLoader";
@@ -58,9 +59,32 @@ function CloudAccessGate() {
   }
 
   if (healthQuery.error) {
+    const errMsg = healthQuery.error instanceof Error ? healthQuery.error.message : "Failed to load app state";
+    const isNetworkError = errMsg === "Failed to fetch" || errMsg.includes("NetworkError");
     return (
-      <div className="mx-auto max-w-xl py-10 text-sm text-destructive">
-        {healthQuery.error instanceof Error ? healthQuery.error.message : "Failed to load app state"}
+      <div className="flex h-screen items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md text-center">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl bg-destructive/10">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">
+            {isNetworkError ? "Unable to connect" : "Something went wrong"}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
+            {isNetworkError
+              ? "Could not reach the server. Please check that the API is running and try again."
+              : errMsg}
+          </p>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Button
+              size="sm"
+              onClick={() => healthQuery.refetch()}
+            >
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              Retry
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }

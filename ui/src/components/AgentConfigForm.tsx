@@ -437,7 +437,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                           mark("identity", "integrations", updated.length > 0 ? updated : null);
                         }}
                       >
-                        {conn.definition?.displayName ?? conn.provider}
+                        {conn.toolkit?.name ?? conn.provider}
                       </button>
                     );
                   })}

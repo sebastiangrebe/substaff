@@ -66,20 +66,21 @@ export interface OrgTemplate {
   updatedAt: Date;
 }
 
-export interface McpServerDefinition {
-  id: string;
+/** Mirrors Composio SDK's ToolKitItem shape */
+export interface ComposioToolkit {
   slug: string;
-  displayName: string;
-  description: string;
-  iconUrl: string | null;
-  mcpPackage: string;
-  mcpCommand: string;
-  mcpArgs: string[];
-  requiredEnvKeys: string[];
-  optionalEnvKeys: string[];
-  documentationUrl: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  name: string;
+  meta: {
+    logo?: string;
+    description?: string;
+    categories?: { slug: string; name: string }[];
+    appUrl?: string;
+    toolsCount?: number;
+  };
+  isLocalToolkit: boolean;
+  authSchemes?: string[];
+  composioManagedAuthSchemes?: string[];
+  noAuth?: boolean;
 }
 
 export interface IntegrationConnection {
@@ -87,16 +88,13 @@ export interface IntegrationConnection {
   vendorId: string;
   companyId: string;
   provider: string;
-  scopes: string | null;
-  expiresAt: Date | null;
-  mcpServerDefinitionId: string | null;
+  composioConnectedAccountId: string | null;
   config: Record<string, unknown> | null;
   status: string;
-  credentialSecretIds: Record<string, string> | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface IntegrationConnectionWithDefinition extends IntegrationConnection {
-  definition: McpServerDefinition | null;
+export interface IntegrationConnectionWithToolkit extends IntegrationConnection {
+  toolkit: ComposioToolkit | null;
 }

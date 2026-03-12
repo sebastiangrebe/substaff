@@ -62,6 +62,12 @@ function readNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
+/** Shell-safe quoting for environment variable values. */
+function shellQuote(s: string): string {
+  // Use $'...' syntax to handle all special characters safely
+  return "$'" + s.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n") + "'";
+}
+
 /**
  * Build a deterministic, DNS-safe sandbox name from company + agent IDs.
  * Format: ss-{companyId[0:12]}-{agentId[0:12]}  (29 chars max)
@@ -441,34 +447,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (skillsUploaded) claudeArgs.push("--add-dir", sandboxSkillsDir);
     if (extraArgs.length > 0) claudeArgs.push(...extraArgs);
 
-    // Write MCP config if integrations are configured
+    // Write MCP config if integrations are configured (Composio URL-based servers)
     if (ctx.mcpConfig) {
-      const mcpServers = (ctx.mcpConfig as { mcpServers?: Record<string, { command: string; args: string[]; env: Record<string, string> }> }).mcpServers;
+      const mcpServers = (ctx.mcpConfig as { mcpServers?: Record<string, unknown> }).mcpServers;
       if (mcpServers && Object.keys(mcpServers).length > 0) {
-        const gdriveServer = mcpServers["google-drive"];
-        if (gdriveServer?.env) {
-          const tokenJson = gdriveServer.env["GOOGLE_DOCS_MCP_TOKEN"];
-          if (tokenJson) {
-            const tokenDir = "/home/user/.config/google-docs-mcp";
-            const tokenPath = `${tokenDir}/token.json`;
-            await sandbox.fs.write(tokenPath, tokenJson);
-            delete gdriveServer.env["GOOGLE_DOCS_MCP_TOKEN"];
-          }
-        }
-
         const mcpConfigPath = "/home/user/.mcp-config.json";
         await sandbox.fs.write(mcpConfigPath, JSON.stringify({ mcpServers }, null, 2));
         claudeArgs.push("--mcp-config", mcpConfigPath);
-
-        for (const server of Object.values(mcpServers)) {
-          if (server.env) {
-            for (const [key, value] of Object.entries(server.env)) {
-              if (typeof value === "string" && value.length > 0) {
-                sandboxEnv[key] = value;
-              }
-            }
-          }
-        }
 
         await ctx.onLog("stdout", `[blaxel] MCP config written with servers: ${Object.keys(mcpServers).join(", ")}\n`);
       }
@@ -492,7 +477,28 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const promptPath = "/home/user/.substaff-prompt.txt";
     await sandbox.fs.write(promptPath, prompt);
 
-    const claudeCommand = `DISABLE_AUTOUPDATER=1 cat ${promptPath} | claude ${claudeArgs.join(" ")}`;
+    // Build a wrapper script so we can run as non-root user.
+    // Claude Code refuses --dangerously-skip-permissions under root/sudo.
+    const scriptLines = ["#!/bin/bash", "set -e"];
+    for (const [k, v] of Object.entries(sandboxEnv)) {
+      // Use heredoc-style quoting to safely handle any value
+      scriptLines.push(`export ${k}=${shellQuote(v)}`);
+    }
+    scriptLines.push(`export DISABLE_AUTOUPDATER=1`);
+    scriptLines.push(`cd ${sandboxWorkDir}`);
+    scriptLines.push(`cat ${promptPath} | claude ${claudeArgs.join(" ")}`);
+    const wrapperPath = "/home/user/.substaff-run.sh";
+    await sandbox.fs.write(wrapperPath, scriptLines.join("\n") + "\n");
+
+    // Ensure /home/user is owned by 'user' so Claude Code can write config/cache
+    await sandbox.process.exec({
+      command: "chown -R user:user /home/user",
+      waitForCompletion: true,
+      timeout: 30,
+    });
+
+    // Run as 'user' to avoid root restrictions
+    const claudeCommand = `su -s /bin/bash user ${wrapperPath}`;
 
     await ctx.onLog("stdout", `[blaxel] Running Claude Code in sandbox...\n`);
 
@@ -503,8 +509,6 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     let stderr = "";
     const execution = await sandbox.process.exec({
       command: claudeCommand,
-      env: sandboxEnv,
-      workingDir: sandboxWorkDir,
       waitForCompletion: true,
       timeout: execTimeoutSec,
       onStdout: (data) => {
@@ -603,7 +607,11 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       clearSession: clearSessionForMaxTurns,
     };
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null
+        ? JSON.stringify(err, null, 2)
+        : String(err);
     await ctx.onLog("stderr", `[blaxel] Error: ${message}\n`);
 
     const errRecord = err as Record<string, unknown> | null;

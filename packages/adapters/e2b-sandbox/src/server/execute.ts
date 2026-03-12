@@ -412,40 +412,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (skillsUploaded) claudeArgs.push("--add-dir", sandboxSkillsDir);
     if (extraArgs.length > 0) claudeArgs.push(...extraArgs);
 
-    // Write MCP config if integrations are configured
+    // Write MCP config if integrations are configured (Composio URL-based servers)
     if (ctx.mcpConfig) {
-      const mcpServers = (ctx.mcpConfig as { mcpServers?: Record<string, { command: string; args: string[]; env: Record<string, string> } > }).mcpServers;
+      const mcpServers = (ctx.mcpConfig as { mcpServers?: Record<string, unknown> }).mcpServers;
       if (mcpServers && Object.keys(mcpServers).length > 0) {
-        // Some MCP servers need credentials written as files rather than env vars.
-        // For google-drive (@a-bonus/google-docs-mcp): write the OAuth token
-        // to the XDG config path it reads at startup, and pass client ID/secret
-        // as env vars (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET).
-        const gdriveServer = mcpServers["google-drive"];
-        if (gdriveServer?.env) {
-          const tokenJson = gdriveServer.env["GOOGLE_DOCS_MCP_TOKEN"];
-          if (tokenJson) {
-            const tokenDir = "/home/user/.config/google-docs-mcp";
-            const tokenPath = `${tokenDir}/token.json`;
-            await sandbox.files.write(tokenPath, tokenJson);
-            delete gdriveServer.env["GOOGLE_DOCS_MCP_TOKEN"];
-          }
-        }
-
         const mcpConfigPath = "/home/user/.mcp-config.json";
         await sandbox.files.write(mcpConfigPath, JSON.stringify({ mcpServers }, null, 2));
         claudeArgs.push("--mcp-config", mcpConfigPath);
-
-        // Also expose MCP credential env vars to the agent's shell so agents
-        // can make direct API calls (e.g., Graph API for page discovery).
-        for (const server of Object.values(mcpServers)) {
-          if (server.env) {
-            for (const [key, value] of Object.entries(server.env)) {
-              if (typeof value === "string" && value.length > 0) {
-                sandboxEnv[key] = value;
-              }
-            }
-          }
-        }
 
         await ctx.onLog("stdout", `[e2b] MCP config written with servers: ${Object.keys(mcpServers).join(", ")}\n`);
       }

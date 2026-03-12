@@ -1,33 +1,67 @@
 import { and, eq, desc, inArray } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { integrationConnections, mcpServerDefinitions, companies } from "@substaff/db";
-import { notFound, unprocessable } from "../errors.js";
-import { secretService } from "./secrets.js";
+import { integrationConnections, companies } from "@substaff/db";
+import { notFound } from "../errors.js";
+import { Composio } from "@composio/core";
+
+function getComposioClient() {
+  return new Composio({
+    apiKey: process.env.COMPOSIO_API_KEY,
+  });
+}
 
 export function integrationService(db: Db) {
-  const secrets = secretService(db);
+  async function listToolkits() {
+    const composio = getComposioClient();
 
-  async function listDefinitions() {
-    return db.select().from(mcpServerDefinitions).orderBy(mcpServerDefinitions.displayName);
+    // Fetch all toolkits and all existing auth configs in parallel
+    const [all, authConfigResult] = await Promise.all([
+      composio.toolkits.get({ sortBy: "usage" }),
+      composio.authConfigs.list({ limit: 200 }),
+    ]);
+
+    // Build set of toolkit slugs that have an auth config in our project
+    const configuredSlugs = new Set<string>();
+    for (const config of authConfigResult?.items ?? []) {
+      const slug = (config as any).toolkit?.slug;
+      if (slug) configuredSlugs.add(slug.toLowerCase());
+    }
+
+    // Composio built-in test/demo toolkits to exclude
+    const excludedSlugs = new Set(["test_app"]);
+
+    return (all ?? []).filter(
+      (t: any) =>
+        !t.isLocalToolkit &&
+        !excludedSlugs.has(t.slug) &&
+        (t.noAuth || configuredSlugs.has(t.slug.toLowerCase())),
+    );
   }
 
   async function listConnections(companyId: string) {
     const rows = await db
-      .select({
-        connection: integrationConnections,
-        definition: mcpServerDefinitions,
-      })
+      .select()
       .from(integrationConnections)
-      .leftJoin(
-        mcpServerDefinitions,
-        eq(integrationConnections.mcpServerDefinitionId, mcpServerDefinitions.id),
-      )
       .where(eq(integrationConnections.companyId, companyId))
       .orderBy(desc(integrationConnections.createdAt));
 
-    return rows.map((r) => ({
-      ...r.connection,
-      definition: r.definition,
+    if (rows.length === 0) return [];
+
+    // Fetch toolkit metadata for connected providers
+    const composio = getComposioClient();
+    const toolkitBySlug = new Map<string, any>();
+    try {
+      const allToolkits = await composio.toolkits.get();
+      for (const tk of allToolkits ?? []) {
+        toolkitBySlug.set(tk.slug, tk);
+      }
+    } catch {
+      // Continue without enrichment if Composio is unreachable
+    }
+
+    return rows.map((conn) => ({
+      ...conn,
+      toolkit: toolkitBySlug.get(conn.provider) ?? null,
     }));
   }
 
@@ -39,15 +73,10 @@ export function integrationService(db: Db) {
       .then((rows) => rows[0] ?? null);
   }
 
-  async function connectIntegration(
+  async function initiateConnection(
     companyId: string,
-    input: {
-      definitionId: string;
-      credentialSecretIds: Record<string, string>;
-      config?: Record<string, unknown>;
-    },
+    input: { appName: string; integrationId?: string },
   ) {
-    // Resolve vendorId from the company record
     const [company] = await db
       .select({ vendorId: companies.vendorId })
       .from(companies)
@@ -55,36 +84,70 @@ export function integrationService(db: Db) {
       .limit(1);
     if (!company) throw notFound("Company not found");
 
-    const [definition] = await db
-      .select()
-      .from(mcpServerDefinitions)
-      .where(eq(mcpServerDefinitions.id, input.definitionId));
+    const composio = getComposioClient();
 
-    if (!definition) throw notFound("MCP server definition not found");
+    const baseUrl =
+      process.env.SUBSTAFF_API_URL ??
+      `http://localhost:${process.env.SUBSTAFF_LISTEN_PORT ?? "3100"}`;
+    const callbackUrl = `${baseUrl}/api/integrations/composio/callback?companyId=${encodeURIComponent(companyId)}`;
 
-    // Validate that all required env keys have a secret ref
-    for (const key of definition.requiredEnvKeys) {
-      if (!input.credentialSecretIds[key]) {
-        throw unprocessable(`Missing required credential secret for: ${key}`);
-      }
+    // Find an existing auth config for this toolkit, or create a managed one
+    let authConfigId: string;
+    const existing = await composio.authConfigs.list({ toolkit: input.appName });
+    const existingItems = existing?.items ?? [];
+    if (existingItems.length > 0) {
+      authConfigId = existingItems[0].id;
+    } else {
+      const created = await composio.authConfigs.create(input.appName.toUpperCase(), {
+        name: `substaff-${input.appName}`,
+        type: "use_composio_managed_auth",
+      });
+      authConfigId = created.id;
     }
 
-    // Validate that referenced secrets exist and belong to this company
-    for (const [key, secretId] of Object.entries(input.credentialSecretIds)) {
-      const secret = await secrets.getById(secretId);
-      if (!secret) throw notFound(`Secret not found for key: ${key}`);
-      if (secret.companyId !== companyId) {
-        throw unprocessable(`Secret for ${key} must belong to the same company`);
-      }
-    }
+    const connectionRequest = await composio.connectedAccounts.initiate(
+      companyId, // userId = our companyId
+      authConfigId,
+      {
+        callbackUrl,
+        allowMultiple: true,
+      },
+    );
 
-    // Remove any existing connection for the same provider (allows reconnect)
+    return {
+      redirectUrl: connectionRequest.redirectUrl,
+      connectedAccountId: connectionRequest.id,
+      connectionStatus: connectionRequest.status,
+    };
+  }
+
+  async function completeConnection(
+    companyId: string,
+    connectedAccountId: string,
+  ) {
+    const [company] = await db
+      .select({ vendorId: companies.vendorId })
+      .from(companies)
+      .where(eq(companies.id, companyId))
+      .limit(1);
+    if (!company) throw notFound("Company not found");
+
+    const composio = getComposioClient();
+
+    // Get the connected account details from Composio
+    const account = await composio.connectedAccounts.get(connectedAccountId);
+    const toolkitSlug = (account as any).toolkit?.slug
+      ?? (account as any).appName
+      ?? (account as any).appUniqueId
+      ?? "unknown";
+
+    // Remove any existing connection for the same provider
     await db
       .delete(integrationConnections)
       .where(
         and(
           eq(integrationConnections.companyId, companyId),
-          eq(integrationConnections.provider, definition.slug),
+          eq(integrationConnections.provider, toolkitSlug),
         ),
       );
 
@@ -93,22 +156,18 @@ export function integrationService(db: Db) {
       .values({
         companyId,
         vendorId: company.vendorId,
-        provider: definition.slug,
-        accessToken: "", // Not used for MCP-based connections
-        mcpServerDefinitionId: definition.id,
-        credentialSecretIds: input.credentialSecretIds,
-        config: input.config ?? null,
+        provider: toolkitSlug,
+        composioConnectedAccountId: connectedAccountId,
         status: "active",
       })
       .returning();
 
-    return { ...created, definition };
+    return created;
   }
 
   async function updateConnection(
     id: string,
     patch: {
-      credentialSecretIds?: Record<string, string>;
       config?: Record<string, unknown>;
       status?: string;
     },
@@ -119,9 +178,6 @@ export function integrationService(db: Db) {
     const [updated] = await db
       .update(integrationConnections)
       .set({
-        ...(patch.credentialSecretIds !== undefined
-          ? { credentialSecretIds: patch.credentialSecretIds }
-          : {}),
         ...(patch.config !== undefined ? { config: patch.config } : {}),
         ...(patch.status !== undefined ? { status: patch.status } : {}),
         updatedAt: new Date(),
@@ -135,21 +191,25 @@ export function integrationService(db: Db) {
   async function disconnectIntegration(id: string) {
     const existing = await getConnectionById(id);
     if (!existing) return null;
+
+    // Revoke on Composio side
+    if (existing.composioConnectedAccountId) {
+      try {
+        const composio = getComposioClient();
+        await composio.connectedAccounts.delete(existing.composioConnectedAccountId);
+      } catch {
+        // Best effort — continue even if Composio deletion fails
+      }
+    }
+
     await db.delete(integrationConnections).where(eq(integrationConnections.id, id));
     return existing;
   }
 
   async function resolveCompanyMcpConfig(companyId: string, providerFilter?: string[] | null) {
     const connections = await db
-      .select({
-        connection: integrationConnections,
-        definition: mcpServerDefinitions,
-      })
+      .select()
       .from(integrationConnections)
-      .innerJoin(
-        mcpServerDefinitions,
-        eq(integrationConnections.mcpServerDefinitionId, mcpServerDefinitions.id),
-      )
       .where(
         and(
           eq(integrationConnections.companyId, companyId),
@@ -162,41 +222,39 @@ export function integrationService(db: Db) {
 
     if (connections.length === 0) return null;
 
-    const mcpServers: Record<
-      string,
-      { command: string; args: string[]; env: Record<string, string> }
-    > = {};
+    const activeConnections = connections.filter((c) => c.composioConnectedAccountId);
+    if (activeConnections.length === 0) return null;
 
-    for (const { connection, definition } of connections) {
-      try {
-        const env: Record<string, string> = {};
-        const credSecrets = (connection.credentialSecretIds ?? {}) as Record<string, string>;
+    const composio = getComposioClient();
 
-        for (const [envKey, secretId] of Object.entries(credSecrets)) {
-          env[envKey] = await secrets.resolveSecretValue(companyId, secretId, "latest");
-        }
+    // Create a Composio session scoped to this company (userId = companyId)
+    // The session provides a single MCP endpoint (Tool Router) that gives
+    // access to all connected toolkits for this user
+    const toolkits = providerFilter && providerFilter.length > 0
+      ? providerFilter
+      : activeConnections.map((c) => c.provider);
 
-        mcpServers[definition.slug] = {
-          command: definition.mcpCommand,
-          args: [...definition.mcpArgs],
-          env,
-        };
-      } catch {
-        // Skip invalid connections rather than failing the entire run
-        continue;
-      }
-    }
+    const session = await composio.create(companyId, {
+      toolkits,
+    });
 
-    if (Object.keys(mcpServers).length === 0) return null;
+    const mcpServers: Record<string, { type: string; url: string; headers: Record<string, string> }> = {
+      composio: {
+        type: "http",
+        url: session.mcp.url,
+        headers: session.mcp.headers as Record<string, string>,
+      },
+    };
 
     return { mcpServers };
   }
 
   return {
-    listDefinitions,
+    listToolkits,
     listConnections,
     getConnectionById,
-    connectIntegration,
+    initiateConnection,
+    completeConnection,
     updateConnection,
     disconnectIntegration,
     resolveCompanyMcpConfig,

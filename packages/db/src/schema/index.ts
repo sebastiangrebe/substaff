@@ -37,7 +37,6 @@ export { companySecrets } from "./company_secrets.js";
 export { companySecretVersions } from "./company_secret_versions.js";
 export { taskPlans } from "./task_plans.js";
 export { orgTemplates } from "./org_templates.js";
-export { mcpServerDefinitions } from "./mcp_server_definitions.js";
 export { integrationConnections } from "./integration_connections.js";
 export { indexedArtifacts } from "./indexed_artifacts.js";
 export { creditTransactions } from "./credit_transactions.js";

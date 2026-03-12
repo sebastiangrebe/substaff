@@ -12,9 +12,9 @@ export type {
   VendorUsage,
   TaskPlan,
   OrgTemplate,
-  McpServerDefinition,
+  ComposioToolkit,
   IntegrationConnection,
-  IntegrationConnectionWithDefinition,
+  IntegrationConnectionWithToolkit,
 } from "./vendor.js";
 export type {
   Agent,

@@ -1,4 +1,6 @@
 import type { Db } from "@substaff/db";
+import { companies } from "@substaff/db";
+import { eq } from "drizzle-orm";
 import { connectIntegrationSchema, updateIntegrationSchema } from "@substaff/shared";
 import { validate } from "../middleware/validate.js";
 import { assertBoard, assertCompanyAccess, companyRouter } from "./authz.js";
@@ -9,12 +11,11 @@ export function integrationRoutes(db: Db) {
   const router = companyRouter();
   const svc = integrationService(db);
 
-  // List available MCP server definitions
-  router.get("/companies/:companyId/integrations/definitions", async (req, res) => {
+  // List available toolkits from Composio (sorted by usage)
+  router.get("/companies/:companyId/integrations/available", async (req, res) => {
     assertBoard(req);
-    const companyId = req.params.companyId as string;
-    const definitions = await svc.listDefinitions();
-    res.json(definitions);
+    const toolkits = await svc.listToolkits();
+    res.json(toolkits ?? []);
   });
 
   // List company's integration connections
@@ -25,7 +26,7 @@ export function integrationRoutes(db: Db) {
     res.json(connections);
   });
 
-  // Connect a new integration
+  // Initiate a new integration connection (returns redirect URL for OAuth)
   router.post(
     "/companies/:companyId/integrations",
     validate(connectIntegrationSchema),
@@ -33,25 +34,70 @@ export function integrationRoutes(db: Db) {
       assertBoard(req);
       const companyId = req.params.companyId as string;
 
-      const created = await svc.connectIntegration(companyId, {
-        definitionId: req.body.definitionId,
-        credentialSecretIds: req.body.credentialSecretIds,
-        config: req.body.config,
-      });
+      try {
+        const result = await svc.initiateConnection(companyId, {
+          appName: req.body.appName,
+          integrationId: req.body.integrationId,
+        });
+
+        res.status(200).json(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to initiate connection";
+        res.status(400).json({ error: message });
+      }
+    },
+  );
+
+  // Composio OAuth callback — redirects back to the UI
+  router.get("/integrations/composio/callback", async (req, res) => {
+    console.log("[composio callback] query params:", JSON.stringify(req.query));
+
+    const companyId = req.query.companyId as string | undefined;
+    // Composio may send the connected account ID under different param names
+    const connectedAccountId =
+      (req.query.connected_account_id as string) ??
+      (req.query.connectedAccountId as string) ??
+      (req.query.connectionId as string) ??
+      undefined;
+
+    const uiBase = process.env.SUBSTAFF_UI_URL ?? "";
+
+    if (!companyId || !connectedAccountId) {
+      res.redirect(`${uiBase}/integrations?oauth=error&message=${encodeURIComponent("Missing parameters. Received: " + Object.keys(req.query).join(", "))}`);
+      return;
+    }
+
+    try {
+      // Look up company prefix for redirect
+      const [company] = await db
+        .select({ issuePrefix: companies.issuePrefix })
+        .from(companies)
+        .where(eq(companies.id, companyId))
+        .limit(1);
+
+      const prefix = company?.issuePrefix;
+
+      const created = await svc.completeConnection(companyId, connectedAccountId);
 
       await logActivity(db, {
         companyId,
         actorType: "user",
-        actorId: req.actor.userId ?? "board",
+        actorId: req.actor?.userId ?? "board",
         action: "integration.connected",
         entityType: "integration",
         entityId: created.id,
-        details: { provider: created.provider },
+        details: { provider: created.provider, method: "composio" },
       });
 
-      res.status(201).json(created);
-    },
-  );
+      const redirectPath = prefix
+        ? `${uiBase}/${prefix}/integrations`
+        : `${uiBase}/integrations`;
+      res.redirect(`${redirectPath}?oauth=success&provider=${encodeURIComponent(created.provider)}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.redirect(`${uiBase}/integrations?oauth=error&message=${encodeURIComponent(message)}`);
+    }
+  });
 
   // Update an integration connection
   router.patch(

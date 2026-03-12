@@ -34,7 +34,7 @@ export function RouteErrorBoundary() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md text-center">
         {/* Icon */}
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl bg-destructive/10">
@@ -140,7 +140,7 @@ function FallbackUI({ error, onReset }: { error: Error | null; onReset: () => vo
   const [showDetails, setShowDetails] = useState(false);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md text-center">
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-xl bg-destructive/10">
           <AlertTriangle className="h-8 w-8 text-destructive" />

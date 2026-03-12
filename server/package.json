@@ -31,9 +31,10 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.888.0",
+    "@composio/core": "^0.6.4",
     "@qdrant/js-client-rest": "^1.17.0",
-    "@substaff/adapter-claude-local": "workspace:*",
     "@substaff/adapter-blaxel-sandbox": "workspace:*",
+    "@substaff/adapter-claude-local": "workspace:*",
     "@substaff/adapter-e2b-sandbox": "workspace:*",
     "@substaff/adapter-utils": "workspace:*",
     "@substaff/db": "workspace:*",

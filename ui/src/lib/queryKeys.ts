@@ -88,7 +88,7 @@ export const queryKeys = {
     list: (companyId: string) => ["roles", companyId] as const,
   },
   integrations: {
-    definitions: (companyId: string) => ["integrations", "definitions", companyId] as const,
+    available: (companyId: string) => ["integrations", "available", companyId] as const,
     list: (companyId: string) => ["integrations", companyId] as const,
   },
 };
