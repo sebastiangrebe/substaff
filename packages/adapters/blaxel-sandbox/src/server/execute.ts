@@ -155,6 +155,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     }
 
+    if (!sandbox) {
+      throw new Error(`[blaxel] Failed to create sandbox after retries: ${sandboxName}`);
+    }
+
     await ctx.onLog("stdout", `[blaxel] Sandbox ready: ${sandboxName}\n`);
 
     // Persist sandbox name so the server can reconnect after a restart

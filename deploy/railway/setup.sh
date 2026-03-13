@@ -13,23 +13,26 @@ if ! command -v railway &> /dev/null; then
   exit 1
 fi
 
-# Check we're linked to a project
-if ! railway status &> /dev/null; then
-  echo "Error: Not linked to a Railway project. Run 'railway init' first."
+# Check we're linked to a project by testing if variables command works
+if ! railway variables &> /dev/null; then
+  echo "Error: No Railway service linked. Run 'railway link' and 'railway service <name>' first."
   exit 1
 fi
+echo "Linked to Railway service. Continuing setup..."
+echo ""
 
 echo "Step 1/5: Adding PostgreSQL..."
-railway add --plugin postgresql 2>/dev/null || echo "  PostgreSQL may already exist, skipping."
+railway add --database postgres 2>/dev/null || echo "  PostgreSQL may already exist, skipping."
 
 echo "Step 2/5: Adding Redis..."
-railway add --plugin redis 2>/dev/null || echo "  Redis may already exist, skipping."
+railway add --database redis 2>/dev/null || echo "  Redis may already exist, skipping."
 
 echo "Step 3/5: Generating auth secrets..."
 AUTH_SECRET=$(openssl rand -hex 32)
 JWT_SECRET=$(openssl rand -hex 32)
 
 echo "Step 4/5: Setting core environment variables..."
+# shellcheck disable=SC2086
 railway variables set \
   BETTER_AUTH_SECRET="$AUTH_SECRET" \
   SUBSTAFF_AGENT_JWT_SECRET="$JWT_SECRET" \
@@ -51,6 +54,7 @@ echo ""
 # Anthropic API Key
 read -rp "Anthropic API key (sk-ant-...): " ANTHROPIC_KEY
 if [ -n "$ANTHROPIC_KEY" ]; then
+  # shellcheck disable=SC2086
   railway variables set \
     MANAGED_ANTHROPIC_API_KEY="$ANTHROPIC_KEY" \
     ANTHROPIC_API_KEY="$ANTHROPIC_KEY"
@@ -59,12 +63,13 @@ fi
 # Cloudflare R2
 echo ""
 echo "--- Cloudflare R2 Storage Setup ---"
-read -rp "Cloudflare Account ID: " CF_ACCOUNT_ID
-read -rp "R2 Access Key ID: " R2_ACCESS_KEY
-read -rp "R2 Secret Access Key: " R2_SECRET_KEY
-R2_BUCKET="${R2_BUCKET:-substaff}"
+read -rp "Cloudflare Account ID (press Enter to skip): " CF_ACCOUNT_ID
+if [ -n "$CF_ACCOUNT_ID" ]; then
+  read -rp "R2 Access Key ID: " R2_ACCESS_KEY
+  read -rp "R2 Secret Access Key: " R2_SECRET_KEY
+  R2_BUCKET="${R2_BUCKET:-substaff}"
 
-if [ -n "$CF_ACCOUNT_ID" ] && [ -n "$R2_ACCESS_KEY" ]; then
+  # shellcheck disable=SC2086
   railway variables set \
     SUBSTAFF_STORAGE_S3_BUCKET="$R2_BUCKET" \
     SUBSTAFF_STORAGE_S3_REGION=auto \
@@ -79,6 +84,7 @@ echo ""
 read -rp "Stripe Secret Key (optional, press Enter to skip): " STRIPE_KEY
 if [ -n "$STRIPE_KEY" ]; then
   read -rp "Stripe Webhook Secret: " STRIPE_WH
+  # shellcheck disable=SC2086
   railway variables set \
     STRIPE_SECRET_KEY="$STRIPE_KEY" \
     STRIPE_WEBHOOK_SECRET="$STRIPE_WH"
@@ -88,6 +94,7 @@ fi
 read -rp "Resend API Key (optional, press Enter to skip): " RESEND_KEY
 if [ -n "$RESEND_KEY" ]; then
   read -rp "Email From (e.g. Substaff <noreply@example.com>): " EMAIL_FROM
+  # shellcheck disable=SC2086
   railway variables set \
     RESEND_API_KEY="$RESEND_KEY" \
     EMAIL_FROM="$EMAIL_FROM"
@@ -96,6 +103,7 @@ fi
 # Optional: E2B
 read -rp "E2B API Key (optional, press Enter to skip): " E2B_KEY
 if [ -n "$E2B_KEY" ]; then
+  # shellcheck disable=SC2086
   railway variables set E2B_API_KEY="$E2B_KEY"
 fi
 

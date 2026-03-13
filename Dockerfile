@@ -17,6 +17,7 @@ COPY packages/adapters/claude-local/package.json packages/adapters/claude-local/
 COPY packages/adapters/codex-local/package.json packages/adapters/codex-local/
 COPY packages/adapters/cursor-local/package.json packages/adapters/cursor-local/
 COPY packages/adapters/e2b-sandbox/package.json packages/adapters/e2b-sandbox/
+COPY packages/adapters/blaxel-sandbox/package.json packages/adapters/blaxel-sandbox/
 COPY packages/adapters/openclaw/package.json packages/adapters/openclaw/
 COPY packages/adapters/opencode-local/package.json packages/adapters/opencode-local/
 COPY packages/storage/package.json packages/storage/
@@ -44,7 +45,6 @@ ENV NODE_ENV=production \
   SUBSTAFF_DEPLOYMENT_MODE=authenticated \
   SUBSTAFF_MIGRATION_AUTO_APPLY=true
 
-VOLUME ["/substaff"]
 EXPOSE 3100
 
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]
