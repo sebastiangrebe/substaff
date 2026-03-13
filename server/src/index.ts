@@ -1,4 +1,8 @@
 /// <reference path="./types/express.d.ts" />
+import { initSentry } from "./sentry.js";
+
+initSentry();
+
 import { createServer } from "node:http";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
@@ -193,6 +197,7 @@ const app = await createApp(db as any, {
   deploymentMode: config.deploymentMode,
   authReady,
   companyDeletionEnabled: config.companyDeletionEnabled,
+  maxSignupUsers: config.maxSignupUsers,
   betterAuthHandler,
   resolveSession,
 });

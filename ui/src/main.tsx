@@ -17,8 +17,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { BudgetExhaustedListener } from "./components/BudgetExhaustedListener";
 import { AppErrorBoundary } from "./components/ErrorBoundary";
 import { ApiError } from "./api/client";
+import { initSentry } from "./lib/sentry";
+import { initPostHog } from "./lib/posthog";
 import "@mdxeditor/editor/style.css";
 import "./index.css";
+
+initSentry();
+initPostHog();
 
 const queryClient = new QueryClient({
   defaultOptions: {

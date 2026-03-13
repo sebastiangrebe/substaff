@@ -44,6 +44,9 @@
     }
   },
   "dependencies": {
-    "js-yaml": "^4.1.1"
+    "@sentry/node": "^10.43.0",
+    "@sentry/react": "^10.43.0",
+    "js-yaml": "^4.1.1",
+    "posthog-js": "^1.360.1"
   }
 }

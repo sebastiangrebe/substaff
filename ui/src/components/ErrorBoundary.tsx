@@ -3,6 +3,7 @@ import { isRouteErrorResponse, useRouteError } from "react-router-dom";
 import { AlertTriangle, RefreshCw, Home, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { Sentry } from "@/lib/sentry";
 
 /* ------------------------------------------------------------------ */
 /*  Route-level error element (used as errorElement in router config)  */
@@ -125,6 +126,7 @@ export class AppErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[AppErrorBoundary]", error, info.componentStack);
+    Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
   }
 
   render() {

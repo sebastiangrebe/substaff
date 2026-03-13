@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Db } from "@substaff/db";
 import { authUsers } from "@substaff/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { DeploymentMode } from "@substaff/shared";
 import type { StorageService } from "./storage/types.js";
 import { httpLogger, errorHandler } from "./middleware/index.js";
@@ -51,6 +51,7 @@ export async function createApp(
     deploymentMode: DeploymentMode;
     authReady: boolean;
     companyDeletionEnabled: boolean;
+    maxSignupUsers?: number;
     betterAuthHandler?: express.RequestHandler;
     resolveSession?: (req: ExpressRequest) => Promise<BetterAuthSessionResult | null>;
   },
@@ -121,6 +122,19 @@ export async function createApp(
   });
   app.use("/api", avatarRoutes(db, opts.storageService));
   if (opts.betterAuthHandler) {
+    if (opts.maxSignupUsers != null) {
+      const maxUsers = opts.maxSignupUsers;
+      app.post("/api/auth/sign-up/email", async (req, res, next) => {
+        const [{ count: userCount }] = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(authUsers);
+        if (userCount >= maxUsers) {
+          res.status(403).json({ error: { message: "Sign-ups are currently closed. Maximum number of users has been reached." } });
+          return;
+        }
+        next();
+      });
+    }
     app.all("/api/auth/*authPath", opts.betterAuthHandler);
   }
   app.use(llmRoutes(db));

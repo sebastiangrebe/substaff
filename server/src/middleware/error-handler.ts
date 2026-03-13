@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { logger } from "./logger.js";
 import { HttpError } from "../errors.js";
+import { Sentry } from "../sentry.js";
 
 export function errorHandler(
   err: unknown,
@@ -36,5 +37,6 @@ export function errorHandler(
     req.originalUrl,
     err instanceof Error ? err.message : String(err),
   );
+  Sentry.captureException(err);
   res.status(500).json({ error: "Internal server error" });
 }

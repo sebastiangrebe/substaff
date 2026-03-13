@@ -34,6 +34,7 @@ export interface Config {
   heartbeatSchedulerEnabled: boolean;
   heartbeatSchedulerIntervalMs: number;
   companyDeletionEnabled: boolean;
+  maxSignupUsers: number | undefined;
 }
 
 export function loadConfig(): Config {
@@ -74,6 +75,9 @@ export function loadConfig(): Config {
       ? companyDeletionEnvRaw === "true"
       : false;
 
+  const maxSignupUsersRaw = process.env.SUBSTAFF_MAX_SIGNUP_USERS;
+  const maxSignupUsers = maxSignupUsersRaw ? Number(maxSignupUsersRaw) : undefined;
+
   return {
     deploymentMode,
     host: process.env.HOST ?? fileConfig?.server.host ?? "0.0.0.0",
@@ -99,5 +103,6 @@ export function loadConfig(): Config {
     heartbeatSchedulerEnabled: process.env.HEARTBEAT_SCHEDULER_ENABLED !== "false",
     heartbeatSchedulerIntervalMs: Math.max(10000, Number(process.env.HEARTBEAT_SCHEDULER_INTERVAL_MS) || 30000),
     companyDeletionEnabled,
+    maxSignupUsers,
   };
 }
