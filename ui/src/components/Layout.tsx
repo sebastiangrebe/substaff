@@ -45,12 +45,16 @@ import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
 import { useGuidedTour } from "../hooks/useGuidedTour";
 import { useTour } from "./Tour";
+import { ChatProvider } from "../context/ChatContext";
+import { ChatSidebar } from "./ChatSidebar";
 
 export function Layout() {
   return (
-    <SidebarProvider className="h-dvh !min-h-0 overflow-hidden">
-      <LayoutInner />
-    </SidebarProvider>
+    <ChatProvider>
+      <SidebarProvider className="h-dvh !min-h-0 overflow-hidden">
+        <LayoutInner />
+      </SidebarProvider>
+    </ChatProvider>
   );
 }
 
@@ -300,6 +304,7 @@ function LayoutInner() {
             <Outlet />
           </main>
           <PropertiesPanel />
+          <ChatSidebar />
         </div>
       </SidebarInset>
 

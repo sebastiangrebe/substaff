@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { agentsApi, type OrgNode } from "../api/agents";
-import { orgChartApi } from "../api/orgChart";
 import { accessApi } from "../api/access";
+import { useChat } from "../context/ChatContext";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -15,7 +15,7 @@ import { RolesPanel } from "../components/RolesPanel";
 import { AgentIcon } from "../components/AgentIconPicker";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Network, Plus, MessageSquareText, Shield, UserPlus, X, UserCheck, User } from "lucide-react";
+import { Network, Plus, MessageSquareText, Shield, UserPlus, UserCheck, User } from "lucide-react";
 import { BUILTIN_ROLE_LABELS, type Agent } from "@substaff/shared";
 
 // Layout constants
@@ -201,9 +201,7 @@ export function OrgChart() {
 
 function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent: () => void }) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [showPrompt, setShowPrompt] = useState(false);
-  const [promptText, setPromptText] = useState("");
+  const chatContext = useChat();
 
   const { data: orgTree, isLoading } = useQuery({
     queryKey: queryKeys.org(companyId),
@@ -215,32 +213,6 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
     queryKey: queryKeys.agents.list(companyId),
     queryFn: () => agentsApi.list(companyId),
     enabled: !!companyId,
-  });
-
-
-  // Load saved prompt-to-org text
-  const { data: savedChart } = useQuery({
-    queryKey: queryKeys.orgChart(companyId),
-    queryFn: () => orgChartApi.get(companyId),
-    enabled: !!companyId,
-  });
-
-  useEffect(() => {
-    if (savedChart?.promptToOrg) {
-      setPromptText(savedChart.promptToOrg);
-    }
-  }, [savedChart?.promptToOrg]);
-
-  const savePromptMutation = useMutation({
-    mutationFn: (prompt: string) =>
-      orgChartApi.save(companyId, {
-        nodes: savedChart?.nodes ?? [],
-        edges: savedChart?.edges ?? [],
-        promptToOrg: prompt || undefined,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.orgChart(companyId) });
-    },
   });
 
   const agentMap = useMemo(() => {
@@ -353,38 +325,6 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
 
   return (
     <div className="flex flex-col h-full">
-      {/* Prompt-to-Org panel */}
-      {showPrompt && (
-        <div className="border-b border-border bg-card px-4 py-3 space-y-2 shrink-0">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Prompt-to-Org
-            </span>
-            <Button size="icon-xs" variant="ghost" onClick={() => setShowPrompt(false)}>
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-          <textarea
-            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none resize-y min-h-[60px] focus:border-primary"
-            placeholder="Describe your org structure in natural language... (e.g. 'A CEO managing a CTO and CMO. The CTO has 3 engineers and 1 QA.')"
-            value={promptText}
-            onChange={(e) => setPromptText(e.target.value)}
-          />
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] text-muted-foreground">
-              Automatic generation from natural language is coming soon.
-            </p>
-            <Button
-              size="xs"
-              onClick={() => savePromptMutation.mutate(promptText)}
-              disabled={savePromptMutation.isPending}
-            >
-              {savePromptMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Chart canvas */}
       <div
         ref={containerRef}
@@ -404,8 +344,14 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
           </Button>
           <Button
             size="sm"
-            variant={showPrompt ? "secondary" : "outline"}
-            onClick={() => setShowPrompt(!showPrompt)}
+            variant={chatContext.isOpen && chatContext.contextKey === "org:prompt-to-org" ? "secondary" : "outline"}
+            onClick={() => {
+              if (chatContext.isOpen && chatContext.contextKey === "org:prompt-to-org") {
+                chatContext.close();
+              } else {
+                chatContext.open({ contextKey: "org:prompt-to-org", meta: { companyId } });
+              }
+            }}
           >
             <MessageSquareText className="h-4 w-4" />
             Prompt to Org

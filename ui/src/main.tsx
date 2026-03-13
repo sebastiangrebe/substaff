@@ -8,6 +8,7 @@ import { CompanyProvider } from "./context/CompanyContext";
 import { LiveUpdatesProvider } from "./context/LiveUpdatesProvider";
 import { BreadcrumbProvider } from "./context/BreadcrumbContext";
 import { PanelProvider } from "./context/PanelContext";
+
 import { DialogProvider } from "./context/DialogContext";
 import { TourProvider } from "./components/Tour";
 import { ToastProvider } from "./context/ToastContext";

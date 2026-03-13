@@ -37,6 +37,7 @@ import { knowledgeRoutes } from "./routes/knowledge.js";
 import { projectStateRoutes } from "./routes/project-state.js";
 import { integrationRoutes } from "./routes/integrations.js";
 import { companyRoleRoutes } from "./routes/company-roles.js";
+import { chatRoutes } from "./routes/chat.js";
 import { avatarRoutes } from "./routes/avatar.js";
 import type { BetterAuthSessionResult } from "./auth/better-auth.js";
 
@@ -161,6 +162,7 @@ export async function createApp(
   api.use(integrationRoutes(db));
   api.use(companyRoleRoutes(db));
   api.use("/companies", projectStateRoutes(db));
+  api.use(chatRoutes(db));
   api.use((_req, res) => {
     res.status(404).json({ error: "Not found" });
   });
