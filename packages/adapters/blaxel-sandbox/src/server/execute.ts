@@ -133,11 +133,27 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   try {
     await ctx.onLog("stdout", `[blaxel] Creating or resuming sandbox: ${sandboxName}\n`);
 
-    sandbox = await SandboxInstance.createIfNotExists({
-      name: sandboxName,
-      image,
-      memory,
-    });
+    const maxRetries = 3;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        sandbox = await SandboxInstance.createIfNotExists({
+          name: sandboxName,
+          image,
+          memory,
+        });
+        break;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const is502 = msg.includes("502") || msg.includes("Bad Gateway");
+        if (is502 && attempt < maxRetries) {
+          const delaySec = attempt * 2;
+          await ctx.onLog("stderr", `[blaxel] Got 502 creating sandbox (attempt ${attempt}/${maxRetries}), retrying in ${delaySec}s...\n`);
+          await new Promise((r) => setTimeout(r, delaySec * 1000));
+        } else {
+          throw err;
+        }
+      }
+    }
 
     await ctx.onLog("stdout", `[blaxel] Sandbox ready: ${sandboxName}\n`);
 

@@ -16,10 +16,13 @@ export const billingApi = {
       monthlyTokens: number;
     }>(`/vendors/${vendorId}/billing/balance`),
 
-  getCreditHistory: (vendorId: string, limit = 50, offset = 0) =>
-    api.get<CreditTransaction[]>(
-      `/vendors/${vendorId}/billing/credits?limit=${limit}&offset=${offset}`,
-    ),
+  getCreditHistory: (vendorId: string, limit = 50, offset = 0, companyId?: string) => {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    if (companyId) params.set("companyId", companyId);
+    return api.get<CreditTransaction[]>(
+      `/vendors/${vendorId}/billing/credits?${params.toString()}`,
+    );
+  },
 
   createTopUp: (vendorId: string, amountCents: number) =>
     api.post<{ url: string; sessionId: string }>(

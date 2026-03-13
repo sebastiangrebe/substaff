@@ -170,8 +170,8 @@ export function Billing() {
   });
 
   const creditsQuery = useQuery({
-    queryKey: queryKeys.billing.credits(billingQuery.data?.vendorId ?? ""),
-    queryFn: () => billingApi.getCreditHistory(billingQuery.data!.vendorId),
+    queryKey: [...queryKeys.billing.credits(billingQuery.data?.vendorId ?? ""), selectedCompanyId],
+    queryFn: () => billingApi.getCreditHistory(billingQuery.data!.vendorId, 50, 0, selectedCompanyId ?? undefined),
     enabled: !!billingQuery.data?.vendorId,
   });
 

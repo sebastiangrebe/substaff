@@ -2,7 +2,7 @@ import { Resend } from "resend";
 import { logger } from "../middleware/logger.js";
 
 let resend: Resend | null = null;
-let emailFrom = "Substaff <noreply@substaff.com>";
+let emailFrom = "Substaff <noreply@substaff.app>";
 
 export function initEmail(apiKey: string, from?: string) {
   resend = new Resend(apiKey);

@@ -1,0 +1,39 @@
+name: Legal Research Firm
+slug: legal-research-firm
+description: A structured legal team with partners, associates, researchers, paralegals, and document reviewers
+industry: Legal
+icon: scale
+agents:
+  - id: ceo
+    role: ceo
+    name: CEO
+    title: Chief Executive Officer
+    reportsTo: null
+  - id: partner
+    role: legal-compliance-checker
+    name: Managing Partner
+    title: Managing Partner
+    reportsTo: ceo
+  - id: associate
+    role: legal-compliance-checker
+    name: Senior Associate
+    title: Senior Associate
+    reportsTo: partner
+  - id: analyst
+    role: trend-researcher
+    name: Research Analyst
+    title: Research Analyst
+    reportsTo: partner
+  - id: paralegal
+    role: document-generator
+    name: Paralegal
+    title: Paralegal
+    reportsTo: associate
+  - id: doc-reviewer
+    role: evidence-collector
+    name: Document Reviewer
+    title: Document Reviewer
+    reportsTo: analyst
+bootstrapTask:
+  title: "Set up case management workflow and introduce the team"
+  description: "Each team member should introduce themselves, establish their areas of expertise, and the Managing Partner should outline the firm's workflow and case intake process."

@@ -1,0 +1,39 @@
+name: Sales Organization
+slug: sales-organization
+description: A sales team with CEO, VP Sales, account strategist, sales engineer, outbound rep, and pipeline analyst
+industry: Sales
+icon: trending-up
+agents:
+  - id: ceo
+    role: ceo
+    name: CEO
+    title: Chief Executive Officer
+    reportsTo: null
+  - id: vp-sales
+    role: account-strategist
+    name: VP Sales
+    title: VP of Sales
+    reportsTo: ceo
+  - id: account-strat
+    role: account-strategist
+    name: Account Strategist
+    title: Account Strategist
+    reportsTo: vp-sales
+  - id: sales-eng
+    role: deal-strategist
+    name: Sales Engineer
+    title: Sales Engineer
+    reportsTo: vp-sales
+  - id: outbound
+    role: outbound-strategist
+    name: Outbound Rep
+    title: Outbound Strategist
+    reportsTo: vp-sales
+  - id: pipeline
+    role: pipeline-analyst
+    name: Pipeline Analyst
+    title: Pipeline Analyst
+    reportsTo: vp-sales
+bootstrapTask:
+  title: "Build your sales playbook and define pipeline stages"
+  description: "VP Sales should define the ideal customer profile and sales stages. Each team member should outline their role in the sales process and propose initial outreach strategies."

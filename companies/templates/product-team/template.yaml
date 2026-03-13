@@ -1,0 +1,39 @@
+name: Product Team
+slug: product-team
+description: A product-led team with CEO, Head of Product, UX researcher, UX designer, frontend developer, and QA
+industry: Technology
+icon: layout
+agents:
+  - id: ceo
+    role: ceo
+    name: CEO
+    title: Chief Executive Officer
+    reportsTo: null
+  - id: head-product
+    role: sprint-prioritizer
+    name: Head of Product
+    title: Head of Product
+    reportsTo: ceo
+  - id: ux-researcher
+    role: ux-researcher
+    name: UX Researcher
+    title: UX Researcher
+    reportsTo: head-product
+  - id: ux-designer
+    role: ux-architect
+    name: UX Designer
+    title: UX Designer
+    reportsTo: head-product
+  - id: frontend
+    role: frontend-developer
+    name: Frontend Developer
+    title: Frontend Developer
+    reportsTo: head-product
+  - id: qa
+    role: api-tester
+    name: QA Engineer
+    title: QA Engineer
+    reportsTo: head-product
+bootstrapTask:
+  title: "Define the product vision and plan your first user research sprint"
+  description: "Head of Product should outline the product strategy. UX Researcher proposes initial research methods. The team should agree on a workflow for design-to-development handoff."

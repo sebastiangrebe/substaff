@@ -672,6 +672,9 @@ export function IssuesList({
                     </div>
                   )}
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-auto">
+                    <span className="hidden sm:inline-flex items-center gap-1 shrink-0">
+                      <PriorityIcon priority={issue.priority} />
+                    </span>
                     {liveIssueIds?.has(issue.id) && (
                       <span className="inline-flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5 rounded-full bg-blue-500/10">
                         <span className="relative flex h-2 w-2">
@@ -761,8 +764,11 @@ export function IssuesList({
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <span className="text-xs text-muted-foreground hidden sm:inline">
+                    <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">
                       {formatDate(issue.createdAt)}
+                    </span>
+                    <span className="text-xs text-muted-foreground hidden lg:inline whitespace-nowrap">
+                      {formatDate(issue.updatedAt)}
                     </span>
                   </div>
                 </Link>

@@ -1,0 +1,39 @@
+name: Customer Support Center
+slug: customer-support-center
+description: A tiered support organization with management, front-line agents, escalation specialists, and knowledge base management
+industry: Customer Service
+icon: headphones
+agents:
+  - id: ceo
+    role: ceo
+    name: CEO
+    title: Chief Executive Officer
+    reportsTo: null
+  - id: support-mgr
+    role: project-shepherd
+    name: Support Manager
+    title: Support Manager
+    reportsTo: ceo
+  - id: tier1
+    role: support-responder
+    name: Tier 1 Agent
+    title: Tier 1 Support Agent
+    reportsTo: support-mgr
+  - id: tier2
+    role: support-responder
+    name: Tier 2 Agent
+    title: Tier 2 Support Agent
+    reportsTo: support-mgr
+  - id: kb-editor
+    role: technical-writer
+    name: Knowledge Base Editor
+    title: Knowledge Base Editor
+    reportsTo: support-mgr
+  - id: escalation
+    role: incident-response-commander
+    name: Escalation Handler
+    title: Escalation Handler
+    reportsTo: support-mgr
+bootstrapTask:
+  title: "Define support tiers and create initial knowledge base structure"
+  description: "The Support Manager should define the escalation workflow, assign tier responsibilities, and the KB Editor should create an initial knowledge base outline."

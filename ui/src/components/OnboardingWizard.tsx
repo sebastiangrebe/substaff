@@ -7,6 +7,7 @@ import { companiesApi } from "../api/companies";
 import { goalsApi } from "../api/goals";
 import { agentsApi } from "../api/agents";
 import { issuesApi } from "../api/issues";
+import { templatesApi, type OrgTemplateDetail, type ApplyTemplateResult } from "../api/templates";
 import { queryKeys } from "../lib/queryKeys";
 import { Dialog, DialogPortal } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,15 @@ import { cn } from "../lib/utils";
 import { getUIAdapter } from "../adapters";
 import { defaultCreateValues } from "./agent-config-defaults";
 import { HeroAnimation } from "./HeroAnimation";
+import { TemplatePicker } from "./onboarding/TemplatePicker";
+import { TemplatePreview } from "./onboarding/TemplatePreview";
+import { TeamCustomizer, type TeamEdit } from "./onboarding/TeamCustomizer";
+import { WorkingHoursSetup, DEFAULT_WORKING_HOURS } from "./onboarding/WorkingHoursSetup";
+import type { WorkingHoursConfig } from "@substaff/shared";
 import {
   Building2,
   Bot,
-  Code,
+  Clock,
   ListTodo,
   Rocket,
   ArrowLeft,
@@ -26,9 +32,11 @@ import {
   Loader2,
   X,
   Wallet,
+  Users,
 } from "lucide-react";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
+const TOTAL_STEPS = 6;
 
 const DEFAULT_TASK_DESCRIPTION = `Introduce yourself, explore your workspace, and prepare a brief summary of what you can help with. Then suggest what the team should work on first.`;
 
@@ -49,14 +57,27 @@ export function OnboardingWizard() {
   const [companyName, setCompanyName] = useState("");
   const [companyGoal, setCompanyGoal] = useState("");
 
-  // Step 2
-  const [agentName, setAgentName] = useState("CEO");
+  // Step 2 — Template selection
+  const [selectedTemplate, setSelectedTemplate] = useState<OrgTemplateDetail | null>(null);
+  const [skippedTemplate, setSkippedTemplate] = useState(false);
 
-  // Step 3
+  // Step 3 — Team customization (used when template selected)
+  // Also used for CEO-only flow when template skipped
+  const [agentName, setAgentName] = useState("CEO");
+  const [teamEdits, setTeamEdits] = useState<TeamEdit[]>([]);
+
+  // Step 4 — Working hours
+  const [workingHours, setWorkingHours] = useState<WorkingHoursConfig>(DEFAULT_WORKING_HOURS);
+
+  // Step 5 — Task
   const [taskTitle, setTaskTitle] = useState("Introduce yourself and get set up");
-  const [taskDescription, setTaskDescription] = useState(
-    DEFAULT_TASK_DESCRIPTION
-  );
+  const [taskDescription, setTaskDescription] = useState(DEFAULT_TASK_DESCRIPTION);
+
+  // Created entity IDs
+  const [createdCompanyId, setCreatedCompanyId] = useState<string | null>(existingCompanyId ?? null);
+  const [createdCompanyPrefix, setCreatedCompanyPrefix] = useState<string | null>(null);
+  const [createdAgents, setCreatedAgents] = useState<ApplyTemplateResult["agents"]>([]);
+  const [createdIssueRef, setCreatedIssueRef] = useState<string | null>(null);
 
   // Auto-grow textarea for task description
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -67,42 +88,45 @@ export function OnboardingWizard() {
     el.style.height = el.scrollHeight + "px";
   }, []);
 
-  // Created entity IDs — pre-populate from existing company when skipping step 1
-  const [createdCompanyId, setCreatedCompanyId] = useState<string | null>(
-    existingCompanyId ?? null
-  );
-  const [createdCompanyPrefix, setCreatedCompanyPrefix] = useState<
-    string | null
-  >(null);
-  const [createdAgentId, setCreatedAgentId] = useState<string | null>(null);
-  const [createdIssueRef, setCreatedIssueRef] = useState<string | null>(null);
-
-  // Sync step and company when onboarding opens with options.
-  // Keep this independent from company-list refreshes so Step 1 completion
-  // doesn't get reset after creating a company.
+  // Sync step and company when onboarding opens
   useEffect(() => {
     if (!onboardingOpen) return;
     const cId = onboardingOptions.companyId ?? null;
     setStep(onboardingOptions.initialStep ?? 1);
     setCreatedCompanyId(cId);
     setCreatedCompanyPrefix(null);
-  }, [
-    onboardingOpen,
-    onboardingOptions.companyId,
-    onboardingOptions.initialStep
-  ]);
+  }, [onboardingOpen, onboardingOptions.companyId, onboardingOptions.initialStep]);
 
-  // Backfill issue prefix for an existing company once companies are loaded.
+  // Backfill issue prefix for existing company
   useEffect(() => {
     if (!onboardingOpen || !createdCompanyId || createdCompanyPrefix) return;
     const company = companies.find((c) => c.id === createdCompanyId);
     if (company) setCreatedCompanyPrefix(company.issuePrefix);
   }, [onboardingOpen, createdCompanyId, createdCompanyPrefix, companies]);
 
-  // Resize textarea when step 3 is shown or description changes
+  // Resize textarea on step 5
   useEffect(() => {
-    if (step === 3) autoResizeTextarea();
+    if (step === 5) autoResizeTextarea();
   }, [step, taskDescription, autoResizeTextarea]);
+
+  // Initialize team edits when template selected
+  useEffect(() => {
+    if (selectedTemplate) {
+      setTeamEdits(
+        selectedTemplate.nodes.map((n) => ({
+          id: n.id,
+          name: n.data.label,
+          title: n.data.title,
+          removed: false,
+        }))
+      );
+      // Pre-fill bootstrap task if available
+      if (selectedTemplate.bootstrapTask) {
+        setTaskTitle(selectedTemplate.bootstrapTask.title);
+        setTaskDescription(selectedTemplate.bootstrapTask.description);
+      }
+    }
+  }, [selectedTemplate]);
 
   function reset() {
     setStep(1);
@@ -110,12 +134,16 @@ export function OnboardingWizard() {
     setError(null);
     setCompanyName("");
     setCompanyGoal("");
+    setSelectedTemplate(null);
+    setSkippedTemplate(false);
     setAgentName("CEO");
-    setTaskTitle("Create your CEO HEARTBEAT.md");
+    setTeamEdits([]);
+    setWorkingHours(DEFAULT_WORKING_HOURS);
+    setTaskTitle("Introduce yourself and get set up");
     setTaskDescription(DEFAULT_TASK_DESCRIPTION);
     setCreatedCompanyId(null);
     setCreatedCompanyPrefix(null);
-    setCreatedAgentId(null);
+    setCreatedAgents([]);
     setCreatedIssueRef(null);
   }
 
@@ -139,87 +167,135 @@ export function OnboardingWizard() {
     });
   }
 
-  async function handleStep1Next() {
-    setLoading(true);
-    setError(null);
-    try {
-      const company = await companiesApi.create({ name: companyName.trim() });
-      setCreatedCompanyId(company.id);
-      setCreatedCompanyPrefix(company.issuePrefix);
-      setSelectedCompanyId(company.id);
-      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
-
-      if (companyGoal.trim()) {
-        await goalsApi.create(company.id, {
-          title: companyGoal.trim(),
-          level: "company",
-          status: "active"
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.goals.list(company.id)
-        });
-      }
-
-      setStep(2);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create company");
-    } finally {
-      setLoading(false);
-    }
+  function handleStep1Next() {
+    // Just advance — company creation is deferred to step 3
+    setStep(2);
   }
 
-  async function handleStep2Next() {
-    if (!createdCompanyId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const agent = await agentsApi.create(createdCompanyId, {
-        name: agentName.trim(),
-        role: "ceo",
-        adapterType: "blaxel_sandbox",
-        adapterConfig: buildAdapterConfig(),
-        runtimeConfig: {
-          heartbeat: {
-            enabled: true,
-            intervalSec: 3600,
-            wakeOnDemand: true,
-            cooldownSec: 10,
-            maxConcurrentRuns: 1
-          }
-        }
+  /** Create the company (and optional goal). Called once from handleStep3Next. */
+  async function createCompany(): Promise<{ id: string; issuePrefix: string }> {
+    // If company was already created (e.g. opened with existing companyId), skip
+    if (createdCompanyId) {
+      return { id: createdCompanyId, issuePrefix: createdCompanyPrefix ?? "" };
+    }
+
+    const company = await companiesApi.create({ name: companyName.trim() });
+    setCreatedCompanyId(company.id);
+    setCreatedCompanyPrefix(company.issuePrefix);
+    setSelectedCompanyId(company.id);
+    queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+
+    if (companyGoal.trim()) {
+      await goalsApi.create(company.id, {
+        title: companyGoal.trim(),
+        level: "company",
+        status: "active"
       });
-      setCreatedAgentId(agent.id);
       queryClient.invalidateQueries({
-        queryKey: queryKeys.agents.list(createdCompanyId)
+        queryKey: queryKeys.goals.list(company.id)
       });
-      // Company + agent exist — onboarding is no longer mandatory
-      setOnboardingRequired(false);
+    }
+
+    return { id: company.id, issuePrefix: company.issuePrefix };
+  }
+
+  function handleTemplateSelect(template: OrgTemplateDetail) {
+    setSelectedTemplate(template);
+    setSkippedTemplate(false);
+  }
+
+  function handleTemplateSkip() {
+    setSelectedTemplate(null);
+    setSkippedTemplate(true);
+    setStep(3);
+  }
+
+  function handleStep2Next() {
+    if (selectedTemplate) {
       setStep(3);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create agent");
-    } finally {
-      setLoading(false);
     }
   }
 
   async function handleStep3Next() {
-    if (!createdCompanyId || !createdAgentId) return;
     setLoading(true);
     setError(null);
     try {
+      // Create company first (deferred from step 1)
+      const company = await createCompany();
+      const companyId = company.id;
+
+      if (skippedTemplate) {
+        // CEO-only flow (original behavior)
+        const agent = await agentsApi.create(companyId, {
+          name: agentName.trim(),
+          role: "ceo",
+          adapterType: "blaxel_sandbox",
+          adapterConfig: buildAdapterConfig(),
+          runtimeConfig: {
+            heartbeat: {
+              enabled: true,
+              intervalSec: 3600,
+              wakeOnDemand: true,
+              cooldownSec: 10,
+              maxConcurrentRuns: 1
+            }
+          }
+        });
+        setCreatedAgents([{ id: agent.id, name: agent.name, role: agent.role, title: agent.title ?? "", reportsTo: null }]);
+      } else if (selectedTemplate) {
+        // Apply template with agent creation
+        const result = await templatesApi.apply(companyId, selectedTemplate.id, true);
+        setCreatedAgents(result.agents);
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.agents.list(companyId)
+      });
+      setOnboardingRequired(false);
+      setStep(4);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create company and team");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleStep4Next() {
+    if (!createdCompanyId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // Save working hours to the company
+      await companiesApi.update(createdCompanyId, { workingHours });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.companies.all,
+      });
+      setStep(5);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save working hours");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleStep5Next() {
+    if (!createdCompanyId || createdAgents.length === 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // Assign to the root agent (first agent with no reportsTo, or first agent)
+      const rootAgent = createdAgents.find((a) => !a.reportsTo) ?? createdAgents[0];
       const issue = await issuesApi.create(createdCompanyId, {
         title: taskTitle.trim(),
-        ...(taskDescription.trim()
-          ? { description: taskDescription.trim() }
-          : {}),
-        assigneeAgentId: createdAgentId,
+        ...(taskDescription.trim() ? { description: taskDescription.trim() } : {}),
+        assigneeAgentId: rootAgent.id,
         status: "todo"
       });
       setCreatedIssueRef(issue.identifier ?? issue.id);
       queryClient.invalidateQueries({
         queryKey: queryKeys.issues.list(createdCompanyId)
       });
-      setStep(4);
+      setStep(6);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create task");
     } finally {
@@ -228,9 +304,6 @@ export function OnboardingWizard() {
   }
 
   async function handleLaunch() {
-    if (!createdAgentId) return;
-    setLoading(true);
-    setError(null);
     setLoading(false);
     reset();
     closeOnboarding();
@@ -249,9 +322,11 @@ export function OnboardingWizard() {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (step === 1 && companyName.trim()) handleStep1Next();
-      else if (step === 2 && agentName.trim()) handleStep2Next();
-      else if (step === 3 && taskTitle.trim()) handleStep3Next();
-      else if (step === 4) handleLaunch();
+      else if (step === 2 && selectedTemplate) handleStep2Next();
+      else if (step === 3) handleStep3Next();
+      else if (step === 4) handleStep4Next();
+      else if (step === 5 && taskTitle.trim()) handleStep5Next();
+      else if (step === 6) handleLaunch();
     }
   }
 
@@ -266,19 +341,17 @@ export function OnboardingWizard() {
     >
       <DialogPortal>
         <div className="fixed inset-0 z-50">
-          {/* Full-screen animated background */}
           <HeroAnimation />
 
-          {/* Content overlay */}
           <div className="relative z-10 flex min-h-full items-center justify-center overflow-y-auto px-4 py-12" onKeyDown={handleKeyDown}>
-            <div className="w-full max-w-md">
+            <div className={cn("w-full", step === 2 ? "max-w-lg" : "max-w-md")}>
               {/* Logo + progress + close */}
               <div className="flex items-center gap-2.5 mb-8">
                 <img src="/logo.svg" alt="Substaff" className="h-7 w-7" />
                 <span className="text-base font-semibold text-white/90 tracking-tight">Get Started</span>
-                <span className="text-sm text-white/30 ml-1">Step {step} of 4</span>
+                <span className="text-sm text-white/30 ml-1">Step {step} of {TOTAL_STEPS}</span>
                 <div className="flex items-center gap-1.5 ml-auto">
-                  {[1, 2, 3, 4].map((s) => (
+                  {[1, 2, 3, 4, 5, 6].map((s) => (
                     <div
                       key={s}
                       className={cn(
@@ -306,7 +379,7 @@ export function OnboardingWizard() {
               {/* Glass card */}
               <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl shadow-2xl shadow-black/40 p-8">
 
-              {/* Step content */}
+              {/* Step 1: Company name */}
               {step === 1 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
@@ -346,59 +419,84 @@ export function OnboardingWizard() {
                 </div>
               )}
 
+              {/* Step 2: Choose template */}
               {step === 2 && (
-                <div className="space-y-5">
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
-                      <Bot className="h-5 w-5 text-white/50" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-white">Your CEO agent</h3>
-                      <p className="text-xs text-white/40">
-                        We'll create a CEO agent that manages your company.
-                        It runs in a secure cloud sandbox.
-                      </p>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
-                      Agent name
-                    </label>
-                    <input
-                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
-                      placeholder="CEO"
-                      value={agentName}
-                      onChange={(e) => setAgentName(e.target.value)}
-                      autoFocus
-                    />
-                  </div>
+                <TemplatePicker
+                  selectedSlug={selectedTemplate?.id ?? null}
+                  onSelect={handleTemplateSelect}
+                  onSkip={handleTemplateSkip}
+                />
+              )}
 
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Code className="h-4 w-4 text-white/40" />
-                      <span className="text-sm font-medium text-white/80">E2B Sandbox</span>
-                      <span className="text-[10px] bg-green-500/15 text-green-400 px-1.5 py-0.5 rounded-full font-medium">
-                        Cloud
-                      </span>
-                    </div>
-                    <p className="text-xs text-white/35">
-                      Secure, isolated cloud sandbox with its own filesystem. No local setup needed.
-                    </p>
-                  </div>
+              {/* Step 3: Review team / CEO name */}
+              {step === 3 && (
+                <div className="space-y-5">
+                  {skippedTemplate ? (
+                    <>
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                          <Bot className="h-5 w-5 text-white/50" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-white">Your CEO agent</h3>
+                          <p className="text-xs text-white/40">
+                            We'll create a CEO agent that manages your company.
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-white/40 mb-1.5 block">
+                          Agent name
+                        </label>
+                        <input
+                          className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
+                          placeholder="CEO"
+                          value={agentName}
+                          onChange={(e) => setAgentName(e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+                    </>
+                  ) : selectedTemplate ? (
+                    <>
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
+                          <Users className="h-5 w-5 text-white/50" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-white">Review your team</h3>
+                          <p className="text-xs text-white/40">
+                            Customize agent names or remove roles you don't need.
+                          </p>
+                        </div>
+                      </div>
+                      <TemplatePreview template={selectedTemplate} />
+                      <TeamCustomizer
+                        template={selectedTemplate}
+                        edits={teamEdits}
+                        onChange={setTeamEdits}
+                      />
+                    </>
+                  ) : null}
                 </div>
               )}
 
-              {step === 3 && (
+              {/* Step 4: Working hours */}
+              {step === 4 && (
+                <WorkingHoursSetup value={workingHours} onChange={setWorkingHours} />
+              )}
+
+              {/* Step 5: First task */}
+              {step === 5 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
                     <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
                       <ListTodo className="h-5 w-5 text-white/50" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">Give it something to do</h3>
+                      <h3 className="font-semibold text-white">Give them something to do</h3>
                       <p className="text-xs text-white/40">
-                        Give your agent a small task to start with — a bug fix,
-                        a research question, writing a script.
+                        This task will be assigned to your {createdAgents.length > 1 ? "lead agent" : "CEO"}.
                       </p>
                     </div>
                   </div>
@@ -429,7 +527,8 @@ export function OnboardingWizard() {
                 </div>
               )}
 
-              {step === 4 && (
+              {/* Step 6: Launch summary */}
+              {step === 6 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
                     <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
@@ -454,18 +553,33 @@ export function OnboardingWizard() {
                       </div>
                       <Check className="h-4 w-4 text-green-400 shrink-0" />
                     </div>
-                    <div className="flex items-center gap-3 px-3 py-2.5">
-                      <Bot className="h-4 w-4 text-white/40 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">
-                          {agentName}
-                        </p>
-                        <p className="text-xs text-white/40">
-                          {getUIAdapter("blaxel_sandbox").label}
-                        </p>
+                    {createdAgents.length > 1 ? (
+                      <div className="flex items-center gap-3 px-3 py-2.5">
+                        <Users className="h-4 w-4 text-white/40 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            {createdAgents.length} agents
+                          </p>
+                          <p className="text-xs text-white/40 truncate">
+                            {createdAgents.map((a) => a.name).join(", ")}
+                          </p>
+                        </div>
+                        <Check className="h-4 w-4 text-green-400 shrink-0" />
                       </div>
-                      <Check className="h-4 w-4 text-green-400 shrink-0" />
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-3 px-3 py-2.5">
+                        <Bot className="h-4 w-4 text-white/40 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-white truncate">
+                            {createdAgents[0]?.name ?? agentName}
+                          </p>
+                          <p className="text-xs text-white/40">
+                            {getUIAdapter("blaxel_sandbox").label}
+                          </p>
+                        </div>
+                        <Check className="h-4 w-4 text-green-400 shrink-0" />
+                      </div>
+                    )}
                     <div className="flex items-center gap-3 px-3 py-2.5">
                       <ListTodo className="h-4 w-4 text-white/40 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -473,6 +587,18 @@ export function OnboardingWizard() {
                           {taskTitle}
                         </p>
                         <p className="text-xs text-white/40">Task</p>
+                      </div>
+                      <Check className="h-4 w-4 text-green-400 shrink-0" />
+                    </div>
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <Clock className="h-4 w-4 text-white/40 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">
+                          {workingHours.enabled ? "Working hours enabled" : "Working hours off"}
+                        </p>
+                        <p className="text-xs text-white/40">
+                          {workingHours.enabled ? workingHours.timezone : "Agents can run anytime"}
+                        </p>
                       </div>
                       <Check className="h-4 w-4 text-green-400 shrink-0" />
                     </div>
@@ -489,7 +615,7 @@ export function OnboardingWizard() {
                         size="sm"
                         onClick={() => {
                           closeOnboarding();
-                          navigate("/billing");
+                          navigate(createdCompanyPrefix ? `/${createdCompanyPrefix}/billing` : "/billing");
                         }}
                       >
                         Top up
@@ -525,37 +651,26 @@ export function OnboardingWizard() {
                   {step === 1 && (
                     <Button
                       size="sm"
-                      disabled={!companyName.trim() || loading}
+                      disabled={!companyName.trim()}
                       onClick={handleStep1Next}
                     >
-                      {loading ? (
-                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                      ) : (
-                        <ArrowRight className="h-3.5 w-3.5 mr-1" />
-                      )}
-                      {loading ? "Creating..." : "Next"}
+                      <ArrowRight className="h-3.5 w-3.5 mr-1" />
+                      Next
                     </Button>
                   )}
-                  {step === 2 && (
+                  {step === 2 && selectedTemplate && (
                     <Button
                       size="sm"
-                      disabled={
-                        !agentName.trim() || loading
-                      }
                       onClick={handleStep2Next}
                     >
-                      {loading ? (
-                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                      ) : (
-                        <ArrowRight className="h-3.5 w-3.5 mr-1" />
-                      )}
-                      {loading ? "Creating..." : "Next"}
+                      <ArrowRight className="h-3.5 w-3.5 mr-1" />
+                      Next
                     </Button>
                   )}
                   {step === 3 && (
                     <Button
                       size="sm"
-                      disabled={!taskTitle.trim() || loading}
+                      disabled={loading || (skippedTemplate && !agentName.trim())}
                       onClick={handleStep3Next}
                     >
                       {loading ? (
@@ -563,10 +678,38 @@ export function OnboardingWizard() {
                       ) : (
                         <ArrowRight className="h-3.5 w-3.5 mr-1" />
                       )}
-                      {loading ? "Creating..." : "Next"}
+                      {loading ? "Setting up..." : "Create company"}
                     </Button>
                   )}
                   {step === 4 && (
+                    <Button
+                      size="sm"
+                      disabled={loading}
+                      onClick={handleStep4Next}
+                    >
+                      {loading ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      {loading ? "Saving..." : "Next"}
+                    </Button>
+                  )}
+                  {step === 5 && (
+                    <Button
+                      size="sm"
+                      disabled={!taskTitle.trim() || loading}
+                      onClick={handleStep5Next}
+                    >
+                      {loading ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      {loading ? "Creating..." : "Next"}
+                    </Button>
+                  )}
+                  {step === 6 && (
                     <Button size="sm" disabled={loading} onClick={handleLaunch}>
                       {loading ? (
                         <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />

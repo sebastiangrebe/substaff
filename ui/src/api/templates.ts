@@ -1,4 +1,3 @@
-import type { OrgTemplate } from "@substaff/shared";
 import { api } from "./client";
 
 export interface OrgTemplateDetail {
@@ -6,6 +5,8 @@ export interface OrgTemplateDetail {
   name: string;
   description: string;
   industry: string;
+  icon?: string;
+  agentCount: number;
   nodes: Array<{
     id: string;
     type: string;
@@ -24,11 +25,18 @@ export interface OrgTemplateDetail {
     type?: string;
     label?: string;
   }>;
+  bootstrapTask?: { title: string; description: string };
 }
 
 export interface ApplyTemplateResult {
   company: unknown;
-  agents: unknown[];
+  agents: Array<{
+    id: string;
+    name: string;
+    role: string;
+    title: string;
+    reportsTo: string | null;
+  }>;
   template: { id: string; name: string };
 }
 

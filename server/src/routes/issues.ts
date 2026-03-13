@@ -29,8 +29,9 @@ import {
 } from "../services/index.js";
 import { logger } from "../middleware/logger.js";
 import { forbidden, HttpError, unauthorized } from "../errors.js";
-import { assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
+import { assertCompanyAccess, companyRouter, getActorInfo, getActorVendorId } from "./authz.js";
 import { indexComment } from "../vector/index.js";
+import { enqueueEmailAlert } from "../queues/email-alerts.js";
 
 const MAX_ATTACHMENT_BYTES = Number(process.env.SUBSTAFF_ATTACHMENT_MAX_BYTES) || 10 * 1024 * 1024;
 const ALLOWED_ATTACHMENT_CONTENT_TYPES = new Set([
@@ -494,6 +495,34 @@ export function issueRoutes(db: Db, storage: StorageService) {
       entityId: issue.id,
       details: { ...updateFields, identifier: issue.identifier, _previous: Object.keys(previous).length > 0 ? previous : undefined },
     });
+
+    // Email alerts for issue status transitions
+    if (updateFields.status && updateFields.status !== existing.status) {
+      if (updateFields.status === "done" || updateFields.status === "blocked") {
+        void (async () => {
+          try {
+            let vendorId: string | undefined;
+            try { vendorId = getActorVendorId(req); } catch { /* no vendor context */ }
+            if (!vendorId) {
+              const [c] = await db.select({ vendorId: companies.vendorId }).from(companies).where(eq(companies.id, issue.companyId)).limit(1);
+              vendorId = c?.vendorId;
+            }
+            if (!vendorId) return;
+
+            enqueueEmailAlert({
+              type: updateFields.status === "done" ? "issue-completed" : "issue-blocked",
+              vendorId,
+              companyId: issue.companyId,
+              issueId: issue.id,
+              issueTitle: issue.title,
+              issueIdentifier: issue.identifier,
+            });
+          } catch (err) {
+            logger.warn({ err, issueId: issue.id }, "Failed to enqueue issue status email alert");
+          }
+        })();
+      }
+    }
 
     let comment = null;
     if (commentBody) {

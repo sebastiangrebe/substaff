@@ -90,8 +90,9 @@ export function billingRoutes(db: Db) {
 
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const offset = Number(req.query.offset) || 0;
+    const companyId = req.query.companyId as string | undefined;
 
-    const rows = await billing.getCreditHistory(req.params.vendorId as string, limit, offset);
+    const rows = await billing.getCreditHistory(req.params.vendorId as string, limit, offset, companyId);
     res.json(rows);
   });
 

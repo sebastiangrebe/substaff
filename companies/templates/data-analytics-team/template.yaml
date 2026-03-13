@@ -1,0 +1,39 @@
+name: Data Analytics Team
+slug: data-analytics-team
+description: A data-focused team with leadership, engineering, data science, machine learning, and business intelligence
+industry: Data & AI
+icon: bar-chart
+agents:
+  - id: ceo
+    role: ceo
+    name: CEO
+    title: Chief Executive Officer
+    reportsTo: null
+  - id: director
+    role: analytics-reporter
+    name: Analytics Director
+    title: Analytics Director
+    reportsTo: ceo
+  - id: data-eng
+    role: data-engineer
+    name: Data Engineer
+    title: Data Engineer
+    reportsTo: director
+  - id: data-sci
+    role: ai-engineer
+    name: Data Scientist
+    title: Data Scientist
+    reportsTo: director
+  - id: ml-eng
+    role: ai-engineer
+    name: ML Engineer
+    title: ML Engineer
+    reportsTo: director
+  - id: bi-analyst
+    role: analytics-reporter
+    name: BI Analyst
+    title: BI Analyst
+    reportsTo: data-sci
+bootstrapTask:
+  title: "Inventory data sources and propose an analytics roadmap"
+  description: "The Director should outline key business questions. Each specialist should assess their domain and propose initial projects for the analytics roadmap."

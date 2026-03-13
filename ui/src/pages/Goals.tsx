@@ -20,7 +20,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Target, Plus, Filter, ArrowUpDown, Check, X, ChevronRight, Search } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn, formatDate } from "../lib/utils";
 import type { Goal } from "@substaff/shared";
 
 /* ── Helpers ── */
@@ -503,6 +503,12 @@ export function Goals() {
                         <Identity name={agentName(goal.ownerAgentId)!} size="sm" />
                       </div>
                     )}
+                    <span className="text-xs text-muted-foreground hidden lg:inline whitespace-nowrap">
+                      {formatDate(goal.createdAt)}
+                    </span>
+                    <span className="text-xs text-muted-foreground hidden lg:inline whitespace-nowrap">
+                      {formatDate(goal.updatedAt)}
+                    </span>
                     <span style={{ viewTransitionName: `entity-status-${goal.id}` } as React.CSSProperties}>
                       <StatusBadge status={goal.status} />
                     </span>

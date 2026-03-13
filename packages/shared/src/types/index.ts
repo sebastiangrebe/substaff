@@ -12,6 +12,8 @@ export type {
   VendorUsage,
   TaskPlan,
   OrgTemplate,
+  CompanyTemplate,
+  CompanyTemplatePreview,
   ComposioToolkit,
   IntegrationConnection,
   IntegrationConnectionWithToolkit,

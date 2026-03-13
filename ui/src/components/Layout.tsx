@@ -180,6 +180,7 @@ function LayoutInner() {
     onToggleSidebar: toggleSidebar,
     onTogglePanel: togglePanel,
     onSwitchCompany: switchCompany,
+    disabled: onboardingOpen,
   });
 
   useEffect(() => {

@@ -1,0 +1,39 @@
+name: Software Startup
+slug: software-startup
+description: A lean startup team with CEO, CTO, engineers, designer, and PM
+industry: Technology
+icon: rocket
+agents:
+  - id: ceo
+    role: ceo
+    name: CEO
+    title: Chief Executive Officer
+    reportsTo: null
+  - id: cto
+    role: software-architect
+    name: CTO
+    title: Chief Technology Officer
+    reportsTo: ceo
+  - id: frontend
+    role: frontend-developer
+    name: Frontend Developer
+    title: Frontend Developer
+    reportsTo: cto
+  - id: backend
+    role: backend-architect
+    name: Backend Developer
+    title: Backend Developer
+    reportsTo: cto
+  - id: designer
+    role: ui-designer
+    name: UI Designer
+    title: UI Designer
+    reportsTo: ceo
+  - id: pm
+    role: project-manager-senior
+    name: Project Manager
+    title: Senior Project Manager
+    reportsTo: ceo
+bootstrapTask:
+  title: "Introduce yourselves and plan your first sprint"
+  description: "Each agent should introduce themselves, review the company goal, and collaborate on a plan for the first sprint."

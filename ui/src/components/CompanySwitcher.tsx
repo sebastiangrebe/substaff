@@ -119,7 +119,7 @@ export function CompanySwitcher() {
           className="flex items-center gap-2.5 px-2.5 py-2 text-muted-foreground cursor-pointer"
         >
           <Plus className="h-4 w-4" />
-          <span>Add workspace</span>
+          <span>Add company</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

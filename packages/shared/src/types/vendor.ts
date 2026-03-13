@@ -66,6 +66,26 @@ export interface OrgTemplate {
   updatedAt: Date;
 }
 
+export interface CompanyTemplate {
+  slug: string;
+  name: string;
+  description: string;
+  industry: string;
+  icon?: string;
+  agents: Array<{
+    id: string;
+    role: string;
+    name: string;
+    title: string;
+    reportsTo: string | null;
+  }>;
+  bootstrapTask?: { title: string; description: string };
+}
+
+export interface CompanyTemplatePreview extends CompanyTemplate {
+  agentCount: number;
+}
+
 /** Mirrors Composio SDK's ToolKitItem shape */
 export interface ComposioToolkit {
   slug: string;

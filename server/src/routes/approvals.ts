@@ -15,7 +15,8 @@ import {
   logActivity,
   secretService,
 } from "../services/index.js";
-import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo, getActorVendorId } from "./authz.js";
+import { enqueueEmailAlert } from "../queues/email-alerts.js";
 import { redactEventPayload } from "../redaction.js";
 
 function redactApprovalPayload<T extends { payload: Record<string, unknown> }>(approval: T): T {
@@ -100,6 +101,16 @@ export function approvalRoutes(db: Db) {
       details: { type: approval.type, issueIds: uniqueIssueIds },
     });
 
+    enqueueEmailAlert({
+      type: "approval-requested",
+      vendorId: getActorVendorId(req),
+      companyId,
+      approvalId: approval.id,
+      approvalType: approval.type,
+      requestedByAgentId: approval.requestedByAgentId,
+      requestedByUserId: approval.requestedByUserId,
+    });
+
     res.status(201).json(redactApprovalPayload(approval));
   });
 
@@ -135,6 +146,17 @@ export function approvalRoutes(db: Db) {
         requestedByAgentId: approval.requestedByAgentId,
         linkedIssueIds,
       },
+    });
+
+    enqueueEmailAlert({
+      type: "approval-decided",
+      vendorId: getActorVendorId(req),
+      companyId: approval.companyId,
+      approvalId: approval.id,
+      approvalType: approval.type,
+      decision: "approved",
+      decisionNote: approval.decisionNote,
+      decidedByUserId: approval.decidedByUserId,
     });
 
     if (approval.requestedByAgentId) {
@@ -218,6 +240,17 @@ export function approvalRoutes(db: Db) {
       details: { type: approval.type },
     });
 
+    enqueueEmailAlert({
+      type: "approval-decided",
+      vendorId: getActorVendorId(req),
+      companyId: approval.companyId,
+      approvalId: approval.id,
+      approvalType: approval.type,
+      decision: "rejected",
+      decisionNote: approval.decisionNote,
+      decidedByUserId: approval.decidedByUserId,
+    });
+
     res.json(redactApprovalPayload(approval));
   });
 
@@ -241,6 +274,16 @@ export function approvalRoutes(db: Db) {
         entityType: "approval",
         entityId: approval.id,
         details: { type: approval.type },
+      });
+
+      enqueueEmailAlert({
+        type: "approval-revision-requested",
+        vendorId: getActorVendorId(req),
+        companyId: approval.companyId,
+        approvalId: approval.id,
+        approvalType: approval.type,
+        decisionNote: approval.decisionNote,
+        decidedByUserId: approval.decidedByUserId,
       });
 
       res.json(redactApprovalPayload(approval));

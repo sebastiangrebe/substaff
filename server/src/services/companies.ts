@@ -34,7 +34,7 @@ export function companyService(db: Db) {
 
   function suffixForAttempt(attempt: number) {
     if (attempt <= 1) return "";
-    return "A".repeat(attempt - 1);
+    return String(attempt);
   }
 
   function isIssuePrefixConflict(error: unknown) {

@@ -3,6 +3,7 @@ import { eq, and, gte, lte, sum } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { vendors, vendorUsage, costEvents, creditTransactions } from "@substaff/db";
 import { logger } from "../middleware/logger.js";
+import { enqueueEmailAlert } from "../queues/email-alerts.js";
 
 let stripe: Stripe | null = null;
 
@@ -121,7 +122,36 @@ export function stripeService(db: Db) {
       };
     },
 
-    async getCreditHistory(vendorId: string, limit = 50, offset = 0) {
+    async getCreditHistory(vendorId: string, limit = 50, offset = 0, companyId?: string) {
+      if (companyId) {
+        // Filter to only transactions linked to cost events for this company
+        const rows = await db
+          .select({
+            id: creditTransactions.id,
+            vendorId: creditTransactions.vendorId,
+            type: creditTransactions.type,
+            amountCents: creditTransactions.amountCents,
+            balanceAfterCents: creditTransactions.balanceAfterCents,
+            stripeSessionId: creditTransactions.stripeSessionId,
+            costEventId: creditTransactions.costEventId,
+            description: creditTransactions.description,
+            createdAt: creditTransactions.createdAt,
+          })
+          .from(creditTransactions)
+          .innerJoin(costEvents, eq(creditTransactions.costEventId, costEvents.id))
+          .where(
+            and(
+              eq(creditTransactions.vendorId, vendorId),
+              eq(costEvents.companyId, companyId),
+            ),
+          )
+          .orderBy(creditTransactions.createdAt)
+          .limit(limit)
+          .offset(offset);
+
+        return rows;
+      }
+
       const rows = await db
         .select()
         .from(creditTransactions)
@@ -257,6 +287,13 @@ export function stripeService(db: Db) {
             .where(eq(vendors.id, vendorId));
 
           logger.info({ vendorId, plan: mapped.plan }, "Vendor plan updated via Stripe webhook");
+
+          enqueueEmailAlert({
+            type: "subscription-changed",
+            vendorId,
+            change: mapped.plan === "pro" ? "upgraded" : "downgraded",
+            plan: mapped.plan,
+          });
           break;
         }
 
@@ -271,6 +308,13 @@ export function stripeService(db: Db) {
             .where(eq(vendors.id, vendorId));
 
           logger.info({ vendorId }, "Vendor downgraded to free via subscription cancellation");
+
+          enqueueEmailAlert({
+            type: "subscription-changed",
+            vendorId,
+            change: "cancelled",
+            plan: "free",
+          });
           break;
         }
       }

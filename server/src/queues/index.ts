@@ -3,6 +3,7 @@ import type { Worker } from "bullmq";
 import { initCostProcessingQueue, createCostProcessingWorker } from "./cost-processing.js";
 import { initBillingSyncQueue, createBillingSyncWorker } from "./billing-sync.js";
 import { initEmailAlertsQueue, createEmailAlertsWorker } from "./email-alerts.js";
+import { initDailyDigestQueue, createDailyDigestWorker } from "./daily-digest.js";
 import { initHeartbeatRunsQueue, createHeartbeatRunsWorker } from "./heartbeat-runs.js";
 import { initHeartbeatSchedulerQueue, createHeartbeatSchedulerWorker } from "./heartbeat-scheduler.js";
 import { logger } from "../middleware/logger.js";
@@ -19,6 +20,7 @@ export async function initQueues(redisUrl: string, db: Db, opts?: InitQueuesOpti
   initCostProcessingQueue(redisUrl);
   initBillingSyncQueue(redisUrl);
   initEmailAlertsQueue(redisUrl);
+  initDailyDigestQueue(redisUrl);
   initHeartbeatRunsQueue(redisUrl);
 
   if (opts?.heartbeatSchedulerEnabled !== false) {
@@ -30,6 +32,7 @@ export async function initQueues(redisUrl: string, db: Db, opts?: InitQueuesOpti
     createCostProcessingWorker(redisUrl, db),
     createBillingSyncWorker(redisUrl, db),
     createEmailAlertsWorker(redisUrl, db),
+    createDailyDigestWorker(redisUrl, db),
     await createHeartbeatRunsWorker(redisUrl, db),
   );
 

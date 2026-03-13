@@ -29,9 +29,10 @@ import {
   secretService,
 } from "../services/index.js";
 import { conflict, forbidden, unprocessable } from "../errors.js";
-import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
+import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo, getActorVendorId } from "./authz.js";
 import { findServerAdapter, listAdapterModels } from "../adapters/index.js";
 import { redactEventPayload } from "../redaction.js";
+import { enqueueEmailAlert } from "../queues/email-alerts.js";
 
 export function agentRoutes(db: Db) {
   const DEFAULT_INSTRUCTIONS_PATH_KEYS: Record<string, string> = {
@@ -1108,6 +1109,14 @@ export function agentRoutes(db: Db) {
       action: "agent.terminated",
       entityType: "agent",
       entityId: agent.id,
+    });
+
+    enqueueEmailAlert({
+      type: "agent-terminated",
+      vendorId: getActorVendorId(req),
+      companyId: agent.companyId,
+      agentId: agent.id,
+      agentName: agent.name,
     });
 
     res.json(agent);

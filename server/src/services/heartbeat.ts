@@ -937,6 +937,7 @@ export function heartbeatService(db: Db) {
   async function finalizeAgentStatus(
     agentId: string,
     outcome: "succeeded" | "failed" | "cancelled" | "timed_out",
+    errorContext?: { runId: string; errorMessage: string; errorCode: string | null },
   ) {
     const existing = await getAgent(agentId);
     if (!existing) return;
@@ -977,6 +978,32 @@ export function heartbeatService(db: Db) {
           outcome,
         },
       });
+
+      // Send email alert when agent enters error state
+      if (nextStatus === "error" && errorContext) {
+        try {
+          const [company] = await db
+            .select({ vendorId: companies.vendorId })
+            .from(companies)
+            .where(eq(companies.id, updated.companyId))
+            .limit(1);
+
+          if (company) {
+            const { enqueueEmailAlert } = await import("../queues/index.js");
+            enqueueEmailAlert({
+              type: "agent-error",
+              vendorId: company.vendorId,
+              companyId: updated.companyId,
+              agentId: updated.id,
+              errorMessage: errorContext.errorMessage,
+              errorCode: errorContext.errorCode,
+              runId: errorContext.runId,
+            });
+          }
+        } catch (err) {
+          logger.warn({ err, agentId }, "Failed to enqueue agent-error email alert");
+        }
+      }
     }
   }
 
@@ -1095,7 +1122,11 @@ export function heartbeatService(db: Db) {
         });
         await releaseIssueExecutionAndPromote(updatedRun);
       }
-      await finalizeAgentStatus(run.agentId, "failed");
+      await finalizeAgentStatus(run.agentId, "failed", {
+        runId: run.id,
+        errorMessage: "Process lost -- server may have restarted",
+        errorCode: "process_lost",
+      });
       await startNextQueuedRunForAgent(run.agentId);
       runningProcesses.delete(run.id);
       reaped.push(run.id);
@@ -1680,7 +1711,17 @@ export function heartbeatService(db: Db) {
           }
         }
       }
-      await finalizeAgentStatus(agent.id, outcome);
+      await finalizeAgentStatus(
+        agent.id,
+        outcome,
+        outcome === "failed" || outcome === "timed_out"
+          ? {
+              runId: run.id,
+              errorMessage: adapterResult.errorMessage ?? (outcome === "timed_out" ? "Timed out" : "Adapter failed"),
+              errorCode: outcome === "timed_out" ? "timeout" : (adapterResult.errorCode ?? "adapter_failed"),
+            }
+          : undefined,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown adapter failure";
       logger.error({ err, runId }, "heartbeat execution failed");
@@ -1741,7 +1782,11 @@ export function heartbeatService(db: Db) {
         }
       }
 
-      await finalizeAgentStatus(agent.id, "failed");
+      await finalizeAgentStatus(agent.id, "failed", {
+        runId: run.id,
+        errorMessage: message,
+        errorCode: "adapter_failed",
+      });
     } finally {
       await startNextQueuedRunForAgent(agent.id);
     }

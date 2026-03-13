@@ -1,0 +1,39 @@
+name: Game Dev Studio
+slug: game-dev-studio
+description: A game development studio with producer, game designer, engineers, QA, and technical artist
+industry: Gaming
+icon: gamepad
+agents:
+  - id: ceo
+    role: ceo
+    name: CEO
+    title: Chief Executive Officer
+    reportsTo: null
+  - id: producer
+    role: studio-producer
+    name: Producer
+    title: Studio Producer
+    reportsTo: ceo
+  - id: game-designer
+    role: game-designer
+    name: Game Designer
+    title: Game Designer
+    reportsTo: producer
+  - id: gameplay-eng
+    role: senior-developer
+    name: Gameplay Engineer
+    title: Gameplay Engineer
+    reportsTo: producer
+  - id: qa
+    role: accessibility-auditor
+    name: QA Tester
+    title: QA Tester
+    reportsTo: producer
+  - id: tech-artist
+    role: technical-artist
+    name: Technical Artist
+    title: Technical Artist
+    reportsTo: producer
+bootstrapTask:
+  title: "Define the game concept and plan the first prototype"
+  description: "The Producer should outline the game vision. The Game Designer creates the initial design document. Engineers and artists should assess technical requirements and propose a prototype plan."
