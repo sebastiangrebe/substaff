@@ -16,9 +16,11 @@ import { Identity } from "../components/Identity";
 import { timeAgo } from "../lib/timeAgo";
 import { cn } from "../lib/utils";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Target, FolderKanban, AlertTriangle, CheckCircle2, Plus, ShieldCheck, CircleDot, Zap } from "lucide-react";
+import { LayoutDashboard, Target, FolderKanban, AlertTriangle, CheckCircle2, Plus, ShieldCheck, CircleDot, Zap, ArrowRight, Bot, ListTodo, DollarSign, Users } from "lucide-react";
 import { PageSkeleton } from "../components/PageSkeleton";
-import type { Issue, GoalProgress, ProjectProgress } from "@substaff/shared";
+import { AgentIcon } from "../components/AgentIconPicker";
+import { agentUrl } from "../lib/utils";
+import type { Issue, GoalProgress, ProjectProgress, Agent } from "@substaff/shared";
 
 function ProgressRing({ percent, size = 40, strokeWidth = 3.5, className }: { percent: number; size?: number; strokeWidth?: number; className?: string }) {
   const radius = (size - strokeWidth) / 2;
@@ -122,14 +124,22 @@ function dedupeRunsByTask(runs: LiveRunForIssue[]): LiveRunForIssue[] {
   return [...seen.values(), ...noIssue];
 }
 
-function SectionHeading({ children, subtitle }: { children: React.ReactNode; subtitle?: string }) {
+function SectionHeading({ children, subtitle, action }: { children: React.ReactNode; subtitle?: string; action?: { label: string; to: string } }) {
   return (
-    <div className="mb-3">
-      <h3 className="text-[13px] font-medium text-muted-foreground">
-        {children}
-      </h3>
-      {subtitle && (
-        <p className="text-xs text-muted-foreground/60 mt-0.5">{subtitle}</p>
+    <div className="mb-3 flex items-end justify-between">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">
+          {children}
+        </h3>
+        {subtitle && (
+          <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+        )}
+      </div>
+      {action && (
+        <Link to={action.to} className="text-xs font-medium text-primary hover:text-primary/80 transition-colors flex items-center gap-1 no-underline">
+          {action.label}
+          <ArrowRight className="h-3 w-3" />
+        </Link>
       )}
     </div>
   );
@@ -181,6 +191,19 @@ export function Dashboard() {
     [liveRuns],
   );
 
+  const visibleAgents = useMemo(() =>
+    (agents ?? []).filter((a: Agent) => a.status !== "terminated"),
+    [agents],
+  );
+
+  const liveCountByAgent = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const run of liveRuns ?? []) {
+      counts.set(run.agentId, (counts.get(run.agentId) ?? 0) + 1);
+    }
+    return counts;
+  }, [liveRuns]);
+
   const agentName = (id: string | null) => {
     if (!id || !agents) return null;
     return agents.find((a) => a.id === id)?.name ?? null;
@@ -209,11 +232,11 @@ export function Dashboard() {
   const hasNoAgents = agents !== undefined && agents.length === 0;
 
   return (
-    <div className="space-y-8">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">
+    <div className="space-y-6">
+      {/* Page header — full width, unified zone */}
+      <div className="flex items-start justify-between gap-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold tracking-tight">
             {(() => {
               const hour = new Date().getHours();
               if (hour < 12) return "Good morning";
@@ -221,7 +244,7 @@ export function Dashboard() {
               return "Good evening";
             })()}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
             {data ? (
               currentWork.length > 0 ? (
                 <>
@@ -244,14 +267,14 @@ export function Dashboard() {
               ) : data.tasks.done > 0 ? (
                 <>All {data.tasks.done} tasks complete</>
               ) : (
-                "An overview of your team's progress and recent activity."
+                "Here's an overview of your team's progress and activity."
               )
             ) : (
-              "An overview of your team's progress and recent activity."
+              "Here's an overview of your team's progress and activity."
             )}
           </p>
         </div>
-        <Button onClick={() => openNewIssue()} className="shrink-0">
+        <Button onClick={() => openNewIssue()} size="sm" className="shrink-0">
           <Plus className="h-4 w-4" />
           Create Task
         </Button>
@@ -290,11 +313,16 @@ export function Dashboard() {
         </Link>
       )}
 
+      {/* Two-column body */}
+      <div className="flex gap-6">
+      {/* Main content */}
+      <div className="space-y-6 flex-1 min-w-0">
+
       {/* Currently Working On */}
       <div>
-        <SectionHeading subtitle="Tasks agents are actively executing">Currently working on</SectionHeading>
+        <SectionHeading subtitle="Tasks agents are actively executing" action={currentWork.length > 0 ? { label: "View all", to: "/issues" } : undefined}>Currently working on</SectionHeading>
         {currentWork.length > 0 ? (
-          <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
+          <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs stagger-children">
             {currentWork.map((run) => {
               const issue = run.issueId ? issueById.get(run.issueId) : undefined;
               const isActive = run.status === "running" || run.status === "queued";
@@ -333,7 +361,7 @@ export function Dashboard() {
             })}
           </div>
         ) : (
-          <div className="rounded-xl border border-border/50">
+          <div className="rounded-xl border border-border/60 bg-card shadow-xs">
             <EmptyState
               icon={Zap}
               message="No tasks are being worked on right now. Create a task and your team will pick it up automatically."
@@ -347,11 +375,11 @@ export function Dashboard() {
 
       {/* Goals & Projects */}
       {data && (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           <div className="min-w-0">
-            <SectionHeading subtitle="Progress toward your objectives">Goals</SectionHeading>
+            <SectionHeading subtitle="Progress toward your objectives" action={{ label: "All goals", to: "/goals" }}>Goals</SectionHeading>
             {data.goals.length > 0 ? (
-              <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
+              <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs stagger-children">
                 {data.goals.map((goal: GoalProgress) => (
                   <Link
                     key={goal.goalId}
@@ -376,7 +404,7 @@ export function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-border/50">
+              <div className="rounded-xl border border-border/60 bg-card shadow-xs">
                 <EmptyState
                   icon={Target}
                   message="No goals yet. Goals help track high-level objectives across projects."
@@ -387,9 +415,9 @@ export function Dashboard() {
           </div>
 
           <div className="min-w-0">
-            <SectionHeading subtitle="Active projects and their task progress">Projects</SectionHeading>
+            <SectionHeading subtitle="Active projects and their task progress" action={{ label: "All projects", to: "/projects" }}>Projects</SectionHeading>
             {data.projects.length > 0 ? (
-              <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
+              <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs stagger-children">
                 {data.projects.map((project: ProjectProgress) => (
                   <Link
                     key={project.projectId}
@@ -414,7 +442,7 @@ export function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-border/50">
+              <div className="rounded-xl border border-border/60 bg-card shadow-xs">
                 <EmptyState
                   icon={FolderKanban}
                   message="No projects yet. Projects group related tasks together."
@@ -431,12 +459,12 @@ export function Dashboard() {
         <div className="min-w-0">
           <SectionHeading subtitle="Tasks finished by your team">Recently completed</SectionHeading>
           {completedIssues.length > 0 ? (
-            <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
+            <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs stagger-children">
               {completedIssues.map((issue) => (
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent/40 transition-colors no-underline text-inherit"
+                  className="flex items-center gap-3 px-4 text-sm hover:bg-accent/40 transition-colors no-underline text-inherit h-10"
                 >
                   <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                   <span className="min-w-0 flex-1 truncate">{issue.title}</span>
@@ -447,7 +475,7 @@ export function Dashboard() {
               ))}
             </div>
           ) : (
-            <div className="rounded-xl border border-border/50">
+            <div className="rounded-xl border border-border/60 bg-card shadow-xs">
               <EmptyState
                 icon={CheckCircle2}
                 message="No completed tasks yet. Tasks will appear here once finished."
@@ -458,9 +486,9 @@ export function Dashboard() {
         </div>
 
         <div className="min-w-0">
-          <SectionHeading subtitle="Latest tasks across your workspace">Recent tasks</SectionHeading>
+          <SectionHeading subtitle="Latest tasks across your workspace" action={{ label: "All tasks", to: "/issues" }}>Recent tasks</SectionHeading>
           {recentIssues.length === 0 ? (
-            <div className="rounded-xl border border-border/50">
+            <div className="rounded-xl border border-border/60 bg-card shadow-xs">
               <EmptyState
                 icon={CircleDot}
                 message="No tasks yet. Create your first task to get things moving."
@@ -470,12 +498,12 @@ export function Dashboard() {
               />
             </div>
           ) : (
-            <div className="rounded-xl border border-border/50 divide-y divide-border/50 overflow-hidden stagger-children">
+            <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs stagger-children">
               {recentIssues.slice(0, 10).map((issue) => (
                 <Link
                   key={issue.id}
                   to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-accent/40 transition-colors no-underline text-inherit"
+                  className="flex items-center gap-3 px-4 text-sm hover:bg-accent/40 transition-colors no-underline text-inherit h-10"
                 >
                   <div className="flex items-center gap-1.5 shrink-0">
                     <PriorityIcon priority={issue.priority} />
@@ -499,6 +527,127 @@ export function Dashboard() {
           )}
         </div>
       </div>
+      </div>{/* end main content */}
+
+      {/* Right sidebar */}
+      <div className="hidden xl:block w-72 shrink-0 space-y-5 sticky top-6 self-start">
+        {/* Quick stats */}
+        {data && (
+          <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Overview</h4>
+          </div>
+          <div className="grid grid-cols-2 gap-2.5">
+            <StatCard icon={Bot} label="Agents" value={data.agents.active + data.agents.running} accent={data.agents.running > 0 ? "live" : undefined} sub={data.agents.running > 0 ? `${data.agents.running} running` : "idle"} />
+            <StatCard icon={ListTodo} label="Tasks" value={data.tasks.open + data.tasks.inProgress} sub={`${data.tasks.done} done`} />
+            <StatCard
+              icon={DollarSign}
+              label="Spend"
+              value={`$${(data.costs.monthSpendCents / 100).toFixed(0)}`}
+              sub="this month"
+            />
+            <StatCard icon={Target} label="Goals" value={data.goals.length} sub={data.goals.filter((g: GoalProgress) => g.goalStatus === "achieved").length > 0 ? `${data.goals.filter((g: GoalProgress) => g.goalStatus === "achieved").length} achieved` : "in progress"} />
+          </div>
+          </div>
+        )}
+
+        {/* Team status */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Team</h4>
+            <Link to="/agents" className="text-xs text-primary hover:text-primary/80 transition-colors no-underline">
+              View all
+            </Link>
+          </div>
+          <div className="rounded-xl border border-border/60 bg-card shadow-xs divide-y divide-border/50 overflow-hidden">
+            {visibleAgents.length === 0 ? (
+              <div className="py-6 text-center">
+                <p className="text-xs text-muted-foreground">No team members yet</p>
+              </div>
+            ) : (
+              visibleAgents.slice(0, 8).map((agent: Agent) => {
+                const runCount = liveCountByAgent.get(agent.id) ?? 0;
+                const statusColor = runCount > 0 ? "bg-blue-500" : agent.status === "active" ? "bg-emerald-500" : agent.status === "paused" ? "bg-amber-500" : agent.status === "error" ? "bg-red-500" : "bg-muted-foreground/30";
+                return (
+                  <Link
+                    key={agent.id}
+                    to={agentUrl(agent)}
+                    className="flex items-center gap-2.5 px-3 py-2 hover:bg-accent/40 transition-colors no-underline text-inherit"
+                  >
+                    <AgentIcon icon={agent.icon} className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm truncate flex-1">{agent.name}</span>
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      {runCount > 0 ? (
+                        <>
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                            <span className={cn("relative inline-flex rounded-full h-1.5 w-1.5", statusColor)} />
+                          </span>
+                          <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">{runCount}</span>
+                        </>
+                      ) : (
+                        <span className={cn("inline-flex rounded-full h-1.5 w-1.5", statusColor)} />
+                      )}
+                    </span>
+                  </Link>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Attention items */}
+        {data && (data.tasks.blocked > 0 || data.staleTasks > 0 || data.pendingApprovals > 0) && (
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2.5">Attention</h4>
+            <div className="space-y-1.5">
+              {data.tasks.blocked > 0 && (
+                <Link to="/issues?status=blocked" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm bg-red-500/5 border border-red-500/10 hover:bg-red-500/10 transition-colors no-underline text-inherit">
+                  <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                  <span className="text-xs"><span className="font-medium">{data.tasks.blocked}</span> blocked tasks</span>
+                </Link>
+              )}
+              {data.staleTasks > 0 && (
+                <div className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm bg-amber-500/5 border border-amber-500/10">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span className="text-xs"><span className="font-medium">{data.staleTasks}</span> stale tasks</span>
+                </div>
+              )}
+              {data.pendingApprovals > 0 && (
+                <Link to="/approvals" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm bg-amber-500/5 border border-amber-500/10 hover:bg-amber-500/10 transition-colors no-underline text-inherit">
+                  <ShieldCheck className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span className="text-xs"><span className="font-medium">{data.pendingApprovals}</span> pending approvals</span>
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      </div>{/* end two-column body */}
+    </div>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, sub, accent }: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string | number;
+  sub: string;
+  accent?: "live" | "error";
+}) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-card shadow-xs px-3 py-2.5">
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="text-xl font-bold tabular-nums tracking-tight">{value}</div>
+      <div className={cn(
+        "text-[10px] mt-0.5",
+        accent === "live" ? "text-blue-600 dark:text-blue-400 font-medium" :
+        accent === "error" ? "text-red-500 font-medium" :
+        "text-muted-foreground",
+      )}>{sub}</div>
     </div>
   );
 }

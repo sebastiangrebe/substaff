@@ -67,18 +67,16 @@ export function AppSidebar() {
     <>
       <SidebarHeader>
         <CompanySwitcher />
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start gap-2 text-muted-foreground font-normal"
+        <button
           onClick={openSearch}
+          className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg bg-sidebar-accent/60 hover:bg-sidebar-accent text-muted-foreground text-sm transition-colors"
         >
-          <Search className="h-4 w-4" />
-          <span>Search...</span>
-          <kbd className="ml-auto text-[10px] font-mono text-muted-foreground/60 bg-muted px-1.5 py-0.5 rounded">
+          <Search className="h-3.5 w-3.5 shrink-0" />
+          <span className="flex-1 text-left text-xs">Search...</span>
+          <kbd className="text-[10px] font-mono text-muted-foreground/50 bg-background/60 px-1.5 py-0.5 rounded">
             ⌘K
           </kbd>
-        </Button>
+        </button>
       </SidebarHeader>
 
       <SidebarContent className="scrollbar-none">
@@ -120,9 +118,11 @@ export function AppSidebar() {
                 <button
                   id={TOUR_IDS.NEW_TASK}
                   onClick={() => openNewIssue()}
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium text-primary/70 hover:bg-sidebar-accent hover:text-primary transition-colors"
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
                 >
-                  <SquarePen className="h-4 w-4 shrink-0" />
+                  <div className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                    <SquarePen className="h-3 w-3" />
+                  </div>
                   <span className="truncate">New Task</span>
                 </button>
               </SidebarMenuItem>
