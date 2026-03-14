@@ -4,11 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { dashboardApi } from "../api/dashboard";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
-import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
+import { type LiveRunForIssue } from "../api/heartbeats";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { queryKeys } from "../lib/queryKeys";
+import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { EmptyState } from "../components/EmptyState";
 import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
@@ -172,11 +172,7 @@ export function Dashboard() {
     enabled: !!selectedCompanyId,
   });
 
-  const { data: liveRuns } = useQuery({
-    queryKey: [...queryKeys.liveRuns(selectedCompanyId!), "dashboard"],
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-  });
+  const { data: liveRuns } = useQuery(sharedQueries.liveRuns(selectedCompanyId!));
 
   const issueById = useMemo(() => {
     const map = new Map<string, Issue>();

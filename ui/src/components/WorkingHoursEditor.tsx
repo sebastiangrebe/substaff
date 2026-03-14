@@ -95,7 +95,7 @@ export function WorkingHoursEditor({ value, onChange, overrideMode }: WorkingHou
           type="button"
           className={cn(
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-            config.enabled ? "bg-green-600" : "bg-muted",
+            config.enabled ? "bg-primary" : "bg-muted",
           )}
           onClick={() => update({ enabled: !config.enabled })}
         >
@@ -158,7 +158,7 @@ export function WorkingHoursEditor({ value, onChange, overrideMode }: WorkingHou
 
           {/* Day schedule grid */}
           <div className="space-y-1.5">
-            <div className="grid grid-cols-[1fr_auto_80px_80px] gap-2 text-xs text-muted-foreground px-1">
+            <div className="grid grid-cols-[1fr_auto_110px_110px] gap-2 text-xs text-muted-foreground px-1">
               <span>Day</span>
               <span>Active</span>
               <span>Start</span>
@@ -170,7 +170,7 @@ export function WorkingHoursEditor({ value, onChange, overrideMode }: WorkingHou
                 <div
                   key={day}
                   className={cn(
-                    "grid grid-cols-[1fr_auto_80px_80px] gap-2 items-center rounded-md px-1 py-1",
+                    "grid grid-cols-[1fr_auto_110px_110px] gap-2 items-center rounded-md px-1 py-1",
                     !ds.enabled && "opacity-50",
                   )}
                 >
@@ -179,7 +179,7 @@ export function WorkingHoursEditor({ value, onChange, overrideMode }: WorkingHou
                     type="button"
                     className={cn(
                       "relative inline-flex h-4 w-7 items-center rounded-full transition-colors",
-                      ds.enabled ? "bg-green-600" : "bg-muted",
+                      ds.enabled ? "bg-primary" : "bg-muted",
                     )}
                     onClick={() => updateDay(day, { enabled: !ds.enabled })}
                   >

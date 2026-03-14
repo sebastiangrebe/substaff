@@ -36,10 +36,8 @@ import { SidebarAgents } from "./SidebarAgents";
 import { CompanySwitcher } from "./CompanySwitcher";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
-import { sidebarBadgesApi } from "../api/sidebarBadges";
-import { heartbeatsApi } from "../api/heartbeats";
 import { billingApi } from "../api/billing";
-import { queryKeys } from "../lib/queryKeys";
+import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { TOUR_IDS } from "../hooks/useGuidedTour";
 import {
   Tooltip,
@@ -138,17 +136,8 @@ interface AppSidebarProps {
 export function AppSidebar({ onToggleTheme, themeIcon, themeLabel, onTakeTour }: AppSidebarProps) {
   const { openNewIssue, openNewProject, openNewGoal, openNewAgent } = useDialog();
   const { selectedCompanyId } = useCompany();
-  const { data: sidebarBadges } = useQuery({
-    queryKey: queryKeys.sidebarBadges(selectedCompanyId!),
-    queryFn: () => sidebarBadgesApi.get(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-  });
-  const { data: liveRuns } = useQuery({
-    queryKey: queryKeys.liveRuns(selectedCompanyId!),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-    refetchInterval: 10_000,
-  });
+  const { data: sidebarBadges } = useQuery(sharedQueries.sidebarBadges(selectedCompanyId!));
+  const { data: liveRuns } = useQuery(sharedQueries.liveRuns(selectedCompanyId!));
   const liveRunCount = liveRuns?.length ?? 0;
 
   const { data: billingInfo } = useQuery({

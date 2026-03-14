@@ -134,7 +134,7 @@ export function SidebarProjects() {
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="flex items-center">
-        <SidebarMenuButton asChild tooltip="Projects" className="flex-1 min-w-0">
+        <SidebarMenuButton asChild tooltip="Projects" isActive={projectsActive} className="flex-1 min-w-0">
           <NavLink
             to="/projects"
             onClick={() => { if (isMobile) setOpenMobile(false); }}

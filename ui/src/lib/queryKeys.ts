@@ -1,3 +1,27 @@
+import { queryOptions } from "@tanstack/react-query";
+import { heartbeatsApi } from "../api/heartbeats";
+import { sidebarBadgesApi } from "../api/sidebarBadges";
+
+/** Shared query-option factories — use these instead of inline useQuery options
+ *  so every consumer gets identical staleTime / refetchInterval and TanStack
+ *  Query can properly deduplicate observers. */
+export const sharedQueries = {
+  liveRuns: (companyId: string) =>
+    queryOptions({
+      queryKey: ["live-runs", companyId] as const,
+      queryFn: () => heartbeatsApi.liveRunsForCompany(companyId),
+      enabled: !!companyId,
+      refetchInterval: 10_000,
+    }),
+  sidebarBadges: (companyId: string) =>
+    queryOptions({
+      queryKey: ["sidebar-badges", companyId] as const,
+      queryFn: () => sidebarBadgesApi.get(companyId),
+      enabled: !!companyId,
+      refetchInterval: 15_000,
+    }),
+};
+
 export const queryKeys = {
   companies: {
     all: ["companies"] as const,

@@ -1,6 +1,8 @@
-import { NavLink } from "@/lib/router";
+import { NavLink, useLocation } from "@/lib/router";
 import { cn } from "../lib/utils";
 import { useSidebar, SidebarMenuButton } from "@/components/ui/sidebar";
+import { useCompany } from "@/context/CompanyContext";
+import { applyCompanyPrefix, normalizeCompanyPrefix } from "@/lib/company-routes";
 import type { LucideIcon } from "lucide-react";
 
 interface SidebarNavItemProps {
@@ -29,9 +31,18 @@ export function SidebarNavItem({
   id,
 }: SidebarNavItemProps) {
   const { isMobile, setOpenMobile } = useSidebar();
+  const location = useLocation();
+  const { selectedCompany } = useCompany();
+
+  // Compute active state matching React Router's NavLink logic
+  const companyPrefix = selectedCompany ? normalizeCompanyPrefix(selectedCompany.issuePrefix) : null;
+  const resolvedPath = applyCompanyPrefix(to, companyPrefix);
+  const isActive = end
+    ? location.pathname === resolvedPath
+    : location.pathname.startsWith(resolvedPath);
 
   return (
-    <SidebarMenuButton asChild tooltip={label} className={className}>
+    <SidebarMenuButton asChild tooltip={label} isActive={isActive} className={className}>
       <NavLink
         id={id}
         to={to}

@@ -5,8 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
 import { useSidebar, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { agentsApi } from "../api/agents";
-import { heartbeatsApi } from "../api/heartbeats";
-import { queryKeys } from "../lib/queryKeys";
+import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { cn, agentRouteRef, agentUrl } from "../lib/utils";
 import { AgentIcon } from "./AgentIconPicker";
 import {
@@ -58,12 +57,7 @@ export function SidebarAgents() {
     enabled: !!selectedCompanyId,
   });
 
-  const { data: liveRuns } = useQuery({
-    queryKey: queryKeys.liveRuns(selectedCompanyId!),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-    refetchInterval: 10_000,
-  });
+  const { data: liveRuns } = useQuery(sharedQueries.liveRuns(selectedCompanyId!));
 
   const liveCountByAgent = useMemo(() => {
     const counts = new Map<string, number>();

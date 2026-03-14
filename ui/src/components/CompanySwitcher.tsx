@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
@@ -12,33 +12,34 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQueries } from "@tanstack/react-query";
-import { queryKeys } from "../lib/queryKeys";
-import { heartbeatsApi } from "../api/heartbeats";
-import { sidebarBadgesApi } from "../api/sidebarBadges";
+import { sharedQueries } from "../lib/queryKeys";
 import type { Company } from "@substaff/shared";
 
 export function CompanySwitcher() {
   const { companies, selectedCompanyId, setSelectedCompanyId, selectedCompany } = useCompany();
   const { openOnboarding } = useDialog();
+  const [isOpen, setIsOpen] = useState(false);
 
   const sidebarCompanies = useMemo(
     () => companies.filter((c) => c.status !== "archived"),
     [companies],
   );
-  const companyIds = useMemo(() => sidebarCompanies.map((c) => c.id), [sidebarCompanies]);
+  // Only fetch non-selected companies when dropdown is open
+  const companyIds = useMemo(
+    () => sidebarCompanies.map((c) => c.id).filter((id) => id !== selectedCompanyId),
+    [sidebarCompanies, selectedCompanyId],
+  );
 
   const liveRunsQueries = useQueries({
     queries: companyIds.map((companyId) => ({
-      queryKey: queryKeys.liveRuns(companyId),
-      queryFn: () => heartbeatsApi.liveRunsForCompany(companyId),
-      refetchInterval: 10_000,
+      ...sharedQueries.liveRuns(companyId),
+      enabled: isOpen,
     })),
   });
   const sidebarBadgeQueries = useQueries({
     queries: companyIds.map((companyId) => ({
-      queryKey: queryKeys.sidebarBadges(companyId),
-      queryFn: () => sidebarBadgesApi.get(companyId),
-      refetchInterval: 15_000,
+      ...sharedQueries.sidebarBadges(companyId),
+      enabled: isOpen,
     })),
   });
 
@@ -55,7 +56,7 @@ export function CompanySwitcher() {
   }, [companyIds, sidebarBadgeQueries]);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <button
           className="flex items-center gap-2.5 w-full px-2 py-2 rounded-md hover:bg-sidebar-accent/60 transition-colors text-left outline-none"

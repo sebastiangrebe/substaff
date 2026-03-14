@@ -106,7 +106,7 @@ function isOverlayDirty(o: Overlay): boolean {
 
 /* ---- Shared input class ---- */
 const inputClass =
-  "w-full rounded-md border border-border px-2.5 py-1.5 bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/40";
+  "w-full rounded-md border border-border/60 px-3 py-2 bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/40 focus:border-border focus:ring-1 focus:ring-ring/20 transition-colors";
 
 function parseCommaArgs(value: string): string[] {
   return value
@@ -356,10 +356,10 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     : eff("adapterConfig", "effort", String(config.effort ?? ""));
 
   return (
-    <div className={cn("relative", cards && "space-y-6")}>
+    <div className={cn("relative", cards && "space-y-8")}>
       {/* ---- Floating Save button (edit mode, when dirty) ---- */}
       {isDirty && !props.hideInlineSave && (
-        <div className="sticky top-0 z-10 flex items-center justify-end px-4 py-2 bg-background/90 backdrop-blur-sm border-b border-primary/20">
+        <div className="sticky top-0 z-10 flex items-center justify-end px-4 py-2 bg-background/90 backdrop-blur-sm border-b border-primary/20 rounded-b-lg">
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground">Unsaved changes</span>
             <Button
@@ -377,10 +377,10 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       {!isCreate && (
         <div className={cn(!cards && "border-b border-border")}>
           {cards
-            ? <h3 className="text-sm font-medium mb-3">Identity</h3>
+            ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Identity</h3>
             : <div className="px-4 py-2 text-sm font-medium text-muted-foreground">Identity</div>
           }
-          <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-3" : "px-4 pb-3 space-y-3")}>
+          <div className={cn(cards ? "border border-border rounded-xl bg-card p-5 space-y-5" : "px-4 pb-3 space-y-3")}>
             <Field label="Name" hint={help.name}>
               <DraftInput
                 value={eff("identity", "name", props.agent.name)}
@@ -474,56 +474,16 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         </div>
       )}
 
-      {/* ---- Adapter (edit mode only — create mode merges into Configuration) ---- */}
-      {!isCreate && (
-        <div className={cn(!cards && "border-b border-border")}>
-          <div className={cn(cards ? "flex items-center justify-between mb-3" : "px-4 py-2 flex items-center justify-between gap-2")}>
-            {cards
-              ? <h3 className="text-sm font-medium">Adapter</h3>
-              : <span className="text-sm font-medium text-muted-foreground">Adapter</span>
-            }
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 px-2.5 text-xs"
-              onClick={() => testEnvironment.mutate()}
-              disabled={testEnvironment.isPending || !selectedCompanyId}
-            >
-              {testEnvironment.isPending ? "Testing..." : "Test environment"}
-            </Button>
-          </div>
-          <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-3" : "px-4 pb-3 space-y-3")}>
-            {/* Adapter type defaults to blaxel_sandbox — field hidden */}
-
-            {testEnvironment.error && (
-              <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {testEnvironment.error instanceof Error
-                  ? testEnvironment.error.message
-                  : "Environment test failed"}
-              </div>
-            )}
-
-            {testEnvironment.data && (
-              <AdapterEnvironmentResult result={testEnvironment.data} />
-            )}
-
-            {/* Working directory — hidden, managed internally */}
-
-            {/* Adapter-specific fields */}
-            <uiAdapter.ConfigFields {...adapterFieldProps} />
-          </div>
-        </div>
-      )}
-
-      {/* ---- Configuration ---- */}
+      {/* ---- Configuration (includes adapter fields when in edit mode) ---- */}
       {isLocal && (
         <div className={cn(!cards && (isCreate ? "border-t border-border" : "border-b border-border"))}>
           {cards
-            ? <h3 className="text-sm font-medium mb-3">Configuration</h3>
+            ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Configuration</h3>
             : <div className="px-4 py-2 text-sm font-medium text-muted-foreground">Configuration</div>
           }
-          <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-4" : "px-4 pb-3 space-y-4")}>
+          <div className={cn(cards ? "border border-border rounded-xl bg-card p-5 space-y-5" : "px-4 pb-3 space-y-4")}>
+            {/* Adapter-specific fields (edit mode) */}
+            {!isCreate && <uiAdapter.ConfigFields {...adapterFieldProps} />}
               {/* Prompt template (create mode only — edit mode shows in Identity) */}
               {isCreate && (
                 <Field label="Prompt template" hint={help.promptTemplate}>
@@ -644,10 +604,10 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       {isCreate ? (
         <div className={cn(!cards && "border-b border-border")}>
           {cards
-            ? <h3 className="text-sm font-medium flex items-center gap-2 mb-3"><Heart className="h-3 w-3" /> Schedule</h3>
+            ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2 mb-3"><Heart className="h-3 w-3" /> Schedule</h3>
             : <div className="px-4 py-2 text-sm font-medium text-muted-foreground flex items-center gap-2"><Heart className="h-3 w-3" /> Schedule</div>
           }
-          <div className={cn(cards ? "border border-border rounded-lg p-4 space-y-3" : "px-4 pb-3 space-y-3")}>
+          <div className={cn(cards ? "border border-border rounded-xl bg-card p-5 space-y-3" : "px-4 pb-3 space-y-3")}>
             <ToggleWithNumber
               label="Run on a recurring schedule"
               hint={help.heartbeatInterval}
@@ -665,11 +625,11 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       ) : (
         <div className={cn(!cards && "border-b border-border")}>
           {cards
-            ? <h3 className="text-sm font-medium flex items-center gap-2 mb-3"><Heart className="h-3 w-3" /> Schedule</h3>
+            ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2 mb-3"><Heart className="h-3 w-3" /> Schedule</h3>
             : <div className="px-4 py-2 text-sm font-medium text-muted-foreground flex items-center gap-2"><Heart className="h-3 w-3" /> Schedule</div>
           }
-          <div className={cn(cards ? "border border-border rounded-lg overflow-hidden" : "")}>
-            <div className={cn(cards ? "p-4 space-y-3" : "px-4 pb-3 space-y-3")}>
+          <div className={cn(cards ? "border border-border rounded-xl bg-card overflow-hidden" : "")}>
+            <div className={cn(cards ? "p-5 space-y-3" : "px-4 pb-3 space-y-3")}>
               <ToggleWithNumber
                 label="Run on a recurring schedule"
                 hint={help.heartbeatInterval}

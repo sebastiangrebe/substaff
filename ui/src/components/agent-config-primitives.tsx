@@ -81,8 +81,8 @@ export function HintIcon({ text }: { text: string }) {
 export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <label className="text-sm text-muted-foreground">{label}</label>
+      <div className="flex items-center gap-1.5 mb-2">
+        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</label>
         {hint && <HintIcon text={hint} />}
       </div>
       {children}
@@ -102,9 +102,9 @@ export function ToggleField({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between py-1">
       <div className="flex items-center gap-1.5">
-        <span className="text-sm text-muted-foreground">{label}</span>
+        <span className="text-sm">{label}</span>
         {hint && <HintIcon text={hint} />}
       </div>
       <button
@@ -116,7 +116,7 @@ export function ToggleField({
       >
         <span
           className={cn(
-            "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
+            "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow-xs",
             checked ? "translate-x-4.5" : "translate-x-0.5"
           )}
         />
@@ -149,10 +149,10 @@ export function ToggleWithNumber({
   showNumber: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
+    <div className="space-y-2.5">
+      <div className="flex items-center justify-between gap-3 py-1">
         <div className="flex items-center gap-1.5">
-          <span className="text-sm text-muted-foreground">{label}</span>
+          <span className="text-sm">{label}</span>
           {hint && <HintIcon text={hint} />}
         </div>
         <button
@@ -164,18 +164,18 @@ export function ToggleWithNumber({
         >
           <span
             className={cn(
-              "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
+              "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow-xs",
               checked ? "translate-x-4.5" : "translate-x-0.5"
             )}
           />
         </button>
       </div>
       {showNumber && (
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground pl-1">
           {numberPrefix && <span>{numberPrefix}</span>}
           <input
             type="number"
-            className="w-16 rounded-md border border-border px-2 py-1 bg-transparent outline-none text-sm font-mono text-center"
+            className="w-16 rounded-md border border-border px-2 py-1 bg-transparent outline-none text-sm font-mono text-center tabular-nums"
             value={number}
             onChange={(e) => onNumberChange(Number(e.target.value))}
           />
@@ -203,16 +203,16 @@ export function CollapsibleSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn(bordered && "border-t border-border")}>
+    <div className={cn(bordered && "border-t border-border/50")}>
       <button
-        className="flex items-center gap-2 w-full px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent/30 transition-colors"
+        className="flex items-center gap-2 w-full px-4 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wide hover:bg-accent/30 transition-colors"
         onClick={onToggle}
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         {icon}
         {title}
       </button>
-      {open && <div className="px-4 pb-3">{children}</div>}
+      {open && <div className="px-4 pb-4">{children}</div>}
     </div>
   );
 }
@@ -247,7 +247,7 @@ export function AutoExpandTextarea({
   return (
     <textarea
       ref={textareaRef}
-      className="w-full rounded-md border border-border px-2.5 py-1.5 bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/40 resize-none overflow-hidden"
+      className="w-full rounded-md border border-border/60 px-3 py-2 bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/40 resize-none overflow-hidden focus:border-border focus:ring-1 focus:ring-ring/20 transition-colors"
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -328,7 +328,7 @@ export function DraftTextarea({
   return (
     <textarea
       ref={textareaRef}
-      className="w-full rounded-md border border-border px-2.5 py-1.5 bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/40 resize-none overflow-hidden"
+      className="w-full rounded-md border border-border/60 px-3 py-2 bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/40 resize-none overflow-hidden focus:border-border focus:ring-1 focus:ring-ring/20 transition-colors"
       placeholder={placeholder}
       value={draft}
       onChange={(e) => {
@@ -453,9 +453,9 @@ export function ChoosePathButton() {
  */
 export function InlineField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 py-1">
       <div className="flex items-center gap-1.5 shrink-0">
-        <label className="text-sm text-muted-foreground">{label}</label>
+        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</label>
         {hint && <HintIcon text={hint} />}
       </div>
       <div className="w-24 ml-auto">{children}</div>

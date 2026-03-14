@@ -8,10 +8,9 @@ import {
   Users,
   Inbox,
 } from "lucide-react";
-import { sidebarBadgesApi } from "../api/sidebarBadges";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
-import { queryKeys } from "../lib/queryKeys";
+import { sharedQueries } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
 
 interface MobileBottomNavProps {
@@ -40,11 +39,7 @@ export function MobileBottomNav({ visible }: MobileBottomNavProps) {
   const { selectedCompanyId } = useCompany();
   const { openNewIssue } = useDialog();
 
-  const { data: sidebarBadges } = useQuery({
-    queryKey: queryKeys.sidebarBadges(selectedCompanyId!),
-    queryFn: () => sidebarBadgesApi.get(selectedCompanyId!),
-    enabled: !!selectedCompanyId,
-  });
+  const { data: sidebarBadges } = useQuery(sharedQueries.sidebarBadges(selectedCompanyId!));
 
   const items = useMemo<MobileNavItem[]>(
     () => [

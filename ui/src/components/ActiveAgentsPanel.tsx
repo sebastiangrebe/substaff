@@ -6,7 +6,7 @@ import { heartbeatsApi, type LiveRunForIssue } from "../api/heartbeats";
 import { issuesApi } from "../api/issues";
 import { getUIAdapter } from "../adapters";
 import type { TranscriptEntry } from "../adapters";
-import { queryKeys } from "../lib/queryKeys";
+import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { cn, relativeTime } from "../lib/utils";
 import { ExternalLink } from "lucide-react";
 import { Identity } from "./Identity";

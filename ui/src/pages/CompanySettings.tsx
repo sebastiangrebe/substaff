@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { WorkingHoursConfig } from "@substaff/shared";
 import { useCompany } from "../context/CompanyContext";
@@ -10,18 +10,26 @@ import { Button } from "@/components/ui/button";
 import { HintIcon } from "../components/agent-config-primitives";
 import { WorkingHoursEditor } from "../components/WorkingHoursEditor";
 import { cn } from "../lib/utils";
+import {
+  Settings2,
+  ShieldCheck,
+  Clock,
+  Brain,
+  Palette,
+  Building2,
+  Check,
+  RefreshCw,
+} from "lucide-react";
 
 export function CompanySettings() {
   const { selectedCompany, selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
 
-  // General settings local state
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
   const [brandColor, setBrandColor] = useState("");
 
-  // Sync local state from selected company
   useEffect(() => {
     if (!selectedCompany) return;
     setCompanyName(selectedCompany.name);
@@ -59,6 +67,17 @@ export function CompanySettings() {
     },
   });
 
+  const [localWorkingHours, setLocalWorkingHours] = useState<WorkingHoursConfig | null>(
+    (selectedCompany?.workingHours as WorkingHoursConfig | null) ?? null,
+  );
+  const workingHoursDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync local working hours when switching companies
+  useEffect(() => {
+    if (!selectedCompany) return;
+    setLocalWorkingHours((selectedCompany.workingHours as WorkingHoursConfig | null) ?? null);
+  }, [selectedCompany?.id]);
+
   const workingHoursMutation = useMutation({
     mutationFn: (workingHours: WorkingHoursConfig | null) =>
       companiesApi.update(selectedCompanyId!, { workingHours }),
@@ -67,11 +86,21 @@ export function CompanySettings() {
     },
   });
 
+  const handleWorkingHoursChange = useCallback(
+    (wh: WorkingHoursConfig | null) => {
+      setLocalWorkingHours(wh);
+      if (workingHoursDebounceRef.current) clearTimeout(workingHoursDebounceRef.current);
+      workingHoursDebounceRef.current = setTimeout(() => {
+        workingHoursMutation.mutate(wh);
+      }, 600);
+    },
+    [workingHoursMutation],
+  );
+
   const reindexMutation = useMutation({
     mutationFn: () =>
       api.post(`/companies/${selectedCompanyId}/knowledge/reindex-all`, {}),
   });
-
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Settings" }]);
@@ -94,18 +123,18 @@ export function CompanySettings() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* ── Page Header ── */}
       <div>
-        <h1 className="text-lg font-semibold">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Manage your company profile, approvals, and preferences.</p>
+        <h1 className="text-xl font-bold">Settings</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Manage your company profile, approvals, and preferences.
+        </p>
       </div>
 
-      {/* General */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground ">
-          General
-        </h2>
-        <div className="space-y-4 rounded-xl border border-border/50 px-4 py-4">
+      {/* ── General ── */}
+      <SettingsSection icon={Building2} title="General" description="Company profile and branding.">
+        <div className="space-y-5">
           <SettingsField label="Company name" hint="The display name for your company.">
             <input
               className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
@@ -129,7 +158,7 @@ export function CompanySettings() {
                 type="color"
                 value={brandColor || "#6366f1"}
                 onChange={(e) => setBrandColor(e.target.value)}
-                className="h-8 w-8 cursor-pointer rounded border border-border bg-transparent p-0"
+                className="h-8 w-8 cursor-pointer rounded-md border border-border bg-transparent p-0"
               />
               <input
                 type="text"
@@ -144,48 +173,32 @@ export function CompanySettings() {
                 className="w-28 rounded-md border border-border bg-transparent px-3 py-2 text-sm font-mono outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
               />
               {brandColor && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setBrandColor("")}
-                >
+                <Button size="sm" variant="ghost" onClick={() => setBrandColor("")}>
                   Clear
                 </Button>
               )}
             </div>
           </SettingsField>
         </div>
-      </div>
 
-      {/* Save button for General + Appearance */}
-      {generalDirty && (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={handleSaveGeneral}
-            disabled={generalMutation.isPending || !companyName.trim()}
-          >
-            {generalMutation.isPending ? "Saving..." : "Save changes"}
-          </Button>
-          {generalMutation.isSuccess && (
-            <span className="text-sm text-muted-foreground">Saved</span>
-          )}
-          {generalMutation.isError && (
-            <span className="text-sm text-destructive">
-              {generalMutation.error instanceof Error
-                ? generalMutation.error.message
-                : "Failed to save"}
-            </span>
-          )}
-        </div>
-      )}
+        {/* Save bar */}
+        {generalDirty && (
+          <div className="flex items-center gap-2 pt-4 mt-4 border-t border-border/50">
+            <Button
+              size="sm"
+              onClick={handleSaveGeneral}
+              disabled={generalMutation.isPending || !companyName.trim()}
+            >
+              {generalMutation.isPending ? "Saving..." : "Save changes"}
+            </Button>
+            <MutationFeedback mutation={generalMutation} successMessage="Saved" />
+          </div>
+        )}
+      </SettingsSection>
 
-      {/* Approvals */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground ">
-          Approvals
-        </h2>
-        <div className="space-y-4 rounded-xl border border-border/50 px-4 py-4">
+      {/* ── Approvals ── */}
+      <SettingsSection icon={ShieldCheck} title="Approvals" description="Control governance and review requirements.">
+        <div className="space-y-0 divide-y divide-border/50">
           <SettingsToggle
             label="Require board approval for new hires"
             hint="New agent hires stay pending until approved by board."
@@ -199,69 +212,103 @@ export function CompanySettings() {
             onChange={(v) => planApprovalMutation.mutate(v)}
           />
         </div>
-      </div>
+      </SettingsSection>
 
-      {/* Working Hours */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground ">
-          Working Hours
-        </h2>
-        <div className="space-y-3 rounded-xl border border-border/50 px-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            Define when agents are allowed to run automatic heartbeat sessions.
-            Manual triggers, ticket responses, and approvals still work outside working hours.
-          </p>
-          <WorkingHoursEditor
-            value={selectedCompany.workingHours as WorkingHoursConfig | null}
-            onChange={(wh) => workingHoursMutation.mutate(wh)}
+      {/* ── Working Hours ── */}
+      <SettingsSection icon={Clock} title="Working Hours" description="Define when agents are allowed to run automatic heartbeat sessions.">
+        <p className="text-xs text-muted-foreground mb-3">
+          Manual triggers, ticket responses, and approvals still work outside working hours.
+        </p>
+        <WorkingHoursEditor
+          value={localWorkingHours}
+          onChange={handleWorkingHoursChange}
+        />
+        {workingHoursMutation.isError && (
+          <span className="text-sm text-destructive mt-2 block">
+            {workingHoursMutation.error instanceof Error
+              ? workingHoursMutation.error.message
+              : "Failed to save"}
+          </span>
+        )}
+      </SettingsSection>
+
+      {/* ── Knowledge (hidden for now) ── */}
+      {false && (
+      <SettingsSection icon={Brain} title="Knowledge" description="Manage your agents' knowledge base.">
+        <p className="text-xs text-muted-foreground mb-3">
+          Rebuild what your agents know by re-processing all comments and files.
+          Runs in the background — may take a few minutes for larger workspaces.
+        </p>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => reindexMutation.mutate()}
+            disabled={reindexMutation.isPending}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", reindexMutation.isPending && "animate-spin")} />
+            {reindexMutation.isPending ? "Refreshing..." : "Refresh agent knowledge"}
+          </Button>
+          <MutationFeedback
+            mutation={reindexMutation}
+            successMessage="Refreshing — this may take a few minutes"
           />
-          {workingHoursMutation.isError && (
-            <span className="text-sm text-destructive">
-              {workingHoursMutation.error instanceof Error
-                ? workingHoursMutation.error.message
-                : "Failed to save"}
-            </span>
-          )}
         </div>
-      </div>
+      </SettingsSection>
+      )}
+    </div>
+  );
+}
 
-      {/* Knowledge */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground ">
-          Knowledge
-        </h2>
-        <div className="space-y-3 rounded-xl border border-border/50 px-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            Rebuild what your agents know by re-processing all comments and files.
-            Runs in the background — may take a few minutes for larger workspaces.
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => reindexMutation.mutate()}
-              disabled={reindexMutation.isPending}
-            >
-              {reindexMutation.isPending ? "Refreshing..." : "Refresh agent knowledge"}
-            </Button>
-            {reindexMutation.isSuccess && (
-              <span className="text-sm text-muted-foreground">Refreshing — this may take a few minutes</span>
-            )}
-            {reindexMutation.isError && (
-              <span className="text-sm text-destructive">
-                {reindexMutation.error instanceof Error
-                  ? reindexMutation.error.message
-                  : "Something went wrong — please try again"}
-              </span>
-            )}
-          </div>
+/* ── Settings Section wrapper ── */
+
+import type { LucideIcon } from "lucide-react";
+
+function SettingsSection({
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center justify-center h-6 w-6 rounded-md bg-muted">
+          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
         </div>
+        <div>
+          <h2 className="text-sm font-semibold">{title}</h2>
+        </div>
+        {description && (
+          <>
+            <span className="text-xs text-muted-foreground">·</span>
+            <span className="text-xs text-muted-foreground">{description}</span>
+          </>
+        )}
+      </div>
+      <div className="rounded-xl border border-border bg-card px-5 py-5">
+        {children}
       </div>
     </div>
   );
 }
 
-function SettingsField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+/* ── Settings Field ── */
+
+function SettingsField({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <div className="flex items-center gap-1.5 mb-1.5">
@@ -272,6 +319,8 @@ function SettingsField({ label, hint, children }: { label: string; hint?: string
     </div>
   );
 }
+
+/* ── Settings Toggle ── */
 
 function SettingsToggle({
   label,
@@ -285,25 +334,52 @@ function SettingsToggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-1.5">
+    <div className="flex items-center justify-between py-3.5 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-1.5 min-w-0">
         <span className="text-sm">{label}</span>
         {hint && <HintIcon text={hint} />}
       </div>
       <button
         className={cn(
-          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-          checked ? "bg-green-600" : "bg-muted"
+          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0 ml-4",
+          checked ? "bg-primary" : "bg-muted"
         )}
         onClick={() => onChange(!checked)}
       >
         <span
           className={cn(
-            "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
+            "inline-block h-3.5 w-3.5 rounded-full bg-white shadow-xs transition-transform",
             checked ? "translate-x-4.5" : "translate-x-0.5"
           )}
         />
       </button>
     </div>
   );
+}
+
+/* ── Mutation Feedback inline ── */
+
+function MutationFeedback({
+  mutation,
+  successMessage = "Saved",
+}: {
+  mutation: { isSuccess: boolean; isError: boolean; error: unknown };
+  successMessage?: string;
+}) {
+  if (mutation.isSuccess) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-green-600">
+        <Check className="h-3 w-3" />
+        {successMessage}
+      </span>
+    );
+  }
+  if (mutation.isError) {
+    return (
+      <span className="text-xs text-destructive">
+        {mutation.error instanceof Error ? mutation.error.message : "Failed to save"}
+      </span>
+    );
+  }
+  return null;
 }

@@ -10,12 +10,26 @@ import { authApi } from "../api/auth";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
-import { MetricCard } from "../components/MetricCard";
 import { ActivityRow } from "../components/ActivityRow";
-import { ChartCard, RunActivityChart, IssueStatusChart, SuccessRateChart, TaskCompletionChart } from "../components/ActivityCharts";
+import {
+  ChartCard,
+  RunActivityChart,
+  IssueStatusChart,
+  SuccessRateChart,
+  TaskCompletionChart,
+} from "../components/ActivityCharts";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { Bot, CircleDot, CheckCircle2, ShieldCheck, BarChart3 } from "lucide-react";
+import {
+  Bot,
+  CircleDot,
+  CheckCircle2,
+  ShieldCheck,
+  BarChart3,
+  Activity,
+  TrendingUp,
+} from "lucide-react";
 import { EmptyState } from "../components/EmptyState";
+import { cn } from "../lib/utils";
 import type { Agent } from "@substaff/shared";
 
 export function Analytics() {
@@ -103,102 +117,211 @@ export function Analytics() {
     return <PageSkeleton variant="analytics" />;
   }
 
+  // Compute summary values for metric descriptions
+  const totalTeam = data
+    ? data.agents.active + data.agents.running + data.agents.paused + data.agents.error
+    : 0;
+  const workingCount = data?.agents.running ?? 0;
+  const errorCount = data?.agents.error ?? 0;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* ── Page Header ── */}
       <div>
-        <h1 className="text-lg font-semibold">Analytics</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Performance metrics and trends across your company.</p>
+        <h1 className="text-xl font-bold">Analytics</h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          Performance metrics and trends across your company.
+        </p>
       </div>
+
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 
       {data && (
         <>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-1 sm:gap-2">
-            <MetricCard
+          {/* ── Metric Cards ── */}
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+            {/* Team Members */}
+            <MetricCardEnhanced
               icon={Bot}
-              value={data.agents.active + data.agents.running + data.agents.paused + data.agents.error}
+              iconColor="text-chart-1"
+              iconBg="bg-chart-1/10"
+              value={totalTeam}
               label="Team Members"
               to="/agents"
-              description={
-                <span>
-                  {data.agents.running} working{", "}
-                  {data.agents.paused} paused{", "}
-                  {data.agents.error} need help
-                </span>
+              detail={
+                <>
+                  <span className={cn(workingCount > 0 && "text-green-500")}>{workingCount} working</span>
+                  {", "}
+                  <span>{data.agents.paused} paused</span>
+                  {errorCount > 0 && (
+                    <span className="text-red-500">{", "}{errorCount} need help</span>
+                  )}
+                </>
               }
             />
-            <MetricCard
+
+            {/* Tasks In Progress */}
+            <MetricCardEnhanced
               icon={CircleDot}
+              iconColor="text-chart-3"
+              iconBg="bg-chart-3/10"
               value={data.tasks.inProgress}
               label="Tasks In Progress"
               to="/issues"
-              description={
+              detail={
                 <span>
-                  {data.tasks.open} open{", "}
-                  {data.tasks.blocked} stuck
+                  {data.tasks.open} open{data.tasks.blocked > 0 && (
+                    <span className="text-yellow-600">{", "}{data.tasks.blocked} stuck</span>
+                  )}
                 </span>
               }
             />
-            <MetricCard
+
+            {/* Tasks Completed */}
+            <MetricCardEnhanced
               icon={CheckCircle2}
+              iconColor="text-chart-4"
+              iconBg="bg-chart-4/10"
               value={data.tasks.done ?? 0}
               label="Tasks Completed"
               to="/issues"
-              description={
-                <span>
-                  {(runs ?? []).length} total runs
-                </span>
+              detail={
+                <span>{(runs ?? []).length} total runs</span>
               }
             />
-            <MetricCard
+
+            {/* Pending Reviews */}
+            <MetricCardEnhanced
               icon={ShieldCheck}
+              iconColor="text-chart-5"
+              iconBg="bg-chart-5/10"
               value={data.pendingApprovals}
               label="Pending Reviews"
               to="/approvals"
-              description={
+              highlight={data.pendingApprovals > 0}
+              detail={
                 <span>
-                  {data.staleTasks} tasks need attention
+                  {data.staleTasks > 0 ? (
+                    <span className="text-yellow-600">{data.staleTasks} need attention</span>
+                  ) : (
+                    "All caught up"
+                  )}
                 </span>
               }
             />
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <ChartCard title="Run Activity" subtitle="Last 14 days">
-              <RunActivityChart runs={runs ?? []} />
-            </ChartCard>
-            <ChartCard title="Task Completion" subtitle="Last 14 days">
-              <TaskCompletionChart issues={issues ?? []} />
-            </ChartCard>
-            <ChartCard title="Tasks by Status" subtitle="Last 14 days">
-              <IssueStatusChart issues={issues ?? []} />
-            </ChartCard>
-            <ChartCard title="Success Rate" subtitle="Last 14 days">
-              <SuccessRateChart runs={runs ?? []} />
-            </ChartCard>
+          {/* ── Charts ── */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Trends</h3>
+              <span className="text-xs text-muted-foreground">Last 14 days</span>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <ChartCard title="Run Activity">
+                <RunActivityChart runs={runs ?? []} />
+              </ChartCard>
+              <ChartCard title="Task Completion">
+                <TaskCompletionChart issues={issues ?? []} />
+              </ChartCard>
+              <ChartCard title="Tasks by Status">
+                <IssueStatusChart issues={issues ?? []} />
+              </ChartCard>
+              <ChartCard title="Success Rate">
+                <SuccessRateChart runs={runs ?? []} />
+              </ChartCard>
+            </div>
           </div>
         </>
       )}
 
+      {/* ── Recent Activity ── */}
       {recentActivity.length > 0 && (
         <div className="min-w-0">
-          <h3 className="text-[13px] font-medium text-muted-foreground mb-3">
-            Recent Activity
-          </h3>
-          <div className="border border-border/50 divide-y divide-border/50 rounded-xl overflow-hidden">
-            {recentActivity.map((event) => (
-              <ActivityRow
-                key={event.id}
-                event={event}
-                agentMap={agentMap}
-                entityNameMap={entityNameMap}
-                entityTitleMap={entityTitleMap}
-                userNameMap={userNameMap}
-              />
-            ))}
+          <div className="flex items-center gap-2 mb-3">
+            <Activity className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Recent Activity</h3>
+            <span className="text-xs text-muted-foreground">{recentActivity.length} events</span>
+          </div>
+          <div className="border border-border rounded-xl overflow-hidden bg-card">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30 text-xs font-medium text-muted-foreground">
+              <span>Event</span>
+              <span>Time</span>
+            </div>
+            <div className="divide-y divide-border/50">
+              {recentActivity.map((event) => (
+                <ActivityRow
+                  key={event.id}
+                  event={event}
+                  agentMap={agentMap}
+                  entityNameMap={entityNameMap}
+                  entityTitleMap={entityTitleMap}
+                  userNameMap={userNameMap}
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}
     </div>
   );
+}
+
+/* ── Enhanced Metric Card (local to Analytics) ── */
+
+import { Link } from "@/lib/router";
+import type { LucideIcon, LucideProps } from "lucide-react";
+import type { ReactNode } from "react";
+
+function MetricCardEnhanced({
+  icon: Icon,
+  iconColor,
+  iconBg,
+  value,
+  label,
+  detail,
+  to,
+  highlight,
+}: {
+  icon: LucideIcon;
+  iconColor: string;
+  iconBg: string;
+  value: string | number;
+  label: string;
+  detail?: ReactNode;
+  to?: string;
+  highlight?: boolean;
+}) {
+  const content = (
+    <div className={cn(
+      "rounded-xl border border-border bg-card p-5 transition-colors h-full",
+      to && "hover:bg-accent/50 cursor-pointer",
+      highlight && "border-yellow-400/30",
+    )}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 space-y-1">
+          <p className="text-2xl font-bold tracking-tight">{value}</p>
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          {detail && (
+            <p className="text-xs text-muted-foreground/70 mt-1">{detail}</p>
+          )}
+        </div>
+        <div className={cn("flex items-center justify-center h-8 w-8 rounded-lg shrink-0", iconBg)}>
+          <Icon className={cn("h-4 w-4", iconColor)} />
+        </div>
+      </div>
+    </div>
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className="no-underline text-inherit">
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }

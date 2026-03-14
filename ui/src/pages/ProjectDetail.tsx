@@ -5,12 +5,11 @@ import { PROJECT_COLORS, isUuidLike, type ProjectProgress } from "@substaff/shar
 import { projectsApi } from "../api/projects";
 import { issuesApi } from "../api/issues";
 import { agentsApi } from "../api/agents";
-import { heartbeatsApi } from "../api/heartbeats";
 import { assetsApi } from "../api/assets";
 
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { queryKeys } from "../lib/queryKeys";
+import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { ProjectProperties } from "../components/ProjectProperties";
 import { InlineEditor } from "../components/InlineEditor";
 import { IssuesList } from "../components/IssuesList";
@@ -87,12 +86,7 @@ function ProjectIssuesList({ projectId, companyId, header }: { projectId: string
     enabled: !!companyId,
   });
 
-  const { data: liveRuns } = useQuery({
-    queryKey: queryKeys.liveRuns(companyId),
-    queryFn: () => heartbeatsApi.liveRunsForCompany(companyId),
-    enabled: !!companyId,
-    refetchInterval: 5000,
-  });
+  const { data: liveRuns } = useQuery(sharedQueries.liveRuns(companyId));
 
   const liveIssueIds = useMemo(() => {
     const ids = new Set<string>();

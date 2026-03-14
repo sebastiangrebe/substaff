@@ -8,21 +8,22 @@ import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
-import { agentUrl } from "../lib/utils";
+import { agentUrl, cn } from "../lib/utils";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { RolesPanel } from "../components/RolesPanel";
 import { AgentIcon } from "../components/AgentIconPicker";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Network, Plus, MessageSquareText, Shield, UserPlus, UserCheck, User } from "lucide-react";
-import { BUILTIN_ROLE_LABELS, type Agent } from "@substaff/shared";
+import { Badge } from "@/components/ui/badge";
+import { Network, Plus, MessageSquareText, Shield, UserPlus, UserCheck, User, Link2, Copy, Check, Clock, Bot, UserX, Loader2 } from "lucide-react";
+import { BUILTIN_ROLE_LABELS, type Agent, type JoinRequest } from "@substaff/shared";
 
 // Layout constants
-const CARD_W = 200;
-const CARD_H = 100;
-const GAP_X = 32;
-const GAP_Y = 80;
+const CARD_W = 220;
+const CARD_H = 84;
+const GAP_X = 40;
+const GAP_Y = 64;
 const PADDING = 60;
 
 // ── Tree layout types ───────────────────────────────────────────────────
@@ -154,37 +155,37 @@ export function OrgChart() {
   }
 
   return (
-    <div>
-      <div className="mb-4">
-        <h1 className="text-xl font-bold">Organization</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your team structure and roles.
-        </p>
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      <div className="flex items-end justify-between mb-1">
+        <div>
+          <h1 className="text-xl font-bold">Organization</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage your team structure and roles.
+          </p>
+        </div>
       </div>
 
-      <Tabs defaultValue="chart">
-        <TabsList className="mb-3">
+      <Tabs defaultValue="chart" className="flex flex-col flex-1 min-h-0">
+        <TabsList variant="line">
           <TabsTrigger value="chart">
-            <Network className="h-3.5 w-3.5 mr-1.5" />
+            <Network className="h-3.5 w-3.5" />
             Org Chart
           </TabsTrigger>
           <TabsTrigger value="roles">
-            <Shield className="h-3.5 w-3.5 mr-1.5" />
+            <Shield className="h-3.5 w-3.5" />
             Roles
           </TabsTrigger>
           <TabsTrigger value="invites">
-            <UserPlus className="h-3.5 w-3.5 mr-1.5" />
+            <UserPlus className="h-3.5 w-3.5" />
             Invites
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="chart" className="mt-0">
-          <div className="h-[calc(100vh-14rem)]">
-            <OrgChartView
-              companyId={selectedCompanyId}
-              onAddAgent={openNewAgent}
-            />
-          </div>
+        <TabsContent value="chart" className="mt-0 flex-1 min-h-0">
+          <OrgChartView
+            companyId={selectedCompanyId}
+            onAddAgent={openNewAgent}
+          />
         </TabsContent>
 
         <TabsContent value="roles" className="mt-0">
@@ -328,7 +329,7 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
       {/* Chart canvas */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-hidden relative bg-muted/20 border border-border rounded-lg"
+        className="flex-1 overflow-hidden relative bg-background border border-border/60 rounded-xl"
         style={{ cursor: dragging ? "grabbing" : "grab" }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -359,9 +360,9 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
         </div>
 
         {/* Zoom controls */}
-        <div className="absolute top-3 right-3 z-10 flex flex-col gap-1">
+        <div className="absolute top-3 right-3 z-10 flex flex-col gap-px rounded-lg border border-border/60 bg-card shadow-sm overflow-hidden">
           <button
-            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
             onClick={() => {
               const newZoom = Math.min(zoom * 1.2, 2);
               const container = containerRef.current;
@@ -377,8 +378,9 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
           >
             +
           </button>
+          <div className="h-px bg-border/60" />
           <button
-            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-sm hover:bg-accent transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-sm text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
             onClick={() => {
               const newZoom = Math.max(zoom * 0.8, 0.2);
               const container = containerRef.current;
@@ -394,8 +396,9 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
           >
             &minus;
           </button>
+          <div className="h-px bg-border/60" />
           <button
-            className="w-7 h-7 flex items-center justify-center bg-background border border-border rounded text-[10px] hover:bg-accent transition-colors"
+            className="w-8 h-8 flex items-center justify-center text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
             onClick={() => {
               if (!containerRef.current) return;
               const cW = containerRef.current.clientWidth;
@@ -413,13 +416,23 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
           >
             Fit
           </button>
+          <div className="h-px bg-border/60" />
+          <div className="w-8 h-6 flex items-center justify-center text-[9px] font-mono text-muted-foreground/60">
+            {Math.round(zoom * 100)}%
+          </div>
         </div>
 
-        {/* SVG layer for edges */}
+        {/* SVG layer for dot grid + edges */}
         <svg
           className="absolute inset-0 pointer-events-none"
           style={{ width: "100%", height: "100%" }}
         >
+          <defs>
+            <pattern id="org-dot-grid" width="24" height="24" patternUnits="userSpaceOnUse">
+              <circle cx="1" cy="1" r="0.8" fill="var(--border)" opacity="0.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#org-dot-grid)" />
           <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
             {edges.map(({ parent, child }) => {
               const x1 = parent.x + CARD_W / 2;
@@ -429,13 +442,25 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
               const midY = (y1 + y2) / 2;
 
               return (
-                <path
-                  key={`${parent.id}-${child.id}`}
-                  d={`M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`}
-                  fill="none"
-                  stroke="var(--border)"
-                  strokeWidth={1.5}
-                />
+                <g key={`${parent.id}-${child.id}`}>
+                  {/* Soft glow behind the line */}
+                  <path
+                    d={`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`}
+                    fill="none"
+                    stroke="var(--primary)"
+                    strokeWidth={3}
+                    opacity={0.06}
+                  />
+                  <path
+                    d={`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`}
+                    fill="none"
+                    stroke="var(--primary)"
+                    strokeWidth={1.5}
+                    opacity={0.25}
+                  />
+                  {/* Connection dot at child end */}
+                  <circle cx={x2} cy={y2} r={3} fill="var(--primary)" opacity={0.2} />
+                </g>
               );
             })}
           </g>
@@ -453,15 +478,17 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
             const isHuman = node.nodeType === "human";
             const agent = isHuman ? undefined : agentMap.get(node.id);
             const dotColor = isHuman ? "#4ade80" : (statusDotColor[node.status] ?? defaultDotColor);
+            const isRoot = !node.managerId;
+            const statusLabel = isHuman ? "online" : node.status;
 
             return (
               <div
                 key={node.id}
                 data-org-card
-                className={`absolute rounded-lg shadow-sm hover:shadow-md transition-[box-shadow,border-color] duration-150 select-none ${
+                className={`absolute rounded-xl select-none transition-all duration-200 group ${
                   isHuman
-                    ? "bg-primary/5 border-2 border-primary/30 hover:border-primary/50"
-                    : "bg-card border border-border hover:border-foreground/20 cursor-pointer"
+                    ? "bg-card border border-primary/20 hover:border-primary/40 shadow-sm hover:shadow-md"
+                    : `bg-card border border-border/80 hover:border-primary/30 shadow-sm hover:shadow-md cursor-pointer${isRoot ? " ring-1 ring-primary/8" : ""}`
                 }`}
                 style={{
                   left: node.x,
@@ -473,35 +500,69 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
                   if (!isHuman) navigate(agent ? agentUrl(agent) : `/agents/${node.id}`);
                 }}
               >
-                <div className="flex items-center px-4 py-3 gap-3">
+                {/* Subtle top accent bar for root agent nodes */}
+                {isRoot && !isHuman && (
+                  <div className="absolute inset-x-0 top-0 h-[2px] rounded-t-xl bg-gradient-to-r from-primary/40 via-primary/60 to-primary/40" />
+                )}
+
+                <div className="flex items-center px-3.5 py-3 gap-3">
+                  {/* Avatar with status ring */}
                   <div className="relative shrink-0">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden ${
-                      isHuman ? "bg-primary/10" : "bg-muted"
-                    }`}>
-                      {isHuman && node.image ? (
-                        <img src={node.image} alt={node.name} className="w-full h-full object-cover" />
-                      ) : isHuman ? (
-                        <User className="h-4.5 w-4.5 text-primary" />
-                      ) : (
-                        <AgentIcon icon={agent?.icon} className="h-4.5 w-4.5 text-foreground/70" />
-                      )}
+                    <div
+                      className="rounded-full p-[2px]"
+                      style={{
+                        background: `linear-gradient(135deg, ${dotColor}40, ${dotColor}15)`,
+                      }}
+                    >
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center overflow-hidden ${
+                        isHuman ? "bg-primary/8" : "bg-muted/80"
+                      }`}>
+                        {isHuman && node.image ? (
+                          <img src={node.image} alt={node.name} className="w-full h-full object-cover" />
+                        ) : isHuman ? (
+                          <User className="h-4 w-4 text-primary" />
+                        ) : (
+                          <AgentIcon icon={agent?.icon} className="h-4 w-4 text-foreground/60" />
+                        )}
+                      </div>
                     </div>
+                    {/* Status dot with glow */}
                     <span
                       className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card"
-                      style={{ backgroundColor: dotColor }}
+                      style={{
+                        backgroundColor: dotColor,
+                        boxShadow: `0 0 6px ${dotColor}60`,
+                      }}
                     />
                   </div>
+
+                  {/* Text content */}
                   <div className="flex flex-col items-start min-w-0 flex-1">
-                    <span className="text-sm font-semibold text-foreground leading-tight">
+                    <span className="text-[13px] font-semibold text-foreground leading-tight truncate w-full group-hover:text-primary transition-colors duration-150">
                       {node.name}
                     </span>
-                    <span className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                    <span className="text-[11px] text-muted-foreground leading-tight mt-0.5 truncate w-full">
                       {isHuman ? "Manager" : (agent?.title ?? roleLabel(node.role))}
                     </span>
                     {!isHuman && agent && (
-                      <span className="text-[10px] text-muted-foreground/60 font-mono leading-tight mt-1">
-                        {adapterLabels[agent.adapterType] ?? agent.adapterType}
-                      </span>
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[9px] font-medium leading-tight"
+                          style={{
+                            backgroundColor: `${dotColor}18`,
+                            color: dotColor,
+                          }}
+                        >
+                          <span
+                            className={`inline-block h-1.5 w-1.5 rounded-full ${node.status === "running" ? "animate-pulse" : ""}`}
+                            style={{ backgroundColor: dotColor }}
+                          />
+                          {statusLabel}
+                        </span>
+                        <span className="text-[9px] text-muted-foreground/50 font-mono truncate">
+                          {adapterLabels[agent.adapterType] ?? agent.adapterType}
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -514,15 +575,123 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
   );
 }
 
+function JoinRequestStatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case "pending_approval":
+      return (
+        <Badge variant="outline" className="text-[10px] bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+          <Clock className="h-2.5 w-2.5 mr-1" />
+          Pending
+        </Badge>
+      );
+    case "approved":
+      return (
+        <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-600 border-green-500/20">
+          <UserCheck className="h-2.5 w-2.5 mr-1" />
+          Approved
+        </Badge>
+      );
+    case "rejected":
+      return (
+        <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-600 border-red-500/20">
+          <UserX className="h-2.5 w-2.5 mr-1" />
+          Rejected
+        </Badge>
+      );
+    default:
+      return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
+  }
+}
+
+function JoinRequestRow({
+  request,
+  onApprove,
+  onReject,
+  isApproving,
+  isRejecting,
+}: {
+  request: JoinRequest;
+  onApprove: () => void;
+  onReject: () => void;
+  isApproving: boolean;
+  isRejecting: boolean;
+}) {
+  const isPending = request.status === "pending_approval";
+  const isAgent = request.requestType === "agent";
+  const name = isAgent
+    ? request.agentName ?? "Unnamed agent"
+    : request.requestNameSnapshot ?? request.requestEmailSnapshot ?? "Unknown user";
+
+  return (
+    <div className="group flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors">
+      <div className={cn(
+        "h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+        isAgent ? "bg-blue-500/10" : "bg-primary/10",
+      )}>
+        {isAgent ? (
+          <Bot className="h-3.5 w-3.5 text-blue-500" />
+        ) : (
+          <User className="h-3.5 w-3.5 text-primary" />
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{name}</span>
+          <span className="text-[10px] font-mono text-muted-foreground/50">{isAgent ? "agent" : "human"}</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {isAgent && request.adapterType
+            ? `Adapter: ${request.adapterType}`
+            : request.requestEmailSnapshot ?? "No email provided"}
+          {" \u00b7 "}
+          {new Date(request.createdAt).toLocaleDateString()}
+        </p>
+      </div>
+      <JoinRequestStatusBadge status={request.status} />
+      {isPending && (
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs"
+            onClick={onApprove}
+            disabled={isApproving || isRejecting}
+          >
+            {isApproving ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3 mr-1" />}
+            Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs text-muted-foreground hover:text-destructive"
+            onClick={onReject}
+            disabled={isApproving || isRejecting}
+          >
+            Reject
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InvitesPanel({ companyId }: { companyId: string }) {
   const queryClient = useQueryClient();
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [joinType, setJoinType] = useState<"both" | "human" | "agent">("both");
+
+  const { data: pendingRequests, isLoading: requestsLoading } = useQuery({
+    queryKey: [...queryKeys.sidebarBadges(companyId), "join-requests", "pending"],
+    queryFn: () => accessApi.listJoinRequests(companyId, "pending_approval"),
+    enabled: !!companyId,
+  });
 
   const inviteMutation = useMutation({
     mutationFn: () =>
       accessApi.createCompanyInvite(companyId, {
-        allowedJoinTypes: "both",
+        allowedJoinTypes: joinType,
         expiresInHours: 72,
       }),
     onSuccess: (invite) => {
@@ -539,33 +708,140 @@ function InvitesPanel({ companyId }: { companyId: string }) {
     },
   });
 
+  const approveMutation = useMutation({
+    mutationFn: (requestId: string) => accessApi.approveJoinRequest(companyId, requestId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.sidebarBadges(companyId), "join-requests"] });
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (requestId: string) => accessApi.rejectJoinRequest(companyId, requestId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.sidebarBadges(companyId), "join-requests"] });
+    },
+  });
+
+  async function handleCopy() {
+    if (!inviteLink) return;
+    await navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
-    <div className="space-y-3">
-      <div className="space-y-3 rounded-xl border border-border/50 px-4 py-4">
-        <p className="text-sm text-muted-foreground">
-          Generate a link to invite humans or agents to this company. Links expire after 72 hours.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending}>
-            {inviteMutation.isPending ? "Creating..." : "Create invite link"}
-          </Button>
-          {inviteLink && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                await navigator.clipboard.writeText(inviteLink);
-              }}
-            >
-              Copy link
+    <div className="space-y-6 pt-4">
+      {/* Create Invite Section */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">Create Invite</h3>
+        </div>
+        <div className="rounded-lg border border-border/50 bg-card overflow-hidden">
+          <div className="px-4 py-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Generate a shareable link to invite humans or agents to this company. Links expire after 72 hours.
+            </p>
+
+            {/* Join type selector */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">Who can join</label>
+              <div className="flex gap-2">
+                {(["both", "human", "agent"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors",
+                      joinType === type
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:bg-accent/50",
+                    )}
+                    onClick={() => setJoinType(type)}
+                  >
+                    {type === "human" && <User className="h-3 w-3" />}
+                    {type === "agent" && <Bot className="h-3 w-3" />}
+                    {type === "both" && <UserPlus className="h-3 w-3" />}
+                    {type === "both" ? "Anyone" : type === "human" ? "Humans only" : "Agents only"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button size="sm" onClick={() => inviteMutation.mutate()} disabled={inviteMutation.isPending}>
+              {inviteMutation.isPending ? (
+                <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Creating...</>
+              ) : (
+                <><Link2 className="h-3.5 w-3.5 mr-1.5" /> Generate Invite Link</>
+              )}
             </Button>
+
+            {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
+          </div>
+
+          {/* Generated link display */}
+          {inviteLink && (
+            <div className="border-t border-border/50 bg-muted/30 px-4 py-3">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Link2 className="h-3 w-3 text-green-500" />
+                <span className="text-xs font-medium text-green-600">Invite link created</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 rounded-md border border-border bg-card px-3 py-2 overflow-hidden">
+                  <p className="text-xs font-mono text-muted-foreground truncate">{inviteLink}</p>
+                </div>
+                <Button size="sm" variant="outline" className="shrink-0" onClick={handleCopy}>
+                  {copied ? (
+                    <><Check className="h-3.5 w-3.5 mr-1.5 text-green-500" /> Copied</>
+                  ) : (
+                    <><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy</>
+                  )}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
-        {inviteError && <p className="text-sm text-destructive">{inviteError}</p>}
-        {inviteLink && (
-          <div className="rounded-md border border-border bg-muted/30 p-3">
-            <span className="text-sm text-muted-foreground">Share link</span>
-            <p className="mt-1 break-all font-mono text-sm">{inviteLink}</p>
+      </div>
+
+      {/* Pending Join Requests */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">Join Requests</h3>
+            {(pendingRequests?.length ?? 0) > 0 && (
+              <span className="inline-flex items-center justify-center h-5 min-w-5 rounded-full bg-yellow-500/15 text-yellow-600 text-[10px] font-medium px-1.5">
+                {pendingRequests!.length}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {requestsLoading ? (
+          <div className="rounded-lg border border-border/50 bg-card p-6 flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : (pendingRequests?.length ?? 0) === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/60 bg-card">
+            <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+              <div className="rounded-xl bg-muted/50 h-10 w-10 flex items-center justify-center mb-3">
+                <UserCheck className="h-5 w-5 text-muted-foreground/40" />
+              </div>
+              <p className="text-xs text-muted-foreground max-w-[240px] leading-relaxed">
+                No pending join requests. Share an invite link to get started.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="border border-border/50 rounded-lg divide-y divide-border/30 bg-card">
+            {pendingRequests!.map((request) => (
+              <JoinRequestRow
+                key={request.id}
+                request={request}
+                onApprove={() => approveMutation.mutate(request.id)}
+                onReject={() => rejectMutation.mutate(request.id)}
+                isApproving={approveMutation.isPending && approveMutation.variables === request.id}
+                isRejecting={rejectMutation.isPending && rejectMutation.variables === request.id}
+              />
+            ))}
           </div>
         )}
       </div>

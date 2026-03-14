@@ -17,6 +17,7 @@ import { roleLabels } from "../components/agent-config-primitives";
 import { getUIAdapter, buildTranscript } from "../adapters";
 import type { TranscriptEntry } from "../adapters";
 import { StatusBadge } from "../components/StatusBadge";
+import { StatusIcon as IssueStatusIcon } from "../components/StatusIcon";
 import { MarkdownBody } from "../components/MarkdownBody";
 import { EntityRow } from "../components/EntityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -337,19 +338,6 @@ export function AgentDetail() {
     },
   });
 
-  const resetTaskSession = useMutation({
-    mutationFn: (taskKey: string | null) =>
-      agentsApi.resetSession(agentLookupRef, taskKey, resolvedCompanyId ?? undefined),
-    onSuccess: () => {
-      setActionError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.runtimeState(agentLookupRef) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.taskSessions(agentLookupRef) });
-    },
-    onError: (err) => {
-      setActionError(err instanceof Error ? err.message : "Failed to reset session");
-    },
-  });
-
   const updatePermissions = useMutation({
     mutationFn: (canCreateAgents: boolean) =>
       agentsApi.updatePermissions(agentLookupRef, { canCreateAgents }, resolvedCompanyId ?? undefined),
@@ -407,141 +395,128 @@ export function AgentDetail() {
   const showConfigActionBar = activeView === "configure" && configDirty;
 
   return (
-    <div className={cn("space-y-3", isMobile && showConfigActionBar && "pb-24")}>
+    <div className={cn("space-y-5", isMobile && showConfigActionBar && "pb-24")}>
       {/* Header */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-4 min-w-0">
           <AgentIconPicker
             value={agent.icon}
             onChange={(icon) => updateIcon.mutate(icon)}
           >
-            <button className="shrink-0 flex items-center justify-center h-12 w-12 rounded-lg bg-accent hover:bg-accent/80 transition-colors">
-              <AgentIcon icon={agent.icon} className="h-6 w-6" />
+            <button className="shrink-0 relative flex items-center justify-center h-14 w-14 rounded-xl bg-accent/80 hover:bg-accent transition-all group shadow-xs">
+              <AgentIcon icon={agent.icon} className="h-7 w-7 transition-transform group-hover:scale-110" />
+              <span className={cn(
+                "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background",
+                agent.status === "active" ? "bg-emerald-500" :
+                agent.status === "running" ? "bg-indigo-500 animate-pulse" :
+                agent.status === "paused" ? "bg-orange-400" :
+                agent.status === "error" ? "bg-red-500" :
+                "bg-neutral-400"
+              )} />
             </button>
           </AgentIconPicker>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold truncate">{agent.name}</h1>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-xl font-bold tracking-tight truncate">{agent.name}</h1>
               <StatusBadge status={agent.status} />
             </div>
-            <p className="text-sm text-muted-foreground truncate">
+            <p className="text-sm text-muted-foreground truncate mt-0.5">
               {roleLabels[agent.role] ?? agent.role}
-              {agent.title ? ` - ${agent.title}` : ""}
+              {agent.title ? ` · ${agent.title}` : ""}
             </p>
           </div>
           {mobileLiveRun && (
             <Link
               to={`/agents/${canonicalAgentRef}/runs/${mobileLiveRun.id}`}
-              className="sm:hidden flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 hover:bg-blue-500/20 transition-colors no-underline"
+              className="sm:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors no-underline"
             >
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
               </span>
-              <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400">Live</span>
+              <span className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400">Live</span>
             </Link>
           )}
         </div>
 
-        {/* Actions dropdown */}
-        <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm">
-              Actions
-              <ChevronDown className="h-3.5 w-3.5 ml-1" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-48 p-1" align="end">
-            <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
-              onClick={() => {
-                agentAction.mutate("invoke");
-                setMoreOpen(false);
-              }}
+        {/* Primary actions + More dropdown */}
+        <div className="flex items-center gap-2">
+          {/* Start / Resume button */}
+          <Button
+            size="sm"
+            onClick={() => agentAction.mutate(agent.status === "paused" ? "resume" : "invoke")}
+            disabled={agentAction.isPending || isPendingApproval}
+          >
+            <Play className="h-3.5 w-3.5 mr-1.5" />
+            {agent.status === "paused" ? "Resume" : "Start"}
+          </Button>
+
+          {/* Pause button (only when not already paused) */}
+          {agent.status !== "paused" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => agentAction.mutate("pause")}
               disabled={agentAction.isPending || isPendingApproval}
             >
-              <Play className="h-3.5 w-3.5" />
-              Invoke
-            </button>
-            {agent.status === "paused" ? (
+              <Pause className="h-3.5 w-3.5 mr-1.5" />
+              Pause
+            </Button>
+          )}
+
+          {/* More dropdown */}
+          <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon-sm">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-1" align="end">
               <button
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
                 onClick={() => {
-                  agentAction.mutate("resume");
+                  openNewIssue({ assigneeAgentId: agent.id });
                   setMoreOpen(false);
                 }}
-                disabled={agentAction.isPending || isPendingApproval}
               >
-                <Play className="h-3.5 w-3.5" />
-                Resume
+                <Plus className="h-3.5 w-3.5" />
+                Assign Task
               </button>
-            ) : (
+              <div className="h-px bg-border my-1" />
               <button
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
                 onClick={() => {
-                  agentAction.mutate("pause");
+                  navigate(`/agents/${canonicalAgentRef}/configure`);
                   setMoreOpen(false);
                 }}
-                disabled={agentAction.isPending || isPendingApproval}
               >
-                <Pause className="h-3.5 w-3.5" />
-                Pause
+                <Settings className="h-3.5 w-3.5" />
+                Configure
               </button>
-            )}
-            <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
-              onClick={() => {
-                openNewIssue({ assigneeAgentId: agent.id });
-                setMoreOpen(false);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Assign Task
-            </button>
-            <div className="h-px bg-border my-1" />
-            <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
-              onClick={() => {
-                navigate(`/agents/${canonicalAgentRef}/configure`);
-                setMoreOpen(false);
-              }}
-            >
-              <Settings className="h-3.5 w-3.5" />
-              Configure
-            </button>
-            <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
-              onClick={() => {
-                navigator.clipboard.writeText(agent.id);
-                setMoreOpen(false);
-              }}
-            >
-              <Copy className="h-3.5 w-3.5" />
-              Copy ID
-            </button>
-            <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
-              onClick={() => {
-                resetTaskSession.mutate(null);
-                setMoreOpen(false);
-              }}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Reset Sessions
-            </button>
-            <div className="h-px bg-border my-1" />
-            <button
-              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40 text-destructive"
-              onClick={() => {
-                agentAction.mutate("terminate");
-                setMoreOpen(false);
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Terminate
-            </button>
-          </PopoverContent>
-        </Popover>
+              <button
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40"
+                onClick={() => {
+                  navigator.clipboard.writeText(agent.id);
+                  setMoreOpen(false);
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Copy ID
+              </button>
+              <div className="h-px bg-border my-1" />
+              <button
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded hover:bg-accent/40 text-destructive"
+                onClick={() => {
+                  agentAction.mutate("terminate");
+                  setMoreOpen(false);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Terminate
+              </button>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {actionError && <p className="text-sm text-destructive">{actionError}</p>}
@@ -666,10 +641,12 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
     ? String((run.resultJson as Record<string, unknown>).summary ?? (run.resultJson as Record<string, unknown>).result ?? "")
     : run.error ?? "";
 
+  const metrics = runMetrics(run);
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <div className="flex w-full items-center justify-between">
-        <h3 className="flex items-center gap-2 text-base font-medium">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           {isLive && (
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
@@ -679,20 +656,23 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
           {isLive ? "Live Run" : "Latest Run"}
         </h3>
         <Link
-          to={`/agents/${agentId}/runs/${run.id}`}
-          className="shrink-0 text-sm text-muted-foreground hover:text-foreground transition-colors no-underline"
+          to={`/agents/${agentId}/runs`}
+          className="shrink-0 text-xs text-muted-foreground hover:text-foreground transition-colors no-underline"
         >
-          View details &rarr;
+          All runs &rarr;
         </Link>
       </div>
 
       <Link
         to={`/agents/${agentId}/runs/${run.id}`}
         className={cn(
-          "block border rounded-lg p-4 space-y-2 w-full no-underline transition-colors hover:bg-muted/50 cursor-pointer",
-          isLive ? "border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.08)]" : "border-border"
+          "block border rounded-xl p-4 w-full no-underline transition-all hover:border-border/80 cursor-pointer group",
+          isLive
+            ? "border-cyan-500/30 bg-cyan-500/[0.03] shadow-[0_0_16px_rgba(6,182,212,0.06)]"
+            : "border-border bg-card hover:bg-accent/30"
         )}
       >
+        {/* Top row: status + source + time */}
         <div className="flex items-center gap-2">
           <StatusIcon className={cn("h-4 w-4", statusInfo.color, run.status === "running" && "animate-spin")} />
           <StatusBadge status={run.status} />
@@ -705,12 +685,37 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
           )}>
             {sourceLabels[run.invocationSource] ?? run.invocationSource}
           </span>
-          <span className="ml-auto text-sm text-muted-foreground">{relativeTime(run.createdAt)}</span>
+          <span className="ml-auto text-xs text-muted-foreground tabular-nums">{relativeTime(run.createdAt)}</span>
         </div>
 
+        {/* Summary */}
         {summary && (
-          <div className="overflow-hidden max-h-20 pl-6">
-            <MarkdownBody className="text-sm [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{summary}</MarkdownBody>
+          <div className="overflow-hidden max-h-20 mt-2.5 pl-6">
+            <MarkdownBody className="text-sm text-muted-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{summary}</MarkdownBody>
+          </div>
+        )}
+
+        {/* Bottom metrics row */}
+        {(metrics.cost > 0 || metrics.totalTokens > 0) && (
+          <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border/30 pl-6">
+            {metrics.cost > 0 && (
+              <span className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground/70">${metrics.cost.toFixed(2)}</span> cost
+              </span>
+            )}
+            {metrics.totalTokens > 0 && (
+              <span className="text-xs text-muted-foreground">
+                <span className="font-medium text-foreground/70">{formatTokens(metrics.totalTokens)}</span> tokens
+              </span>
+            )}
+            {metrics.input > 0 && (
+              <span className="text-xs text-muted-foreground hidden sm:inline">
+                {formatTokens(metrics.input)} in / {formatTokens(metrics.output)} out
+              </span>
+            )}
+            <span className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+              View details &rarr;
+            </span>
           </div>
         )}
       </Link>
@@ -739,51 +744,93 @@ function AgentOverview({
   agentId: string;
   agentRouteId: string;
 }) {
+  // Compute summary stats for the overview header
+  const totalRuns = runs.length;
+  const succeededRuns = runs.filter(r => r.status === "succeeded").length;
+  const successRate = totalRuns > 0 ? Math.round((succeededRuns / totalRuns) * 100) : 0;
+  const openTasks = assignedIssues.filter(i => i.status !== "done" && i.status !== "cancelled").length;
+  const doneTasks = assignedIssues.filter(i => i.status === "done").length;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Quick Stats Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="px-3.5 py-3 rounded-lg border border-border bg-card">
+          <div className="text-2xl font-bold tracking-tight tabular-nums">{totalRuns}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">Total Runs</div>
+        </div>
+        <div className="px-3.5 py-3 rounded-lg border border-border bg-card">
+          <div className="text-2xl font-bold tracking-tight tabular-nums">
+            {totalRuns > 0 ? `${successRate}%` : "—"}
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">Success Rate</div>
+        </div>
+        <div className="px-3.5 py-3 rounded-lg border border-border bg-card">
+          <div className="text-2xl font-bold tracking-tight tabular-nums">{openTasks}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">Open Tasks</div>
+        </div>
+        <div className="px-3.5 py-3 rounded-lg border border-border bg-card">
+          <div className="text-2xl font-bold tracking-tight tabular-nums">
+            {runtimeState ? formatCents(runtimeState.totalCostCents) : "—"}
+          </div>
+          <div className="text-xs text-muted-foreground mt-0.5">Total Cost</div>
+        </div>
+      </div>
+
       {/* Latest Run */}
       <LatestRunCard runs={runs} agentId={agentRouteId} />
 
       {/* Charts */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <ChartCard title="Total cost" subtitle={runtimeState ? `${formatCents(runtimeState.totalCostCents)} across ${runs.length} runs` : "Last 14 days"}>
-          <TotalCostChart runs={runs} />
-        </ChartCard>
-        <ChartCard title="Cost per task" subtitle={runs.length > 0 && runtimeState ? `${formatCents(Math.round(runtimeState.totalCostCents / runs.length))} avg` : "Last 14 days"}>
-          <CostPerRunChart runs={runs} />
-        </ChartCard>
-        <ChartCard title="Tasks by Status" subtitle="Last 14 days">
-          <IssueStatusChart issues={assignedIssues} />
-        </ChartCard>
-        <ChartCard title="Success Rate" subtitle="Last 14 days">
-          <SuccessRateChart runs={runs} />
-        </ChartCard>
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Activity</h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <ChartCard title="Total cost" subtitle={runtimeState ? `${formatCents(runtimeState.totalCostCents)} across ${runs.length} runs` : "Last 14 days"}>
+            <TotalCostChart runs={runs} />
+          </ChartCard>
+          <ChartCard title="Cost per task" subtitle={runs.length > 0 && runtimeState ? `${formatCents(Math.round(runtimeState.totalCostCents / runs.length))} avg` : "Last 14 days"}>
+            <CostPerRunChart runs={runs} />
+          </ChartCard>
+          <ChartCard title="Tasks by Status" subtitle="Last 14 days">
+            <IssueStatusChart issues={assignedIssues} />
+          </ChartCard>
+          <ChartCard title="Success Rate" subtitle="Last 14 days">
+            <SuccessRateChart runs={runs} />
+          </ChartCard>
+        </div>
       </div>
 
       {/* Recent Tasks */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-medium">Recent Tasks</h3>
-          <Link to={`/issues?assignee=${agentId}`} className="text-sm text-muted-foreground hover:text-foreground transition-colors no-underline">
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Recent Tasks
+            {assignedIssues.length > 0 && (
+              <span className="ml-2 text-xs font-normal tabular-nums">{doneTasks}/{assignedIssues.length} done</span>
+            )}
+          </h3>
+          <Link to={`/issues?assignee=${agentId}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors no-underline">
             See all &rarr;
           </Link>
         </div>
         {assignedIssues.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No assigned tasks.</p>
+          <div className="border border-dashed border-border/50 rounded-xl py-8 text-center">
+            <p className="text-sm text-muted-foreground">No assigned tasks yet</p>
+          </div>
         ) : (
-          <div className="border border-border/50 rounded-xl">
+          <div className="border border-border rounded-xl overflow-hidden bg-card">
             {assignedIssues.slice(0, 10).map((issue) => (
               <EntityRow
                 key={issue.id}
                 identifier={issue.identifier ?? issue.id.slice(0, 8)}
                 title={issue.title}
                 to={`/issues/${issue.identifier ?? issue.id}`}
+                leading={<IssueStatusIcon status={issue.status} />}
                 trailing={<StatusBadge status={issue.status} />}
               />
             ))}
             {assignedIssues.length > 10 && (
-              <div className="px-3 py-2 text-xs text-muted-foreground text-center border-t border-border">
-                +{assignedIssues.length - 10} more issues
+              <div className="px-3 py-2.5 text-xs text-muted-foreground text-center border-t border-border bg-muted/20">
+                +{assignedIssues.length - 10} more tasks
               </div>
             )}
           </div>
@@ -820,6 +867,7 @@ function AgentConfigurePage({
   const queryClient = useQueryClient();
   const [revisionsOpen, setRevisionsOpen] = useState(false);
 
+
   const { data: configRevisions } = useQuery({
     queryKey: queryKeys.agents.configRevisions(agent.id),
     queryFn: () => agentsApi.listConfigRevisions(agent.id, companyId),
@@ -835,7 +883,7 @@ function AgentConfigurePage({
   });
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="space-y-8">
       <ConfigurationTab
         agent={agent}
         onDirtyChange={onDirtyChange}
@@ -845,23 +893,19 @@ function AgentConfigurePage({
         updatePermissions={updatePermissions}
         companyId={companyId}
       />
-      <div>
-        <h3 className="text-sm font-medium mb-3">API Keys</h3>
-        <KeysTab agentId={agentId} companyId={companyId} />
-      </div>
 
-      {/* Configuration Revisions — collapsible at the bottom */}
+      {/* Configuration Revisions — collapsible */}
       <div>
         <button
-          className="flex items-center gap-2 text-sm font-medium hover:text-foreground transition-colors"
+          className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
           onClick={() => setRevisionsOpen((v) => !v)}
         >
           {revisionsOpen
-            ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-            : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            ? <ChevronDown className="h-3 w-3" />
+            : <ChevronRight className="h-3 w-3" />
           }
           Configuration Revisions
-          <span className="text-xs font-normal text-muted-foreground">{configRevisions?.length ?? 0}</span>
+          <span className="text-xs font-normal tabular-nums">{configRevisions?.length ?? 0}</span>
         </button>
         {revisionsOpen && (
           <div className="mt-3">
@@ -870,7 +914,7 @@ function AgentConfigurePage({
             ) : (
               <div className="space-y-2">
                 {(configRevisions ?? []).slice(0, 10).map((revision) => (
-                  <div key={revision.id} className="border border-border/70 rounded-md p-3 space-y-2">
+                  <div key={revision.id} className="border border-border/40 rounded-lg bg-card/50 p-3.5 space-y-2">
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-xs text-muted-foreground">
                         <span className="font-mono">{revision.id.slice(0, 8)}</span>
@@ -959,21 +1003,28 @@ function ConfigurationTab({
       />
 
       <div>
-        <h3 className="text-sm font-medium mb-3">Permissions</h3>
-        <div className="border border-border/50 rounded-xl p-4">
-          <div className="flex items-center justify-between text-sm">
-            <span>Can create new agents</span>
-            <Button
-              variant={agent.permissions?.canCreateAgents ? "default" : "outline"}
-              size="sm"
-              className="h-7 px-2.5 text-xs"
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Permissions</h3>
+        <div className="border border-border/40 rounded-xl bg-card/50 p-5">
+          <div className="flex items-center justify-between py-1">
+            <span className="text-sm">Can create new agents</span>
+            <button
+              className={cn(
+                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                agent.permissions?.canCreateAgents ? "bg-green-600" : "bg-muted",
+                updatePermissions.isPending && "opacity-50 pointer-events-none"
+              )}
               onClick={() =>
                 updatePermissions.mutate(!Boolean(agent.permissions?.canCreateAgents))
               }
               disabled={updatePermissions.isPending}
             >
-              {agent.permissions?.canCreateAgents ? "Enabled" : "Disabled"}
-            </Button>
+              <span
+                className={cn(
+                  "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow-xs",
+                  agent.permissions?.canCreateAgents ? "translate-x-4.5" : "translate-x-0.5"
+                )}
+              />
+            </button>
           </div>
         </div>
       </div>

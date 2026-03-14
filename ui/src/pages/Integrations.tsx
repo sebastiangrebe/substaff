@@ -1,13 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Plug, Check, Loader2, Search, ChevronDown } from "lucide-react";
+import { Plug, Check, Loader2, Search, ChevronDown, ChevronUp, ExternalLink, Unplug } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { integrationsApi } from "../api/integrations";
 import { queryKeys } from "../lib/queryKeys";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import type { ComposioToolkit } from "@substaff/shared";
 import { agentsApi } from "../api/agents";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -157,24 +159,145 @@ export function Integrations() {
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
   });
 
-  function renderCard(toolkit: ComposioToolkit, isConnected: boolean) {
+  function renderConnectedCard(toolkit: ComposioToolkit) {
     const conn = connectionByProvider.get(toolkit.slug);
+
+    const assigned = agents?.filter(
+      (a) => a.integrations && a.integrations.includes(toolkit.slug) && a.status !== "terminated",
+    ) ?? [];
+    const rootDefault = agents?.filter(
+      (a) => !a.reportsTo && (!a.integrations || a.integrations.length === 0) && a.status !== "terminated",
+    ) ?? [];
+    const allAgents = [...assigned, ...rootDefault];
 
     return (
       <div
         key={toolkit.slug}
-        className={`rounded-xl border px-4 py-4 transition-colors ${
-          isConnected
-            ? "border-emerald-500/40 bg-emerald-500/5"
-            : "border-border hover:border-muted-foreground/30"
-        }`}
+        className="group relative rounded-lg border border-emerald-500/30 bg-card p-4 transition-all hover:border-emerald-500/50 hover:shadow-sm"
+      >
+        {/* Green accent line */}
+        <div className="absolute inset-x-0 top-0 h-[2px] rounded-t-lg bg-emerald-500/60" />
+
+        <div className="flex items-start gap-3">
+          {/* Logo */}
+          <div className="relative shrink-0">
+            {toolkit.meta?.logo ? (
+              <img
+                src={toolkit.meta.logo}
+                alt=""
+                className="h-10 w-10 rounded-lg object-contain bg-background p-1 border border-border/50"
+                onError={(e) => {
+                  const el = e.currentTarget;
+                  el.style.display = "none";
+                  el.parentElement?.querySelector("[data-logo-fallback]")?.classList.remove("hidden");
+                }}
+              />
+            ) : null}
+            <div
+              data-logo-fallback
+              className={`h-10 w-10 rounded-lg bg-muted flex items-center justify-center${toolkit.meta?.logo ? " hidden" : ""}`}
+            >
+              <Plug className="h-4 w-4 text-muted-foreground" />
+            </div>
+            {/* Status dot */}
+            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card bg-emerald-500" />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold truncate">{toolkit.name}</span>
+              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px] shrink-0">
+                <Check className="h-2.5 w-2.5" />
+                Connected
+              </Badge>
+            </div>
+
+            {toolkit.meta?.description && (
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                {toolkit.meta.description}
+              </p>
+            )}
+
+            {toolkit.meta?.categories && toolkit.meta.categories.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {toolkit.meta.categories.map((cat, i) => {
+                  const label = typeof cat === "string" ? cat : cat?.name ?? cat?.slug ?? "";
+                  const key = typeof cat === "string" ? cat : cat?.slug ?? String(i);
+                  if (!label) return null;
+                  return (
+                    <span
+                      key={key}
+                      className="inline-flex rounded-md bg-muted/80 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                    >
+                      {label}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Agents section */}
+            {allAgents.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-border/50">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Agents</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {assigned.map((a) => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
+                    >
+                      {a.name}
+                    </span>
+                  ))}
+                  {rootDefault.map((a) => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                    >
+                      {a.name} (all)
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Disconnect */}
+            <div className="mt-3 flex items-center">
+              {conn && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-muted-foreground hover:text-destructive gap-1.5 -ml-2"
+                  disabled={disconnectMutation.isPending}
+                  onClick={() => setDisconnectTarget({ id: conn.id, name: toolkit.name })}
+                >
+                  <Unplug className="h-3 w-3" />
+                  Disconnect
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderAvailableCard(toolkit: ComposioToolkit, index: number) {
+    return (
+      <div
+        key={toolkit.slug}
+        className="group relative rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/30 hover:shadow-sm animate-fade-up"
+        style={{ animationDelay: `${Math.min(index * 30, 180)}ms` }}
       >
         <div className="flex items-start gap-3">
+          {/* Logo */}
           {toolkit.meta?.logo ? (
             <img
               src={toolkit.meta.logo}
               alt=""
-              className="h-8 w-8 rounded-md shrink-0 mt-0.5 object-contain"
+              className="h-10 w-10 rounded-lg shrink-0 object-contain bg-background p-1 border border-border/50"
               onError={(e) => {
                 const el = e.currentTarget;
                 el.style.display = "none";
@@ -184,27 +307,21 @@ export function Integrations() {
           ) : null}
           <div
             data-logo-fallback
-            className={`h-8 w-8 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5${toolkit.meta?.logo ? " hidden" : ""}`}
+            className={`h-10 w-10 rounded-lg bg-muted flex items-center justify-center shrink-0${toolkit.meta?.logo ? " hidden" : ""}`}
           >
             <Plug className="h-4 w-4 text-muted-foreground" />
           </div>
+
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{toolkit.name}</span>
-              {isConnected && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600">
-                  <Check className="h-3 w-3" />
-                  Connected
-                </span>
-              )}
-            </div>
+            <span className="text-sm font-semibold">{toolkit.name}</span>
             {toolkit.meta?.description && (
-              <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                 {toolkit.meta.description}
               </p>
             )}
+
             {toolkit.meta?.categories && toolkit.meta.categories.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
+              <div className="mt-2 flex flex-wrap gap-1">
                 {toolkit.meta.categories.map((cat, i) => {
                   const label = typeof cat === "string" ? cat : cat?.name ?? cat?.slug ?? "";
                   const key = typeof cat === "string" ? cat : cat?.slug ?? String(i);
@@ -212,7 +329,7 @@ export function Integrations() {
                   return (
                     <span
                       key={key}
-                      className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
+                      className="inline-flex rounded-md bg-muted/80 px-1.5 py-0.5 text-[10px] text-muted-foreground"
                     >
                       {label}
                     </span>
@@ -220,66 +337,28 @@ export function Integrations() {
                 })}
               </div>
             )}
-            <div className="mt-2.5 flex items-center gap-2">
-              {isConnected && conn ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={disconnectMutation.isPending}
-                  onClick={() => setDisconnectTarget({ id: conn.id, name: toolkit.name })}
-                >
-                  Disconnect
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  className="text-xs"
-                  disabled={connectingApp === toolkit.slug}
-                  onClick={() => handleConnect(toolkit)}
-                >
-                  {connectingApp === toolkit.slug ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    "Connect"
-                  )}
-                </Button>
-              )}
+
+            <div className="mt-3">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5 transition-colors hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                disabled={connectingApp === toolkit.slug}
+                onClick={() => handleConnect(toolkit)}
+              >
+                {connectingApp === toolkit.slug ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Connecting…
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink className="h-3 w-3" />
+                    Connect
+                  </>
+                )}
+              </Button>
             </div>
-            {isConnected && agents && (() => {
-              const assigned = agents.filter(
-                (a) => a.integrations && a.integrations.includes(toolkit.slug) && a.status !== "terminated",
-              );
-              const rootDefault = agents.filter(
-                (a) => !a.reportsTo && (!a.integrations || a.integrations.length === 0) && a.status !== "terminated",
-              );
-              return (assigned.length > 0 || rootDefault.length > 0) ? (
-                <div className="mt-2.5 pt-2.5 border-t border-border/50">
-                  <span className="text-[11px] text-muted-foreground">Agents:</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {assigned.map((a) => (
-                      <span
-                        key={a.id}
-                        className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
-                      >
-                        {a.name}
-                      </span>
-                    ))}
-                    {rootDefault.map((a) => (
-                      <span
-                        key={a.id}
-                        className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-                      >
-                        {a.name} (all)
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null;
-            })()}
           </div>
         </div>
       </div>
@@ -288,6 +367,7 @@ export function Integrations() {
 
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div>
         <h1 className="text-lg font-semibold">Connections</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -295,11 +375,12 @@ export function Integrations() {
         </p>
       </div>
 
+      {/* OAuth message */}
       {oauthMessage && (
         <div
-          className={`rounded-md border px-4 py-3 text-sm ${
+          className={`rounded-lg border px-4 py-3 text-sm animate-fade-up ${
             oauthMessage.type === "success"
-              ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700"
+              ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
               : "border-destructive/40 bg-destructive/5 text-destructive"
           }`}
         >
@@ -307,35 +388,48 @@ export function Integrations() {
         </div>
       )}
 
-      {/* Connected */}
+      {/* Connected section */}
       {connectedToolkits.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-muted-foreground">
-            Connected ({connectedToolkits.length})
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {connectedToolkits.map((tk) => renderCard(tk, true))}
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Connected
+            </h2>
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
+              {connectedToolkits.length}
+            </Badge>
           </div>
-        </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {connectedToolkits.map((tk) => renderConnectedCard(tk))}
+          </div>
+        </section>
       )}
 
-      {/* Available */}
-      <div className="space-y-4">
-        <h2 className="text-sm font-semibold text-muted-foreground">
-          Available
-        </h2>
-        {availableForConnect.length > 6 && (
-          <div className="relative max-w-xs">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search integrations..."
-              className="w-full rounded-md border border-border bg-transparent pl-8 pr-3 py-1.5 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
-            />
+      {/* Available section */}
+      <section className="space-y-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Available
+            </h2>
+            <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-semibold">
+              {filteredAvailable.length}
+            </Badge>
           </div>
-        )}
+
+          {availableForConnect.length > 6 && (
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search integrations…"
+                className="h-8 pl-9 text-xs"
+              />
+            </div>
+          )}
+        </div>
 
         {sortedCategories.map((cat) => {
           const items = grouped.get(cat)!;
@@ -344,21 +438,28 @@ export function Integrations() {
           const hiddenCount = items.length - INITIAL_PER_CATEGORY;
 
           return (
-            <div key={cat} className="space-y-2.5">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                {cat} ({items.length})
-              </h3>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {visible.map((tk) => renderCard(tk, false))}
+            <div key={cat} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  {cat}
+                </h3>
+                <span className="text-[10px] text-muted-foreground/60">{items.length}</span>
+                <div className="flex-1 h-px bg-border/60" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {visible.map((tk, i) => renderAvailableCard(tk, i))}
               </div>
               {!isSearching && hiddenCount > 0 && (
                 <button
                   type="button"
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
                   onClick={() => toggleCategory(cat)}
                 >
                   {isExpanded ? (
-                    "Show less"
+                    <>
+                      <ChevronUp className="h-3 w-3" />
+                      Show less
+                    </>
                   ) : (
                     <>
                       <ChevronDown className="h-3 w-3" />
@@ -372,15 +473,24 @@ export function Integrations() {
         })}
 
         {filteredAvailable.length === 0 && isSearching && (
-          <p className="text-sm text-muted-foreground py-4 text-center">
-            No integrations matching &ldquo;{search}&rdquo;
-          </p>
+          <div className="rounded-lg border border-dashed border-border py-10 text-center">
+            <Search className="mx-auto h-5 w-5 text-muted-foreground/50 mb-2" />
+            <p className="text-sm text-muted-foreground">
+              No integrations matching &ldquo;{search}&rdquo;
+            </p>
+          </div>
         )}
-      </div>
+      </section>
 
       {allToolkits.length === 0 && connectedToolkits.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
-          No integrations available yet. Set COMPOSIO_API_KEY to enable integrations.
+        <div className="rounded-lg border border-dashed border-border py-12 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Plug className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <p className="text-sm font-medium">No integrations available</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Set COMPOSIO_API_KEY to enable integrations.
+          </p>
         </div>
       )}
 

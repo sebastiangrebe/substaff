@@ -40,7 +40,7 @@ export function SidebarGoals() {
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="flex items-center">
-        <SidebarMenuButton asChild tooltip="Goals" className="flex-1 min-w-0">
+        <SidebarMenuButton asChild tooltip="Goals" isActive={goalsActive} className="flex-1 min-w-0">
           <NavLink
             to="/goals"
             onClick={() => { if (isMobile) setOpenMobile(false); }}
