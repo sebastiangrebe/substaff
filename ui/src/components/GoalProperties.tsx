@@ -7,11 +7,11 @@ import { agentsApi } from "../api/agents";
 import { useCompany } from "../context/CompanyContext";
 import { queryKeys } from "../lib/queryKeys";
 import { StatusBadge } from "./StatusBadge";
+import { Identity } from "./Identity";
 import { formatDate, cn, agentUrl } from "../lib/utils";
-
+import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
-import { ChevronDown } from "lucide-react";
+import { User, ArrowUpRight } from "lucide-react";
 
 interface GoalPropertiesProps {
   goal: Goal;
@@ -20,54 +20,49 @@ interface GoalPropertiesProps {
 
 function PropertyRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
-      <div className="flex items-center gap-1.5 min-w-0">{children}</div>
+    <div className="flex items-center gap-3 py-1.5">
+      <span className="text-xs text-muted-foreground shrink-0 w-20">{label}</span>
+      <div className="flex items-center gap-1.5 min-w-0 flex-1">{children}</div>
     </div>
   );
 }
 
 const editableClasses =
-  "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 -ml-1.5 cursor-pointer transition-colors hover:bg-accent/50 border border-transparent hover:border-border";
+  "inline-flex items-center gap-1.5 cursor-pointer hover:bg-accent/50 rounded px-1 -mx-1 py-0.5 transition-colors";
 
-function label(s: string): string {
+function statusLabel(s: string): string {
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function PickerButton({
-  current,
-  options,
-  onChange,
-  children,
+function StatusPicker({
+  goal,
+  onUpdate,
 }: {
-  current: string;
-  options: readonly string[];
-  onChange: (value: string) => void;
-  children: React.ReactNode;
+  goal: Goal;
+  onUpdate: (data: Record<string, unknown>) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button className={editableClasses}>
-          {children}
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          <StatusBadge status={goal.status} />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-40 p-1" align="start">
-        {options.map((opt) => (
+      <PopoverContent className="w-40 p-1" align="end" collisionPadding={16}>
+        {GOAL_STATUSES.map((opt) => (
           <button
             key={opt}
             className={cn(
               "flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent/50 transition-colors",
-              opt === current && "bg-accent"
+              opt === goal.status && "bg-accent"
             )}
             onClick={() => {
-              onChange(opt);
+              onUpdate({ status: opt });
               setOpen(false);
             }}
           >
-            {label(opt)}
+            {statusLabel(opt)}
           </button>
         ))}
       </PopoverContent>
@@ -89,12 +84,18 @@ function OwnerPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className={cn(editableClasses, "text-sm")}>
-          {current ? current.name : <span className="text-muted-foreground">None</span>}
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+        <button className={editableClasses}>
+          {current ? (
+            <Identity name={current.name} size="sm" />
+          ) : (
+            <>
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">No owner</span>
+            </>
+          )}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-48 p-1" align="start">
+      <PopoverContent className="w-48 p-1" align="end" collisionPadding={16}>
         <button
           className={cn(
             "flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent/50 transition-colors",
@@ -102,7 +103,7 @@ function OwnerPicker({
           )}
           onClick={() => { onChange(null); setOpen(false); }}
         >
-          None
+          No owner
         </button>
         {agents.map((agent) => (
           <button
@@ -135,51 +136,57 @@ export function GoalProperties({ goal, onUpdate }: GoalPropertiesProps) {
     : null;
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3">
-      <PropertyRow label="Status">
-        <span style={{ viewTransitionName: `entity-status-${goal.id}` } as CSSProperties}>
-          {onUpdate ? (
-            <PickerButton
-              current={goal.status}
-              options={GOAL_STATUSES}
-              onChange={(status) => onUpdate({ status })}
-            >
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <PropertyRow label="Status">
+          <span style={{ viewTransitionName: `entity-status-${goal.id}` } as CSSProperties}>
+            {onUpdate ? (
+              <StatusPicker goal={goal} onUpdate={onUpdate} />
+            ) : (
               <StatusBadge status={goal.status} />
-            </PickerButton>
-          ) : (
-            <StatusBadge status={goal.status} />
-          )}
-        </span>
-      </PropertyRow>
+            )}
+          </span>
+        </PropertyRow>
 
-      <PropertyRow label="Owner">
-        <span style={{ viewTransitionName: `entity-owner-${goal.id}` } as CSSProperties}>
-          {onUpdate ? (
-            <OwnerPicker
-              agents={agents ?? []}
-              currentId={goal.ownerAgentId}
-              onChange={(ownerAgentId) => onUpdate({ ownerAgentId })}
-            />
-          ) : ownerAgent ? (
-            <Link
-              to={agentUrl(ownerAgent)}
-              className="text-sm hover:underline"
-            >
-              {ownerAgent.name}
-            </Link>
-          ) : (
-            <span className="text-sm text-muted-foreground">None</span>
-          )}
-        </span>
-      </PropertyRow>
+        <PropertyRow label="Owner">
+          <span className="flex items-center gap-1" style={{ viewTransitionName: `entity-owner-${goal.id}` } as CSSProperties}>
+            {onUpdate ? (
+              <OwnerPicker
+                agents={agents ?? []}
+                currentId={goal.ownerAgentId}
+                onChange={(ownerAgentId) => onUpdate({ ownerAgentId })}
+              />
+            ) : ownerAgent ? (
+              <Identity name={ownerAgent.name} size="sm" />
+            ) : (
+              <>
+                <User className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">No owner</span>
+              </>
+            )}
+            {ownerAgent && (
+              <Link
+                to={agentUrl(ownerAgent)}
+                className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            )}
+          </span>
+        </PropertyRow>
+      </div>
 
-      <PropertyRow label="Created">
-        <span className="text-sm">{formatDate(goal.createdAt)}</span>
-      </PropertyRow>
+      <Separator />
 
-      <PropertyRow label="Updated">
-        <span className="text-sm">{formatDate(goal.updatedAt)}</span>
-      </PropertyRow>
+      <div className="space-y-1">
+        <PropertyRow label="Created">
+          <span className="text-sm">{formatDate(goal.createdAt)}</span>
+        </PropertyRow>
+        <PropertyRow label="Updated">
+          <span className="text-sm">{formatDate(goal.updatedAt)}</span>
+        </PropertyRow>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Agent, GoalProgress } from "@substaff/shared";
@@ -11,6 +11,7 @@ import { assetsApi } from "../api/assets";
 import { authApi } from "../api/auth";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
+import { usePanel } from "../context/PanelContext";
 import { queryKeys } from "../lib/queryKeys";
 import { GoalProperties } from "../components/GoalProperties";
 import { StatusBadge } from "../components/StatusBadge";
@@ -20,13 +21,35 @@ import { InlineEditor } from "../components/InlineEditor";
 import { EntityRow } from "../components/EntityRow";
 import { ActivityRow } from "../components/ActivityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { projectUrl } from "../lib/utils";
+import { cn, projectUrl, relativeTime } from "../lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Activity as ActivityIcon,
+  ChevronDown,
+  Hexagon,
+  ListTodo,
+  Target,
+} from "lucide-react";
+import type { ActivityEvent } from "@substaff/shared";
+import { Identity } from "../components/Identity";
+import { formatActivityVerb, humanizeActorName } from "../lib/activity-labels";
+
+function ActorIdentity({ evt, agentMap }: { evt: ActivityEvent; agentMap: Map<string, Agent> }) {
+  const id = evt.actorId;
+  if (evt.actorType === "agent") {
+    const agent = agentMap.get(id);
+    return <Identity name={agent?.name ?? id.slice(0, 8)} size="sm" />;
+  }
+  return <Identity name={humanizeActorName(evt.actorType, id || null)} size="sm" />;
+}
 
 export function GoalDetail() {
   const { goalId } = useParams<{ goalId: string }>();
   const { selectedCompanyId, setSelectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
+  const { openPanel, closePanel } = usePanel();
   const queryClient = useQueryClient();
+  const [activityOpen, setActivityOpen] = useState(false);
 
   const {
     data: goal,
@@ -160,50 +183,95 @@ export function GoalDetail() {
     ]);
   }, [setBreadcrumbs, goal, goalId]);
 
+  // Open properties panel (matching IssueDetail pattern)
+  useEffect(() => {
+    if (goal) {
+      openPanel(
+        <GoalProperties goal={goal} onUpdate={(data) => updateGoal.mutate(data)} />
+      );
+    }
+    return () => closePanel();
+  }, [goal]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (isLoading) return <PageSkeleton variant="detail" />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!goal) return null;
 
   return (
-    <div className="space-y-8">
-      <div className="space-y-3">
-        <div style={{ viewTransitionName: `entity-title-${goal.id}` } as CSSProperties}>
+    <div>
+      {/* ── Hero header card ─────────────────────────────── */}
+      <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
+        <div className="px-5 pt-5 pb-4 space-y-3">
+          {/* Top row: status badge + meta */}
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <span style={{ viewTransitionName: `entity-status-${goal.id}` } as CSSProperties}>
+              <StatusBadge status={goal.status} />
+            </span>
+
+            {goal.ownerAgentId && (() => {
+              const owner = agentMap.get(goal.ownerAgentId);
+              return owner ? (
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Identity name={owner.name} size="sm" />
+                </span>
+              ) : null;
+            })()}
+          </div>
+
+          {/* Title */}
+          <div style={{ viewTransitionName: `entity-title-${goal.id}` } as CSSProperties}>
+            <InlineEditor
+              value={goal.title}
+              onSave={(title) => updateGoal.mutate({ title })}
+              as="h2"
+              className="text-xl font-bold tracking-tight"
+            />
+          </div>
+
+          {/* Description */}
           <InlineEditor
-            value={goal.title}
-            onSave={(title) => updateGoal.mutate({ title })}
-            as="h2"
-            className="text-lg font-semibold"
+            value={goal.description ?? ""}
+            onSave={(description) => updateGoal.mutate({ description })}
+            as="p"
+            className="text-sm text-muted-foreground leading-relaxed"
+            placeholder="Add a description..."
+            multiline
+            imageUploadHandler={async (file) => {
+              const asset = await uploadImage.mutateAsync(file);
+              return asset.contentPath;
+            }}
           />
         </div>
-
-        <InlineEditor
-          value={goal.description ?? ""}
-          onSave={(description) => updateGoal.mutate({ description })}
-          as="p"
-          className="text-sm text-muted-foreground"
-          placeholder="Add a description..."
-          multiline
-          imageUploadHandler={async (file) => {
-            const asset = await uploadImage.mutateAsync(file);
-            return asset.contentPath;
-          }}
-        />
       </div>
 
-      <div className="border-t border-border pt-4">
-        <GoalProperties
-          goal={goal}
-          onUpdate={(data) => updateGoal.mutate(data)}
-        />
-      </div>
+      {/* ── Progress ── */}
+      {progress && progress.issues.total > 0 && (
+        <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4">
+          <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2">
+            <Target className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Progress</span>
+          </div>
+          <div className="px-4 py-4">
+            <ProgressSection progress={progress} />
+          </div>
+        </div>
+      )}
 
-      {/* Linked projects */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold">Projects ({linkedProjects.length})</h3>
+      {/* ── Linked projects ── */}
+      <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4">
+        <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2">
+          <Hexagon className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Projects</span>
+          {linkedProjects.length > 0 && (
+            <span className="text-xs text-muted-foreground/60 tabular-nums">{linkedProjects.length}</span>
+          )}
+        </div>
         {linkedProjects.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No linked projects.</p>
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground/60">No linked projects</p>
+          </div>
         ) : (
-          <div className="border border-border/50 rounded-xl overflow-hidden">
+          <div className="divide-y divide-border/30">
             {linkedProjects.map((project) => (
               <EntityRow
                 key={project.id}
@@ -217,18 +285,21 @@ export function GoalDetail() {
         )}
       </div>
 
-      {/* Progress */}
-      {progress && progress.issues.total > 0 && (
-        <ProgressSection progress={progress} />
-      )}
-
-      {/* Pending tasks */}
-      {pendingIssues.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold">
-            Pending Tasks ({pendingIssues.length})
-          </h3>
-          <div className="border border-border/50 rounded-xl overflow-hidden divide-y divide-border/50">
+      {/* ── Pending tasks ── */}
+      <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4">
+        <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2">
+          <ListTodo className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Pending Tasks</span>
+          {pendingIssues.length > 0 && (
+            <span className="text-xs text-muted-foreground/60 tabular-nums">{pendingIssues.length}</span>
+          )}
+        </div>
+        {pendingIssues.length === 0 ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground/60">No pending tasks</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/30">
             {pendingIssues.map((issue) => (
               <EntityRow
                 key={issue.id}
@@ -250,25 +321,38 @@ export function GoalDetail() {
               />
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Activity */}
+      {/* ── Activity (collapsible) ── */}
       {activity && activity.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold">Activity</h3>
-          <div className="border border-border/50 rounded-xl overflow-hidden">
-            {activity.slice(0, 10).map((event) => (
-              <ActivityRow
-                key={event.id}
-                event={event}
-                agentMap={agentMap}
-                entityNameMap={entityNameMap}
-                userNameMap={userNameMap}
-              />
-            ))}
-          </div>
-        </div>
+        <Collapsible
+          open={activityOpen}
+          onOpenChange={setActivityOpen}
+          className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4"
+        >
+          <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-accent/20 transition-colors">
+            <div className="flex items-center gap-2">
+              <ActivityIcon className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Activity</span>
+              <span className="text-xs text-muted-foreground/60 tabular-nums">{activity.length}</span>
+            </div>
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 text-muted-foreground/60 transition-transform", activityOpen && "rotate-180")}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t border-border/40 px-4 py-2">
+              {activity.slice(0, 20).map((evt) => (
+                <div key={evt.id} className="flex items-center gap-2 py-2 text-xs text-muted-foreground border-b border-border/20 last:border-0">
+                  <ActorIdentity evt={evt} agentMap={agentMap} />
+                  <span className="flex-1 min-w-0 truncate">{formatActivityVerb(evt.action, evt.details)}</span>
+                  <span className="shrink-0 text-muted-foreground/60 tabular-nums">{relativeTime(evt.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );
@@ -280,9 +364,7 @@ function ProgressSection({ progress }: { progress: GoalProgress }) {
   const barColor = pct >= 85 ? "bg-green-400" : pct >= 50 ? "bg-yellow-400" : "bg-blue-400";
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Progress</h3>
-
+    <div className="space-y-4">
       {/* Overall progress bar */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
@@ -337,7 +419,7 @@ function ProgressSection({ progress }: { progress: GoalProgress }) {
 
 function CountChip({ label, count, colorClass }: { label: string; count: number; colorClass: string }) {
   return (
-    <div className="text-center">
+    <div className="text-center rounded-lg bg-muted/30 py-2">
       <p className={`text-lg font-bold ${colorClass}`}>{count}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>

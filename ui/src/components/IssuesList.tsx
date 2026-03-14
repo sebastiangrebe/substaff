@@ -147,6 +147,8 @@ interface IssuesListProps {
   viewStateKey: string;
   initialAssignees?: string[];
   onUpdateIssue: (id: string, data: Record<string, unknown>) => void;
+  /** Rendered above the list but inside the preview-layout wrapper so it respects the preview margin. */
+  header?: React.ReactNode;
 }
 
 export function IssuesList({
@@ -159,6 +161,7 @@ export function IssuesList({
   viewStateKey,
   initialAssignees,
   onUpdateIssue,
+  header,
 }: IssuesListProps) {
   const { selectedCompanyId } = useCompany();
   const { openNewIssue } = useDialog();
@@ -315,6 +318,7 @@ export function IssuesList({
       onPreviewClose={handlePreviewClose}
       alwaysOpen
     >
+    {header}
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Tasks</h1>

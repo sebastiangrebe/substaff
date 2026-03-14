@@ -14,8 +14,10 @@ import { queryKeys } from "../lib/queryKeys";
 import { ProjectProperties } from "../components/ProjectProperties";
 import { InlineEditor } from "../components/InlineEditor";
 import { IssuesList } from "../components/IssuesList";
+import { StatusBadge } from "../components/StatusBadge";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { projectRouteRef } from "../lib/utils";
+import { Target } from "lucide-react";
 
 /* ── Color picker popover ── */
 
@@ -76,7 +78,7 @@ function ColorPicker({
 
 /* ── Issues list with inline mutation ── */
 
-function ProjectIssuesList({ projectId, companyId }: { projectId: string; companyId: string }) {
+function ProjectIssuesList({ projectId, companyId, header }: { projectId: string; companyId: string; header?: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const { data: agents } = useQuery({
@@ -125,20 +127,20 @@ function ProjectIssuesList({ projectId, companyId }: { projectId: string; compan
       projectId={projectId}
       viewStateKey={`substaff:project-view:${projectId}`}
       onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
+      header={header}
     />
   );
 }
 
-/* ── Progress section ── */
+/* ── Progress section (card-interior only) ── */
 
-function ProgressSection({ progress }: { progress: ProjectProgress }) {
+function ProgressContent({ progress }: { progress: ProjectProgress }) {
   const { issues, completionPercent } = progress;
   const pct = Math.round(completionPercent);
   const barColor = pct >= 85 ? "bg-green-400" : pct >= 50 ? "bg-yellow-400" : "bg-blue-400";
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-semibold">Progress</h3>
+    <div className="space-y-4">
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">
@@ -165,7 +167,7 @@ function ProgressSection({ progress }: { progress: ProjectProgress }) {
 
 function CountChip({ label, count, colorClass }: { label: string; count: number; colorClass: string }) {
   return (
-    <div className="text-center">
+    <div className="text-center rounded-lg bg-muted/30 py-2">
       <p className={`text-lg font-bold ${colorClass}`}>{count}</p>
       <p className="text-xs text-muted-foreground">{label}</p>
     </div>
@@ -275,51 +277,77 @@ export function ProjectDetail() {
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!project) return null;
 
-  return (
-    <div className="space-y-8">
-      <div className="flex items-start gap-3">
-        <div className="h-7 flex items-center">
-          <ColorPicker
-            currentColor={project.color ?? "#6366f1"}
-            onSelect={(color) => updateProject.mutate({ color })}
+  const projectHeader = (
+    <>
+      {/* ── Hero header card ─────────────────────────────── */}
+      <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
+        <div className="px-5 pt-5 pb-4 space-y-3">
+          {/* Top row: color + status */}
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <ColorPicker
+              currentColor={project.color ?? "#6366f1"}
+              onSelect={(color) => updateProject.mutate({ color })}
+            />
+            <span style={{ viewTransitionName: `entity-status-${project.id}` } as CSSProperties}>
+              <StatusBadge status={project.status} />
+            </span>
+          </div>
+
+          {/* Title */}
+          <div style={{ viewTransitionName: `entity-title-${project.id}` } as CSSProperties}>
+            <InlineEditor
+              value={project.name}
+              onSave={(name) => updateProject.mutate({ name })}
+              as="h2"
+              className="text-xl font-bold tracking-tight"
+            />
+          </div>
+
+          {/* Description */}
+          <InlineEditor
+            value={project.description ?? ""}
+            onSave={(description) => updateProject.mutate({ description })}
+            as="p"
+            className="text-sm text-muted-foreground leading-relaxed"
+            placeholder="Add a description..."
+            multiline
+            imageUploadHandler={async (file) => {
+              const asset = await uploadImage.mutateAsync(file);
+              return asset.contentPath;
+            }}
           />
         </div>
-        <div style={{ viewTransitionName: `entity-title-${project.id}` } as CSSProperties}>
-          <InlineEditor
-            value={project.name}
-            onSave={(name) => updateProject.mutate({ name })}
-            as="h2"
-            className="text-lg font-semibold"
+
+        {/* Inline properties */}
+        <div className="border-t border-border/40 px-5 py-4">
+          <ProjectProperties
+            project={project}
+            onUpdate={(data) => updateProject.mutate(data)}
           />
         </div>
       </div>
 
-      <InlineEditor
-        value={project.description ?? ""}
-        onSave={(description) => updateProject.mutate({ description })}
-        as="p"
-        className="text-sm text-muted-foreground"
-        placeholder="Add a description..."
-        multiline
-        imageUploadHandler={async (file) => {
-          const asset = await uploadImage.mutateAsync(file);
-          return asset.contentPath;
-        }}
-      />
-
-      <ProjectProperties
-        project={project}
-        onUpdate={(data) => updateProject.mutate(data)}
-      />
-
-      {/* Progress */}
+      {/* ── Progress ── */}
       {progress && progress.issues.total > 0 && (
-        <ProgressSection progress={progress} />
+        <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
+          <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2">
+            <Target className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Progress</span>
+          </div>
+          <div className="px-4 py-4">
+            <ProgressContent progress={progress} />
+          </div>
+        </div>
       )}
+    </>
+  );
 
-      {/* Tasks */}
-      {project.id && resolvedCompanyId && (
-        <ProjectIssuesList projectId={project.id} companyId={resolvedCompanyId} />
+  return (
+    <div>
+      {project.id && resolvedCompanyId ? (
+        <ProjectIssuesList projectId={project.id} companyId={resolvedCompanyId} header={projectHeader} />
+      ) : (
+        projectHeader
       )}
     </div>
   );
