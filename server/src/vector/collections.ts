@@ -22,7 +22,10 @@ export async function ensureCollections(client: QdrantClient): Promise<void> {
     // Create payload indices for efficient filtered search
     await client.createPayloadIndex(COLLECTION_NAME, {
       field_name: "company_id",
-      field_schema: "keyword",
+      field_schema: {
+        type: "keyword",
+        is_tenant: true,
+      },
     });
     await client.createPayloadIndex(COLLECTION_NAME, {
       field_name: "project_id",

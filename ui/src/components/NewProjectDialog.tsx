@@ -4,6 +4,7 @@ import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
 import { projectsApi } from "../api/projects";
 import { goalsApi } from "../api/goals";
+import { agentsApi } from "../api/agents";
 import { assetsApi } from "../api/assets";
 import { queryKeys } from "../lib/queryKeys";
 import {
@@ -28,6 +29,7 @@ import { PROJECT_COLORS } from "@substaff/shared";
 import { cn } from "../lib/utils";
 import { MarkdownEditor, type MarkdownEditorRef } from "./MarkdownEditor";
 import { StatusBadge } from "./StatusBadge";
+import { AgentSelector } from "./AgentSelector";
 
 const projectStatuses = [
   { value: "backlog", label: "Later" },
@@ -44,6 +46,7 @@ export function NewProjectDialog() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("planned");
+  const [leadAgentId, setLeadAgentId] = useState("");
   const [goalIds, setGoalIds] = useState<string[]>([]);
   const [targetDate, setTargetDate] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -51,10 +54,17 @@ export function NewProjectDialog() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
   const descriptionEditorRef = useRef<MarkdownEditorRef>(null);
+  const leadSelectorRef = useRef<HTMLButtonElement>(null);
 
   const { data: goals } = useQuery({
     queryKey: queryKeys.goals.list(selectedCompanyId!),
     queryFn: () => goalsApi.list(selectedCompanyId!),
+    enabled: !!selectedCompanyId && newProjectOpen,
+  });
+
+  const { data: agents } = useQuery({
+    queryKey: queryKeys.agents.list(selectedCompanyId!),
+    queryFn: () => agentsApi.list(selectedCompanyId!),
     enabled: !!selectedCompanyId && newProjectOpen,
   });
 
@@ -74,6 +84,7 @@ export function NewProjectDialog() {
     setName("");
     setDescription("");
     setStatus("planned");
+    setLeadAgentId("");
     setGoalIds([]);
     setTargetDate("");
     setExpanded(false);
@@ -88,6 +99,7 @@ export function NewProjectDialog() {
         description: description.trim() || undefined,
         status,
         color: PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)],
+        ...(leadAgentId ? { leadAgentId } : {}),
         ...(goalIds.length > 0 ? { goalIds } : {}),
         ...(targetDate ? { targetDate } : {}),
       });
@@ -130,7 +142,7 @@ export function NewProjectDialog() {
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {selectedCompany && (
-              <span className="bg-muted px-1.5 py-0.5 rounded text-xs font-medium">
+              <span className="bg-muted px-1.5 py-0.5 rounded text-xs font-semibold">
                 {selectedCompany.name.slice(0, 3).toUpperCase()}
               </span>
             )}
@@ -158,31 +170,49 @@ export function NewProjectDialog() {
         </div>
 
         {/* Name */}
-        <div className="px-4 pt-4 pb-2 shrink-0">
+        <div className="px-4 pt-3 pb-1.5 shrink-0">
           <input
-            className="w-full text-lg font-semibold bg-transparent outline-none placeholder:text-muted-foreground/50"
+            className="w-full text-base font-semibold bg-transparent outline-none placeholder:text-muted-foreground/40"
             placeholder="Project name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Tab" && !e.shiftKey) {
                 e.preventDefault();
-                descriptionEditorRef.current?.focus();
+                leadSelectorRef.current?.focus();
               }
             }}
             autoFocus
           />
         </div>
 
+        {/* Lead agent */}
+        <div className="px-4 pb-1.5 shrink-0">
+          <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Led by</span>
+            <AgentSelector
+              ref={leadSelectorRef}
+              value={leadAgentId}
+              agents={agents ?? []}
+              placeholder="Lead"
+              noneLabel="No lead"
+              onChange={setLeadAgentId}
+              onConfirm={() => {
+                descriptionEditorRef.current?.focus();
+              }}
+            />
+          </div>
+        </div>
+
         {/* Description */}
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 border-t border-border pt-2">
           <MarkdownEditor
             ref={descriptionEditorRef}
             value={description}
             onChange={setDescription}
             placeholder="Add description..."
             bordered={false}
-            contentClassName={cn("text-sm text-muted-foreground", expanded ? "min-h-[220px]" : "min-h-[120px]")}
+            contentClassName={cn("text-sm text-muted-foreground", expanded ? "min-h-[200px]" : "min-h-[100px]")}
             imageUploadHandler={async (file) => {
               const asset = await uploadDescriptionImage.mutateAsync(file);
               return asset.contentPath;
@@ -220,7 +250,7 @@ export function NewProjectDialog() {
               key={goal.id}
               className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"
             >
-              <Target className="h-3 w-3 text-muted-foreground" />
+              <Target className="h-3.5 w-3.5 text-muted-foreground" />
               <span className="max-w-[160px] truncate">{goal.title}</span>
               <button
                 className="text-muted-foreground hover:text-foreground"
@@ -228,7 +258,7 @@ export function NewProjectDialog() {
                 aria-label={`Remove goal ${goal.title}`}
                 type="button"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </span>
           ))}
@@ -239,7 +269,7 @@ export function NewProjectDialog() {
                 className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors disabled:opacity-60"
                 disabled={selectedGoals.length > 0 && availableGoals.length === 0}
               >
-                {selectedGoals.length > 0 ? <Plus className="h-3 w-3 text-muted-foreground" /> : <Target className="h-3 w-3 text-muted-foreground" />}
+                {selectedGoals.length > 0 ? <Plus className="h-3.5 w-3.5 text-muted-foreground" /> : <Target className="h-3.5 w-3.5 text-muted-foreground" />}
                 {selectedGoals.length > 0 ? "+ Goal" : "Goal"}
               </button>
             </PopoverTrigger>
@@ -274,7 +304,7 @@ export function NewProjectDialog() {
 
           {/* Target date */}
           <div className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs">
-            <Calendar className="h-3 w-3 text-muted-foreground" />
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="date"
               className="bg-transparent outline-none text-xs w-24"
@@ -287,17 +317,25 @@ export function NewProjectDialog() {
 
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
-          {createProject.isError ? (
-            <p className="text-xs text-destructive">Failed to create project.</p>
-          ) : (
-            <span />
-          )}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => { reset(); closeNewProject(); }}
+            >
+              Cancel
+            </Button>
+            {createProject.isError && (
+              <p className="text-xs text-destructive">Failed to create project.</p>
+            )}
+          </div>
           <Button
             size="sm"
             disabled={!name.trim() || createProject.isPending}
             onClick={handleSubmit}
           >
-            {createProject.isPending ? "Creating…" : "Create project"}
+            {createProject.isPending ? "Creating…" : "Create Project"}
           </Button>
         </div>
       </DialogContent>

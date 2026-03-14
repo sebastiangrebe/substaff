@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { GOAL_STATUSES } from "@substaff/shared";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
 import { goalsApi } from "../api/goals";
+import { agentsApi } from "../api/agents";
 import { assetsApi } from "../api/assets";
 import { queryKeys } from "../lib/queryKeys";
 import {
@@ -23,6 +24,7 @@ import {
 import { cn } from "../lib/utils";
 import { MarkdownEditor, type MarkdownEditorRef } from "./MarkdownEditor";
 import { StatusBadge } from "./StatusBadge";
+import { AgentSelector } from "./AgentSelector";
 
 export function NewGoalDialog() {
   const { newGoalOpen, closeNewGoal } = useDialog();
@@ -31,10 +33,18 @@ export function NewGoalDialog() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("planned");
+  const [ownerAgentId, setOwnerAgentId] = useState("");
   const [expanded, setExpanded] = useState(false);
 
   const [statusOpen, setStatusOpen] = useState(false);
   const descriptionEditorRef = useRef<MarkdownEditorRef>(null);
+  const ownerSelectorRef = useRef<HTMLButtonElement>(null);
+
+  const { data: agents } = useQuery({
+    queryKey: queryKeys.agents.list(selectedCompanyId!),
+    queryFn: () => agentsApi.list(selectedCompanyId!),
+    enabled: !!selectedCompanyId && newGoalOpen,
+  });
 
   const createGoal = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
@@ -57,6 +67,7 @@ export function NewGoalDialog() {
     setTitle("");
     setDescription("");
     setStatus("planned");
+    setOwnerAgentId("");
     setExpanded(false);
   }
 
@@ -66,6 +77,7 @@ export function NewGoalDialog() {
       title: title.trim(),
       description: description.trim() || undefined,
       status,
+      ...(ownerAgentId ? { ownerAgentId } : {}),
     });
   }
 
@@ -95,7 +107,7 @@ export function NewGoalDialog() {
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {selectedCompany && (
-              <span className="bg-muted px-1.5 py-0.5 rounded text-xs font-medium">
+              <span className="bg-muted px-1.5 py-0.5 rounded text-xs font-semibold">
                 {selectedCompany.name.slice(0, 3).toUpperCase()}
               </span>
             )}
@@ -123,31 +135,49 @@ export function NewGoalDialog() {
         </div>
 
         {/* Title */}
-        <div className="px-4 pt-4 pb-2 shrink-0">
+        <div className="px-4 pt-3 pb-1.5 shrink-0">
           <input
-            className="w-full text-lg font-semibold bg-transparent outline-none placeholder:text-muted-foreground/50"
+            className="w-full text-base font-semibold bg-transparent outline-none placeholder:text-muted-foreground/40"
             placeholder="Goal title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Tab" && !e.shiftKey) {
                 e.preventDefault();
-                descriptionEditorRef.current?.focus();
+                ownerSelectorRef.current?.focus();
               }
             }}
             autoFocus
           />
         </div>
 
+        {/* Owner agent */}
+        <div className="px-4 pb-1.5 shrink-0">
+          <div className="inline-flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Owned by</span>
+            <AgentSelector
+              ref={ownerSelectorRef}
+              value={ownerAgentId}
+              agents={agents ?? []}
+              placeholder="Owner"
+              noneLabel="No owner"
+              onChange={setOwnerAgentId}
+              onConfirm={() => {
+                descriptionEditorRef.current?.focus();
+              }}
+            />
+          </div>
+        </div>
+
         {/* Description */}
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 border-t border-border pt-2">
           <MarkdownEditor
             ref={descriptionEditorRef}
             value={description}
             onChange={setDescription}
             placeholder="Add description..."
             bordered={false}
-            contentClassName={cn("text-sm text-muted-foreground", expanded ? "min-h-[220px]" : "min-h-[120px]")}
+            contentClassName={cn("text-sm text-muted-foreground", expanded ? "min-h-[200px]" : "min-h-[100px]")}
             imageUploadHandler={async (file) => {
               const asset = await uploadDescriptionImage.mutateAsync(file);
               return asset.contentPath;
@@ -182,13 +212,21 @@ export function NewGoalDialog() {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end px-4 py-2.5 border-t border-border">
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => { reset(); closeNewGoal(); }}
+          >
+            Cancel
+          </Button>
           <Button
             size="sm"
             disabled={!title.trim() || createGoal.isPending}
             onClick={handleSubmit}
           >
-            {createGoal.isPending ? "Creating…" : "Create goal"}
+            {createGoal.isPending ? "Creating…" : "Create Goal"}
           </Button>
         </div>
       </DialogContent>

@@ -1,13 +1,5 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
+import { toast } from "sonner";
 
 export type ToastTone = "info" | "success" | "warn" | "error";
 
@@ -26,36 +18,16 @@ export interface ToastInput {
   action?: ToastAction;
 }
 
-export interface ToastItem {
-  id: string;
-  title: string;
-  body?: string;
-  tone: ToastTone;
-  ttlMs: number;
-  action?: ToastAction;
-  createdAt: number;
-}
-
-interface ToastContextValue {
-  toasts: ToastItem[];
-  pushToast: (input: ToastInput) => string | null;
-  dismissToast: (id: string) => void;
-  clearToasts: () => void;
-}
-
 const DEFAULT_TTL_BY_TONE: Record<ToastTone, number> = {
-  info: 4000,
-  success: 3500,
-  warn: 8000,
-  error: 10000,
+  info: 6000,
+  success: 5000,
+  warn: 10000,
+  error: 15000,
 };
-const MIN_TTL_MS = 1500;
-const MAX_TTL_MS = 15000;
-const MAX_TOASTS = 5;
+const MIN_TTL_MS = 2000;
+const MAX_TTL_MS = 20000;
 const DEDUPE_WINDOW_MS = 3500;
 const DEDUPE_MAX_AGE_MS = 20000;
-
-const ToastContext = createContext<ToastContextValue | null>(null);
 
 function normalizeTtl(value: number | undefined, tone: ToastTone) {
   const fallback = DEFAULT_TTL_BY_TONE[tone];
@@ -63,101 +35,74 @@ function normalizeTtl(value: number | undefined, tone: ToastTone) {
   return Math.max(MIN_TTL_MS, Math.min(MAX_TTL_MS, Math.floor(value)));
 }
 
-function generateToastId() {
-  return `toast_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+interface ToastContextValue {
+  pushToast: (input: ToastInput) => string | null;
+  dismissToast: (id: string) => void;
+  clearToasts: () => void;
 }
 
+const ToastContext = createContext<ToastContextValue | null>(null);
+
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const timersRef = useRef(new Map<string, number>());
   const dedupeRef = useRef(new Map<string, number>());
 
-  const clearTimer = useCallback((id: string) => {
-    const handle = timersRef.current.get(id);
-    if (handle !== undefined) {
-      window.clearTimeout(handle);
-      timersRef.current.delete(id);
+  const pushToast = useCallback((input: ToastInput) => {
+    const now = Date.now();
+    const tone = input.tone ?? "info";
+    const ttlMs = normalizeTtl(input.ttlMs, tone);
+    const dedupeKey =
+      input.dedupeKey ?? input.id ?? `${tone}|${input.title}|${input.body ?? ""}|${input.action?.href ?? ""}`;
+
+    // Clean up old dedupe entries
+    for (const [key, ts] of dedupeRef.current.entries()) {
+      if (now - ts > DEDUPE_MAX_AGE_MS) {
+        dedupeRef.current.delete(key);
+      }
     }
+
+    // Check dedupe
+    const lastSeen = dedupeRef.current.get(dedupeKey);
+    if (lastSeen && now - lastSeen < DEDUPE_WINDOW_MS) {
+      return null;
+    }
+    dedupeRef.current.set(dedupeKey, now);
+
+    const id = input.id ?? `toast_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const toastFn =
+      tone === "success" ? toast.success
+        : tone === "error" ? toast.error
+          : tone === "warn" ? toast.warning
+            : toast.info;
+
+    toastFn(input.title, {
+      id,
+      description: input.body,
+      duration: ttlMs,
+      action: input.action
+        ? {
+            label: input.action.label,
+            onClick: () => {
+              window.location.href = input.action!.href;
+            },
+          }
+        : undefined,
+    });
+
+    return id;
   }, []);
 
-  const dismissToast = useCallback(
-    (id: string) => {
-      clearTimer(id);
-      setToasts((prev) => prev.filter((toast) => toast.id !== id));
-    },
-    [clearTimer],
-  );
+  const dismissToast = useCallback((id: string) => {
+    toast.dismiss(id);
+  }, []);
 
   const clearToasts = useCallback(() => {
-    for (const handle of timersRef.current.values()) {
-      window.clearTimeout(handle);
-    }
-    timersRef.current.clear();
-    setToasts([]);
-  }, []);
-
-  const pushToast = useCallback(
-    (input: ToastInput) => {
-      const now = Date.now();
-      const tone = input.tone ?? "info";
-      const ttlMs = normalizeTtl(input.ttlMs, tone);
-      const dedupeKey =
-        input.dedupeKey ?? input.id ?? `${tone}|${input.title}|${input.body ?? ""}|${input.action?.href ?? ""}`;
-
-      for (const [key, ts] of dedupeRef.current.entries()) {
-        if (now - ts > DEDUPE_MAX_AGE_MS) {
-          dedupeRef.current.delete(key);
-        }
-      }
-
-      const lastSeen = dedupeRef.current.get(dedupeKey);
-      if (lastSeen && now - lastSeen < DEDUPE_WINDOW_MS) {
-        return null;
-      }
-      dedupeRef.current.set(dedupeKey, now);
-
-      const id = input.id ?? generateToastId();
-      clearTimer(id);
-
-      setToasts((prev) => {
-        const nextToast: ToastItem = {
-          id,
-          title: input.title,
-          body: input.body,
-          tone,
-          ttlMs,
-          action: input.action,
-          createdAt: now,
-        };
-
-        const withoutCurrent = prev.filter((toast) => toast.id !== id);
-        return [nextToast, ...withoutCurrent].slice(0, MAX_TOASTS);
-      });
-
-      const timeout = window.setTimeout(() => {
-        dismissToast(id);
-      }, ttlMs);
-      timersRef.current.set(id, timeout);
-      return id;
-    },
-    [clearTimer, dismissToast],
-  );
-
-  useEffect(() => () => {
-    for (const handle of timersRef.current.values()) {
-      window.clearTimeout(handle);
-    }
-    timersRef.current.clear();
+    toast.dismiss();
   }, []);
 
   const value = useMemo<ToastContextValue>(
-    () => ({
-      toasts,
-      pushToast,
-      dismissToast,
-      clearToasts,
-    }),
-    [toasts, pushToast, dismissToast, clearToasts],
+    () => ({ pushToast, dismissToast, clearToasts }),
+    [pushToast, dismissToast, clearToasts],
   );
 
   return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;

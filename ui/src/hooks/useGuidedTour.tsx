@@ -17,18 +17,6 @@ export const TOUR_IDS = {
 
 const TOUR_STEPS: TourStep[] = [
   {
-    selectorId: TOUR_IDS.NEW_TASK,
-    position: "right",
-    content: (
-      <div>
-        <p className="font-medium text-sm mb-1">Create tasks</p>
-        <p className="text-xs text-muted-foreground">
-          Click here to create a new task and assign it to a team member. They'll start working on it right away.
-        </p>
-      </div>
-    ),
-  },
-  {
     selectorId: TOUR_IDS.HOME,
     position: "right",
     content: (
@@ -89,6 +77,18 @@ const TOUR_STEPS: TourStep[] = [
     ),
   },
   {
+    selectorId: TOUR_IDS.NEW_TASK,
+    position: "right",
+    content: (
+      <div>
+        <p className="font-medium text-sm mb-1">Create tasks</p>
+        <p className="text-xs text-muted-foreground">
+          Click here to create a new task and assign it to a team member. They'll start working on it right away.
+        </p>
+      </div>
+    ),
+  },
+  {
     selectorId: TOUR_IDS.TEAM,
     position: "right",
     content: (
@@ -139,27 +139,14 @@ const TOUR_STEPS: TourStep[] = [
 ];
 
 /**
- * Registers tour steps and auto-starts the tour for first-time users.
- * Call this once in a component that renders after the sidebar is mounted.
+ * Registers tour steps so they are ready when the tour is started.
+ * The tour is started by the WelcomeTourDialog (after onboarding) or
+ * manually via the "Take a tour" button in the sidebar footer.
  */
 export function useGuidedTour() {
-  const { setSteps, startTour, isTourCompleted, isActive } = useTour();
+  const { setSteps } = useTour();
 
   useEffect(() => {
     setSteps(TOUR_STEPS);
   }, [setSteps]);
-
-  useEffect(() => {
-    if (isTourCompleted || isActive) return;
-
-    // Small delay to let the sidebar render and elements appear in the DOM
-    const timer = setTimeout(() => {
-      const firstEl = document.getElementById(TOUR_IDS.NEW_TASK);
-      if (firstEl) {
-        startTour();
-      }
-    }, 800);
-
-    return () => clearTimeout(timer);
-  }, [isTourCompleted, isActive, startTour]);
 }

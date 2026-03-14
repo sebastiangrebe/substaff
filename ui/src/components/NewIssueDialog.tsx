@@ -40,6 +40,7 @@ import { issueStatusText, issueStatusTextDefault, priorityColor, priorityColorDe
 import { MarkdownEditor, type MarkdownEditorRef, type MentionOption } from "./MarkdownEditor";
 import { AgentIcon } from "./AgentIconPicker";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
+import { AgentSelector } from "./AgentSelector";
 
 /** Return black or white hex based on background luminance (WCAG perceptual weights). */
 function getContrastTextColor(hexColor: string): string {
@@ -327,17 +328,6 @@ export function NewIssueDialog() {
   const currentProject = orderedProjects.find((project) => project.id === projectId);
   const assigneeOptionsTitle = "Advanced options";
   const thinkingEffortOptions = ISSUE_THINKING_EFFORT_OPTIONS;
-  const assigneeOptions = useMemo<InlineEntityOption[]>(
-    () =>
-      (agents ?? [])
-        .filter((agent) => agent.status !== "terminated")
-        .map((agent) => ({
-          id: agent.id,
-          label: agent.name,
-          searchText: `${agent.name} ${agent.role} ${agent.title ?? ""}`,
-        })),
-    [agents],
-  );
   const projectOptions = useMemo<InlineEntityOption[]>(
     () =>
       orderedProjects.map((project) => ({
@@ -455,9 +445,9 @@ export function NewIssueDialog() {
         </div>
 
         {/* Title */}
-        <div className="px-4 pt-4 pb-2 shrink-0">
+        <div className="px-4 pt-3 pb-1.5 shrink-0">
           <textarea
-            className="w-full text-lg font-semibold bg-transparent outline-none resize-none overflow-hidden placeholder:text-muted-foreground/50"
+            className="w-full text-base font-semibold bg-transparent outline-none resize-none overflow-hidden placeholder:text-muted-foreground/40"
             placeholder="What needs to be done?"
             rows={1}
             value={title}
@@ -480,41 +470,19 @@ export function NewIssueDialog() {
           />
         </div>
 
-        <div className="px-4 pb-2 shrink-0">
+        <div className="px-4 pb-1.5 shrink-0">
           <div className="overflow-x-auto">
-            <div className="inline-flex min-w-max items-center gap-2 text-sm text-muted-foreground">
+            <div className="inline-flex min-w-max items-center gap-2 text-xs text-muted-foreground">
               <span>For</span>
-              <InlineEntitySelector
+              <AgentSelector
                 ref={assigneeSelectorRef}
                 value={assigneeId}
-                options={assigneeOptions}
+                agents={agents ?? []}
                 placeholder="Assignee"
                 noneLabel="No assignee"
-                searchPlaceholder="Search assignees..."
-                emptyMessage="No assignees found."
                 onChange={setAssigneeId}
                 onConfirm={() => {
                   projectSelectorRef.current?.focus();
-                }}
-                renderTriggerValue={(option) =>
-                  option && currentAssignee ? (
-                    <>
-                      <AgentIcon icon={currentAssignee.icon} className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{option.label}</span>
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">Assignee</span>
-                  )
-                }
-                renderOption={(option) => {
-                  if (!option.id) return <span className="truncate">{option.label}</span>;
-                  const assignee = (agents ?? []).find((agent) => agent.id === option.id);
-                  return (
-                    <>
-                      <AgentIcon icon={assignee?.icon} className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{option.label}</span>
-                    </>
-                  );
                 }}
               />
               <span>in</span>
@@ -607,7 +575,7 @@ export function NewIssueDialog() {
         )}
 
         {/* Description */}
-        <div className={cn("px-4 pb-2 overflow-y-auto min-h-0 border-t border-border/60 pt-3", expanded ? "flex-1" : "")}>
+        <div className={cn("px-4 pb-2 overflow-y-auto min-h-0 border-t border-border pt-2", expanded ? "flex-1" : "")}>
           <MarkdownEditor
             ref={descriptionEditorRef}
             value={description}
@@ -615,7 +583,7 @@ export function NewIssueDialog() {
             placeholder="Add description..."
             bordered={false}
             mentions={mentionOptions}
-            contentClassName={cn("text-sm text-muted-foreground", expanded ? "min-h-[220px]" : "min-h-[120px]")}
+            contentClassName={cn("text-sm text-muted-foreground", expanded ? "min-h-[200px]" : "min-h-[100px]")}
             imageUploadHandler={async (file) => {
               const asset = await uploadDescriptionImage.mutateAsync(file);
               return asset.contentPath;
@@ -629,7 +597,7 @@ export function NewIssueDialog() {
           <Popover open={statusOpen} onOpenChange={setStatusOpen}>
             <PopoverTrigger asChild>
               <button className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors">
-                <CircleDot className={cn("h-3 w-3", currentStatus.color)} />
+                <CircleDot className={cn("h-3.5 w-3.5", currentStatus.color)} />
                 {currentStatus.label}
               </button>
             </PopoverTrigger>
@@ -643,7 +611,7 @@ export function NewIssueDialog() {
                   )}
                   onClick={() => { setStatus(s.value); setStatusOpen(false); }}
                 >
-                  <CircleDot className={cn("h-3 w-3", s.color)} />
+                  <CircleDot className={cn("h-3.5 w-3.5", s.color)} />
                   {s.label}
                 </button>
               ))}
@@ -656,12 +624,12 @@ export function NewIssueDialog() {
               <button className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors">
                 {currentPriority ? (
                   <>
-                    <currentPriority.icon className={cn("h-3 w-3", currentPriority.color)} />
+                    <currentPriority.icon className={cn("h-3.5 w-3.5", currentPriority.color)} />
                     {currentPriority.label}
                   </>
                 ) : (
                   <>
-                    <Minus className="h-3 w-3 text-muted-foreground" />
+                    <Minus className="h-3.5 w-3.5 text-muted-foreground" />
                     Priority
                   </>
                 )}
@@ -677,7 +645,7 @@ export function NewIssueDialog() {
                   )}
                   onClick={() => { setPriority(p.value); setPriorityOpen(false); }}
                 >
-                  <p.icon className={cn("h-3 w-3", p.color)} />
+                  <p.icon className={cn("h-3.5 w-3.5", p.color)} />
                   {p.label}
                 </button>
               ))}
@@ -686,7 +654,7 @@ export function NewIssueDialog() {
 
           {/* Labels chip (placeholder) */}
           <button className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs hover:bg-accent/50 transition-colors text-muted-foreground">
-            <Tag className="h-3 w-3" />
+            <Tag className="h-3.5 w-3.5" />
             Labels
           </button>
 
@@ -703,7 +671,7 @@ export function NewIssueDialog() {
             onClick={() => attachInputRef.current?.click()}
             disabled={uploadDescriptionImage.isPending}
           >
-            <Paperclip className="h-3 w-3" />
+            <Paperclip className="h-3.5 w-3.5" />
             {uploadDescriptionImage.isPending ? "Uploading..." : "Image"}
           </button>
 
@@ -711,16 +679,16 @@ export function NewIssueDialog() {
           <Popover open={moreOpen} onOpenChange={setMoreOpen}>
             <PopoverTrigger asChild>
               <button className="inline-flex items-center justify-center rounded-md border border-border p-1 text-xs hover:bg-accent/50 transition-colors text-muted-foreground">
-                <MoreHorizontal className="h-3 w-3" />
+                <MoreHorizontal className="h-3.5 w-3.5" />
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-44 p-1" align="start">
               <button className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-muted-foreground">
-                <Calendar className="h-3 w-3" />
+                <Calendar className="h-3.5 w-3.5" />
                 Start date
               </button>
               <button className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/50 text-muted-foreground">
-                <Calendar className="h-3 w-3" />
+                <Calendar className="h-3.5 w-3.5" />
                 Due date
               </button>
             </PopoverContent>

@@ -47,6 +47,7 @@ import { useGuidedTour } from "../hooks/useGuidedTour";
 import { useTour } from "./Tour";
 import { ChatProvider } from "../context/ChatContext";
 import { ChatSidebar } from "./ChatSidebar";
+import { WelcomeTourDialog, type WelcomeTourDialogHandle } from "./WelcomeTourDialog";
 
 export function Layout() {
   return (
@@ -71,6 +72,7 @@ function LayoutInner() {
   const { companies, loading: companiesLoading, selectedCompanyId, setSelectedCompanyId } = useCompany();
   const { theme, toggleTheme } = useTheme();
   const tour = useTour();
+  const welcomeTourRef = useRef<WelcomeTourDialogHandle>(null);
   const queryClient = useQueryClient();
   const { companyPrefix } = useParams<{ companyPrefix: string }>();
   const navigate = useNavigate();
@@ -241,7 +243,7 @@ function LayoutInner() {
               variant="ghost"
               size="sm"
               className="text-muted-foreground shrink-0 gap-1.5 text-xs"
-              onClick={() => tour.startTour()}
+              onClick={() => welcomeTourRef.current?.showWelcome()}
             >
               <HelpCircle className="h-3.5 w-3.5" />
               Take a tour
@@ -316,6 +318,7 @@ function LayoutInner() {
       <NewGoalDialog />
       <NewAgentDialog />
       <ToastViewport />
+      <WelcomeTourDialog ref={welcomeTourRef} />
     </>
   );
 }
