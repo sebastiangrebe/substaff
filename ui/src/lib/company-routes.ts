@@ -15,6 +15,7 @@ const BOARD_ROUTE_ROOTS = new Set([
   "inbox",
   "integrations",
   "design-guide",
+  "account",
 ]);
 
 const GLOBAL_ROUTE_ROOTS = new Set(["auth", "invite"]);

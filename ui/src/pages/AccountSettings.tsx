@@ -4,8 +4,19 @@ import { authApi } from "../api/auth";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { Camera, Trash2, User } from "lucide-react";
+import { Camera, Check, KeyRound, Lock, Trash2, User, UserCircle } from "lucide-react";
 
 export function AccountSettings() {
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -110,219 +121,230 @@ export function AccountSettings() {
     .join("");
 
   return (
-    <div className="space-y-8">
+    <div className="max-w-2xl space-y-6">
+      {/* Page header */}
       <div>
-        <h1 className="text-lg font-semibold">Account</h1>
+        <h1 className="text-xl font-bold">Account</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Manage your profile and security settings.
         </p>
       </div>
 
-      {/* Profile */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground ">
-          Profile
-        </h2>
-        <div className="space-y-4 rounded-xl border border-border/50 px-4 py-4">
-          {/* Avatar */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <label className="text-sm font-medium">Avatar</label>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="relative group">
-                <div className="w-16 h-16 rounded-full overflow-hidden bg-muted flex items-center justify-center border border-border">
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt="Avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-lg font-medium text-muted-foreground">
-                      {initials || <User className="h-6 w-6" />}
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                >
-                  <Camera className="h-4 w-4 text-white" />
-                </button>
+      {/* Profile card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <UserCircle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm">Profile</CardTitle>
+          </div>
+          <CardDescription>
+            Your public identity across the platform.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Avatar row */}
+          <div className="flex items-center gap-5">
+            <div className="relative group shrink-0">
+              <div className="w-16 h-16 rounded-full overflow-hidden bg-muted flex items-center justify-center border-2 border-border">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-lg font-medium text-muted-foreground">
+                    {initials || <User className="h-6 w-6" />}
+                  </span>
+                )}
               </div>
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+              >
+                <Camera className="h-4 w-4 text-white" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadAvatarMutation.isPending}
+                >
+                  {uploadAvatarMutation.isPending ? "Uploading..." : "Upload photo"}
+                </Button>
+                {avatarUrl && (
                   <Button
                     size="sm"
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadAvatarMutation.isPending}
+                    variant="ghost"
+                    onClick={() => deleteAvatarMutation.mutate()}
+                    disabled={deleteAvatarMutation.isPending}
+                    className="text-muted-foreground hover:text-destructive"
                   >
-                    {uploadAvatarMutation.isPending ? "Uploading..." : "Upload"}
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
-                  {avatarUrl && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => deleteAvatarMutation.mutate()}
-                      disabled={deleteAvatarMutation.isPending}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  JPG, PNG, WebP, or GIF. Max 2 MB.
-                </p>
-                {uploadAvatarMutation.isError && (
-                  <p className="text-xs text-destructive">
-                    {uploadAvatarMutation.error instanceof Error
-                      ? uploadAvatarMutation.error.message
-                      : "Upload failed"}
-                  </p>
-                )}
-                {deleteAvatarMutation.isError && (
-                  <p className="text-xs text-destructive">
-                    {deleteAvatarMutation.error instanceof Error
-                      ? deleteAvatarMutation.error.message
-                      : "Failed to remove avatar"}
-                  </p>
                 )}
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                className="hidden"
-                onChange={handleAvatarFileChange}
+              <p className="text-xs text-muted-foreground">
+                JPG, PNG, WebP, or GIF. Max 2 MB.
+              </p>
+              {uploadAvatarMutation.isError && (
+                <p className="text-xs text-destructive">
+                  {uploadAvatarMutation.error instanceof Error
+                    ? uploadAvatarMutation.error.message
+                    : "Upload failed"}
+                </p>
+              )}
+              {deleteAvatarMutation.isError && (
+                <p className="text-xs text-destructive">
+                  {deleteAvatarMutation.error instanceof Error
+                    ? deleteAvatarMutation.error.message
+                    : "Failed to remove avatar"}
+                </p>
+              )}
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              onChange={handleAvatarFileChange}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Name & Email fields */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="account-name">Name</Label>
+              <Input
+                id="account-name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
-          </div>
-
-          {/* Name */}
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <label className="text-sm font-medium">Name</label>
+            <div className="space-y-2">
+              <Label htmlFor="account-email">Email</Label>
+              <Input
+                id="account-email"
+                type="email"
+                value={session?.user?.email ?? ""}
+                disabled
+              />
+              <p className="text-xs text-muted-foreground">
+                Email cannot be changed.
+              </p>
             </div>
-            <input
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <label className="text-sm font-medium">Email</label>
-            </div>
-            <input
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none text-muted-foreground cursor-not-allowed"
-              type="email"
-              value={session?.user?.email ?? ""}
-              disabled
-            />
-            <p className="mt-1 text-xs text-muted-foreground">Email cannot be changed.</p>
+        </CardContent>
+        {nameDirty && (
+          <CardFooter className="border-t gap-3">
+            <Button
+              size="sm"
+              onClick={() => updateNameMutation.mutate(name.trim())}
+              disabled={updateNameMutation.isPending || !name.trim()}
+            >
+              {updateNameMutation.isPending ? "Saving..." : "Save changes"}
+            </Button>
+            {updateNameMutation.isSuccess && (
+              <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                <Check className="h-3.5 w-3.5" /> Saved
+              </span>
+            )}
+            {updateNameMutation.isError && (
+              <span className="text-sm text-destructive">
+                {updateNameMutation.error instanceof Error
+                  ? updateNameMutation.error.message
+                  : "Failed to save"}
+              </span>
+            )}
+          </CardFooter>
+        )}
+      </Card>
+
+      {/* Password card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm">Password</CardTitle>
           </div>
-        </div>
-      </div>
-
-      {nameDirty && (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => updateNameMutation.mutate(name.trim())}
-            disabled={updateNameMutation.isPending || !name.trim()}
-          >
-            {updateNameMutation.isPending ? "Saving..." : "Save changes"}
-          </Button>
-          {updateNameMutation.isSuccess && (
-            <span className="text-sm text-muted-foreground">Saved</span>
-          )}
-          {updateNameMutation.isError && (
-            <span className="text-sm text-destructive">
-              {updateNameMutation.error instanceof Error
-                ? updateNameMutation.error.message
-                : "Failed to save"}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Password */}
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground ">
-          Password
-        </h2>
-        <div className="space-y-4 rounded-xl border border-border/50 px-4 py-4">
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <label className="text-sm font-medium">Current password</label>
-            </div>
-            <input
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
+          <CardDescription>
+            Update your password to keep your account secure.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="current-password">Current password</Label>
+            <Input
+              id="current-password"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               autoComplete="current-password"
             />
           </div>
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <label className="text-sm font-medium">New password</label>
+          <Separator />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                placeholder="Min. 8 characters"
+              />
             </div>
-            <input
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              autoComplete="new-password"
-              placeholder="Min. 8 characters"
-            />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <label className="text-sm font-medium">Confirm new password</label>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm new password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs text-destructive">Passwords do not match.</p>
+              )}
             </div>
-            <input
-              className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-ring focus-visible:ring-[3px]"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-            {confirmPassword && newPassword !== confirmPassword && (
-              <p className="mt-1 text-xs text-destructive">Passwords do not match.</p>
-            )}
           </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          onClick={() =>
-            changePasswordMutation.mutate({
-              currentPassword,
-              newPassword,
-            })
-          }
-          disabled={!passwordValid || changePasswordMutation.isPending}
-        >
-          {changePasswordMutation.isPending ? "Updating..." : "Change password"}
-        </Button>
-        {changePasswordMutation.isSuccess && (
-          <span className="text-sm text-muted-foreground">Password updated</span>
-        )}
-        {changePasswordMutation.isError && (
-          <span className="text-sm text-destructive">
-            {changePasswordMutation.error instanceof Error
-              ? changePasswordMutation.error.message
-              : "Failed to update password"}
-          </span>
+        </CardContent>
+        <CardFooter className="border-t gap-3">
+          <Button
+            size="sm"
+            onClick={() =>
+              changePasswordMutation.mutate({
+                currentPassword,
+                newPassword,
+              })
+            }
+            disabled={!passwordValid || changePasswordMutation.isPending}
+          >
+            <Lock className="h-3.5 w-3.5 mr-1.5" />
+            {changePasswordMutation.isPending ? "Updating..." : "Change password"}
+          </Button>
+          {changePasswordMutation.isSuccess && (
+            <span className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Check className="h-3.5 w-3.5" /> Password updated
+            </span>
           )}
-      </div>
+          {changePasswordMutation.isError && (
+            <span className="text-sm text-destructive">
+              {changePasswordMutation.error instanceof Error
+                ? changePasswordMutation.error.message
+                : "Failed to update password"}
+            </span>
+          )}
+        </CardFooter>
+      </Card>
     </div>
   );
 }
