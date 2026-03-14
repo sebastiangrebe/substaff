@@ -58,7 +58,7 @@ export function CompanySwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg hover:bg-accent/60 transition-colors text-left outline-none"
+          className="flex items-center gap-2.5 w-full px-2 py-2 rounded-md hover:bg-sidebar-accent/60 transition-colors text-left outline-none"
           aria-label="Switch workspace"
         >
           {selectedCompany && (
@@ -68,12 +68,10 @@ export function CompanySwitcher() {
               className="w-8 h-8 rounded-lg text-sm shrink-0"
             />
           )}
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-foreground truncate">
-              {selectedCompany?.name ?? "Select workspace"}
-            </div>
-          </div>
-          <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="flex-1 min-w-0 text-sm font-semibold text-foreground truncate">
+            {selectedCompany?.name ?? "Select workspace"}
+          </span>
+          <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64" sideOffset={4}>

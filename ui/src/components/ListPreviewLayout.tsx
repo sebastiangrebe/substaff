@@ -138,19 +138,16 @@ export function ListPreviewLayout({
       >
         <div
           className={cn(
-            "w-[380px] h-full overflow-hidden flex flex-col border-l border-border/50 bg-card/50",
+            "w-[380px] h-full overflow-hidden flex flex-col border-l border-border/60 bg-card",
             "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
             isVisible
               ? "translate-x-0 opacity-100"
               : "translate-x-8 opacity-0",
           )}
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 shrink-0">
-            <span className="text-[11px] font-medium text-muted-foreground/60 select-none">
-              Quick preview
-            </span>
-            {!alwaysOpen && (
+          {/* Header — only show close button when not always-open */}
+          {!alwaysOpen && (
+            <div className="flex items-center justify-end px-4 py-2 shrink-0">
               <button
                 className="p-1 rounded-md text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent/40 transition-colors"
                 onClick={handleClose}
@@ -158,12 +155,12 @@ export function ListPreviewLayout({
               >
                 <X className="h-3.5 w-3.5" />
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Scrollable content */}
           <div
-            className="flex-1 overflow-y-auto cursor-pointer px-4 py-4"
+            className={cn("overflow-y-auto cursor-pointer px-5 pb-5", alwaysOpen ? "pt-5" : "pt-2")}
             onClick={handlePanelClick}
             role="button"
             tabIndex={0}
@@ -174,15 +171,18 @@ export function ListPreviewLayout({
             {renderedContent}
           </div>
 
+          {/* Spacer fills remaining space */}
+          <div className="flex-1" />
+
           {/* Footer */}
           <div
-            className="border-t border-border/50 px-4 py-2.5 shrink-0 cursor-pointer flex items-center justify-between"
+            className="border-t border-border/50 px-5 py-3 shrink-0 cursor-pointer flex items-center gap-1.5 group/footer hover:bg-accent/30 transition-colors"
             onClick={handlePanelClick}
           >
-            <span className="text-[11px] text-muted-foreground/50 select-none">
-              Click to open full details
+            <span className="text-xs text-muted-foreground select-none group-hover/footer:text-foreground transition-colors">
+              Open full details
             </span>
-            <ArrowRight className="h-3 w-3 text-muted-foreground/30" />
+            <ArrowRight className="h-3 w-3 text-muted-foreground group-hover/footer:text-foreground group-hover/footer:translate-x-0.5 transition-all" />
           </div>
         </div>
       </div>

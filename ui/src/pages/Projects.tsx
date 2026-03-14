@@ -257,50 +257,54 @@ export function Projects() {
       onPreviewClose={handlePreviewClose}
       alwaysOpen
     >
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-semibold">Projects</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Organize work into projects with deadlines and owners.</p>
+        <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">Organize work into projects with deadlines and owners.</p>
       </div>
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2 sm:gap-3">
-        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <Button size="sm" variant="outline" onClick={openNewProject}>
-            <Plus className="h-4 w-4 sm:mr-1" />
-            <span className="hidden sm:inline">New Project</span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Button size="sm" className="h-8 px-3 text-xs" onClick={openNewProject}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            New Project
           </Button>
           <div className="relative w-48 sm:w-64 md:w-80">
-            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
             <Input
               value={projectSearch}
               onChange={(e) => setProjectSearch(e.target.value)}
               placeholder="Search projects..."
-              className="pl-7 text-xs sm:text-sm"
+              className="h-8 pl-8 text-xs rounded-lg border-border/60 bg-muted/30 placeholder:text-muted-foreground/40"
               aria-label="Search projects"
             />
           </div>
         </div>
 
-        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {/* Filter */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className={`text-xs ${activeFilterCount > 0 ? "text-primary" : ""}`}>
-                <Filter className="h-3.5 w-3.5 sm:h-3 sm:w-3 sm:mr-1" />
-                <span className="hidden sm:inline">{activeFilterCount > 0 ? `Filters: ${activeFilterCount}` : "Filter"}</span>
-                {activeFilterCount > 0 && (
-                  <span className="sm:hidden text-[10px] font-medium ml-0.5">{activeFilterCount}</span>
+              <button
+                className={cn(
+                  "inline-flex items-center gap-1.5 h-7 rounded-full border px-3 text-xs font-medium transition-colors",
+                  activeFilterCount > 0
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground hover:border-border"
                 )}
+              >
+                <Filter className="h-3 w-3" />
+                <span className="hidden sm:inline">{activeFilterCount > 0 ? `Filter (${activeFilterCount})` : "Filter"}</span>
                 {activeFilterCount > 0 && (
                   <X
-                    className="h-3 w-3 ml-1 hidden sm:block"
+                    className="h-3 w-3 -mr-0.5 hidden sm:block opacity-60 hover:opacity-100"
                     onClick={(e) => {
                       e.stopPropagation();
                       updateView({ statuses: [] });
                     }}
                   />
                 )}
-              </Button>
+              </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-[min(360px,calc(100vw-2rem))] p-0">
               <div className="p-3 space-y-3">
@@ -363,10 +367,10 @@ export function Projects() {
           {/* Sort */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-xs">
-                <ArrowUpDown className="h-3.5 w-3.5 sm:h-3 sm:w-3 sm:mr-1" />
+              <button className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border/60 bg-muted/40 px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:border-border">
+                <ArrowUpDown className="h-3 w-3" />
                 <span className="hidden sm:inline">Sort</span>
-              </Button>
+              </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-48 p-0">
               <div className="p-2 space-y-0.5">
@@ -405,10 +409,10 @@ export function Projects() {
           {/* Group */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-xs">
-                <Layers className="h-3.5 w-3.5 sm:h-3 sm:w-3 sm:mr-1" />
+              <button className="inline-flex items-center gap-1.5 h-7 rounded-full border border-border/60 bg-muted/40 px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground hover:border-border">
+                <Layers className="h-3 w-3" />
                 <span className="hidden sm:inline">Group</span>
-              </Button>
+              </button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-44 p-0">
               <div className="p-2 space-y-0.5">
@@ -477,20 +481,19 @@ export function Projects() {
               </div>
             )}
             <CollapsibleContent>
+              <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs">
               {group.items.map((project) => (
                 <Link
                   key={project.id}
                   to={`${projectUrl(project)}/issues`}
                   viewTransition
                   className={cn(
-                    "flex items-center gap-2 py-2 pr-3 text-sm border-b border-border/50 last:border-b-0 cursor-pointer hover:bg-accent/40 transition-colors no-underline text-inherit",
-                    viewState.groupBy !== "none" ? "pl-1" : "pl-3",
+                    "flex items-center gap-3 px-4 h-11 text-sm cursor-pointer hover:bg-accent/40 transition-colors no-underline text-inherit",
                     activePreviewId === project.id && "bg-accent/30",
                   )}
                   onMouseEnter={() => handleRowHover(project.id)}
                   onMouseLeave={() => handleRowHover(null)}
                 >
-                  {viewState.groupBy !== "none" && <div className="w-3.5 shrink-0 hidden sm:block" />}
                   <span
                     className="shrink-0 h-3.5 w-3.5 rounded-sm"
                     style={{ backgroundColor: project.color ?? "#6366f1" }}
@@ -527,6 +530,7 @@ export function Projects() {
                   </div>
                 </Link>
               ))}
+              </div>
             </CollapsibleContent>
           </Collapsible>
         ))

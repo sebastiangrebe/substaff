@@ -119,7 +119,7 @@ export function CommandPalette() {
           >
             <SquarePen className="mr-2 h-4 w-4" />
             New task
-            <span className={kbd}>C</span>
+            <span className={kbd}>⌘⇧C</span>
           </CommandItem>
           <CommandItem
             onSelect={() => {
@@ -129,7 +129,7 @@ export function CommandPalette() {
           >
             <Plus className="mr-2 h-4 w-4" />
             New project
-            <span className={kbd}>P</span>
+            <span className={kbd}>⌘⇧P</span>
           </CommandItem>
           <CommandItem
             onSelect={() => {
@@ -139,7 +139,7 @@ export function CommandPalette() {
           >
             <Plus className="mr-2 h-4 w-4" />
             New goal
-            <span className={kbd}>G</span>
+            <span className={kbd}>⌘⇧G</span>
           </CommandItem>
           <CommandItem
             onSelect={() => {
@@ -149,7 +149,7 @@ export function CommandPalette() {
           >
             <Plus className="mr-2 h-4 w-4" />
             Add agent
-            <span className={kbd}>A</span>
+            <span className={kbd}>⌘⇧A</span>
           </CommandItem>
         </CommandGroup>
 

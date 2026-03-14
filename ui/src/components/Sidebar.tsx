@@ -1,16 +1,21 @@
 import {
+  Bot,
   Briefcase,
+  ChevronDown,
   CircleDot,
+  FolderKanban,
   Home,
   BarChart3,
   DollarSign,
   History,
+  Plus,
   Search,
   Settings,
   FolderOpen,
+  HelpCircle,
   Network,
   Plug,
-  Sparkles,
+  Target,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -20,6 +25,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
@@ -40,6 +46,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { NavLink } from "@/lib/router";
 import { cn } from "../lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -72,10 +85,12 @@ function ManageIconButton({
             )
           }
         >
-          <Icon className="h-4 w-4" />
-          {alert && (
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 shadow-[0_0_0_2px_hsl(var(--sidebar))]" />
-          )}
+          <span className="relative">
+            <Icon className="h-4 w-4" />
+            {alert && (
+              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 shadow-[0_0_0_2px_hsl(var(--sidebar))]" />
+            )}
+          </span>
         </NavLink>
       </TooltipTrigger>
       <TooltipContent side="top" className="text-xs">
@@ -85,8 +100,43 @@ function ManageIconButton({
   );
 }
 
-export function AppSidebar() {
-  const { openNewIssue } = useDialog();
+/** Generic icon button for the bottom strip (non-link variant) */
+function ManageActionButton({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          className="relative flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-sidebar-accent"
+        >
+          <Icon className="h-4 w-4" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="text-xs">
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+interface AppSidebarProps {
+  onToggleTheme?: () => void;
+  themeIcon?: LucideIcon;
+  themeLabel?: string;
+  onTakeTour?: () => void;
+}
+
+export function AppSidebar({ onToggleTheme, themeIcon, themeLabel, onTakeTour }: AppSidebarProps) {
+  const { openNewIssue, openNewProject, openNewGoal, openNewAgent } = useDialog();
   const { selectedCompanyId } = useCompany();
   const { data: sidebarBadges } = useQuery({
     queryKey: queryKeys.sidebarBadges(selectedCompanyId!),
@@ -114,35 +164,42 @@ export function AppSidebar() {
 
   return (
     <>
-      <SidebarHeader>
+      <SidebarHeader className="gap-1.5 pb-0">
         <CompanySwitcher />
-        <button
-          onClick={openSearch}
-          className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg bg-sidebar-accent/60 hover:bg-sidebar-accent text-muted-foreground text-sm transition-colors"
-        >
-          <Search className="h-3.5 w-3.5 shrink-0" />
-          <span className="flex-1 text-left text-xs">Search...</span>
-          <kbd className="text-[10px] font-mono text-muted-foreground/50 bg-background/60 px-1.5 py-0.5 rounded">
-            ⌘K
-          </kbd>
-        </button>
-
-        {/* Primary CTA — New Task */}
-        <button
-          id={TOUR_IDS.NEW_TASK}
-          onClick={() => openNewIssue()}
-          className="group/cta relative flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-primary-foreground overflow-hidden transition-all duration-200 hover:shadow-md hover:shadow-primary/20 active:scale-[0.98]"
-          style={{
-            background: "linear-gradient(135deg, oklch(0.55 0.18 265), oklch(0.50 0.22 280))",
-          }}
-        >
-          <div className="absolute inset-0 bg-white/0 group-hover/cta:bg-white/10 transition-colors duration-200" />
-          <Sparkles className="h-4 w-4 relative z-10" />
-          <span className="relative z-10">New Task</span>
-          <kbd className="relative z-10 text-[10px] font-mono text-white/50 bg-white/10 px-1.5 py-0.5 rounded ml-auto">
-            C
-          </kbd>
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              id={TOUR_IDS.NEW_TASK}
+              className="flex items-center gap-2 w-full rounded-md px-2.5 py-1.5 text-sm font-medium text-primary-foreground transition-all duration-150 hover:brightness-110 active:scale-[0.97]"
+              style={{
+                background: "linear-gradient(135deg, oklch(0.55 0.18 265), oklch(0.48 0.20 280))",
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create new</span>
+              <ChevronDown className="h-3 w-3 ml-auto opacity-60" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" sideOffset={4} className="w-[var(--radix-dropdown-menu-trigger-width)]">
+            <DropdownMenuItem onClick={() => openNewIssue()}>
+              <CircleDot className="mr-2 h-4 w-4" />
+              New Task
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openNewProject()}>
+              <FolderKanban className="mr-2 h-4 w-4" />
+              New Project
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openNewGoal()}>
+              <Target className="mr-2 h-4 w-4" />
+              New Goal
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => openNewAgent()}>
+              <Bot className="mr-2 h-4 w-4" />
+              New Agent
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarHeader>
 
       <SidebarContent className="scrollbar-none">
@@ -150,6 +207,13 @@ export function AppSidebar() {
         <SidebarGroup className="pb-0">
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton tooltip="Search" onClick={openSearch} className="text-muted-foreground">
+                  <Search className="h-4 w-4" />
+                  <span className="flex-1 truncate">Search</span>
+                  <kbd className="text-[10px] font-mono text-muted-foreground/40">⌘K</kbd>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarNavItem id={TOUR_IDS.HOME} to="/dashboard" label="Home" icon={Home} liveCount={liveRunCount} />
               </SidebarMenuItem>
@@ -207,12 +271,18 @@ export function AppSidebar() {
         {/* Manage — compact icon strip */}
         <SidebarGroup className="py-1.5">
           <SidebarGroupContent>
-            <div className="flex items-center justify-between px-1">
+            <div className="flex items-center justify-center gap-0.5 px-1">
               <ManageIconButton id={TOUR_IDS.BUDGET} to="/billing" icon={DollarSign} label="Billing" alert={balanceDepleted} />
               <ManageIconButton to="/org" icon={Network} label="Org Chart" />
               <ManageIconButton to="/analytics" icon={BarChart3} label="Analytics" />
               <ManageIconButton to="/activity" icon={History} label="Activity" />
               <ManageIconButton to="/company/settings" icon={Settings} label="Settings" />
+              {onToggleTheme && themeIcon && (
+                <ManageActionButton icon={themeIcon} label={themeLabel ?? "Toggle theme"} onClick={onToggleTheme} />
+              )}
+              {onTakeTour && (
+                <ManageActionButton icon={HelpCircle} label="Take a tour" onClick={onTakeTour} />
+              )}
             </div>
           </SidebarGroupContent>
         </SidebarGroup>

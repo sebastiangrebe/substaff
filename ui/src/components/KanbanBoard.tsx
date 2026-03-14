@@ -66,20 +66,20 @@ function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
   return (
-    <div className="flex flex-col min-w-[260px] w-[260px] shrink-0">
-      <div className="flex items-center gap-2 px-2 py-2 mb-1">
+    <div className="flex flex-col min-w-[240px] w-[240px] shrink-0">
+      <div className="flex items-center gap-2 px-2.5 py-2 mb-1.5">
         <StatusIcon status={status} />
-        <span className="text-xs font-semibold text-muted-foreground">
+        <span className="text-xs font-semibold">
           {statusLabel(status)}
         </span>
-        <span className="text-xs text-muted-foreground/60 ml-auto tabular-nums">
+        <span className="ml-auto text-[10px] font-medium text-muted-foreground/50 tabular-nums bg-muted/60 rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
           {issues.length}
         </span>
       </div>
       <div
         ref={setNodeRef}
-        className={`flex-1 min-h-[120px] rounded-md p-1 space-y-1 transition-colors ${
-          isOver ? "bg-accent/40" : "bg-muted/20"
+        className={`flex-1 min-h-[120px] rounded-xl p-1.5 space-y-1.5 transition-colors ${
+          isOver ? "bg-accent/30 ring-1 ring-primary/20" : "bg-muted/30"
         }`}
       >
         <SortableContext
@@ -138,9 +138,9 @@ function KanbanCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`rounded-md border bg-card p-2.5 cursor-grab active:cursor-grabbing transition-shadow ${
+      className={`rounded-lg border border-border/60 bg-card p-2.5 cursor-grab active:cursor-grabbing transition-all ${
         isDragging && !isOverlay ? "opacity-30" : ""
-      } ${isOverlay ? "shadow-lg ring-1 ring-primary/20" : "hover:shadow-sm"}`}
+      } ${isOverlay ? "shadow-lg ring-1 ring-primary/20 scale-[1.02]" : "shadow-xs hover:shadow-sm hover:border-border"}`}
     >
       <Link
         to={`/issues/${issue.identifier ?? issue.id}`}
@@ -150,18 +150,18 @@ function KanbanCard({
           if (isDragging) e.preventDefault();
         }}
       >
-        <div className="flex items-start gap-1.5 mb-1.5">
-          <span className="text-xs text-muted-foreground font-mono shrink-0">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
             {issue.identifier ?? issue.id.slice(0, 8)}
           </span>
           {isLive && (
-            <span className="relative flex h-2 w-2 shrink-0 mt-0.5">
+            <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
             </span>
           )}
         </div>
-        <p className="text-sm leading-snug line-clamp-2 mb-2">{issue.title}</p>
+        <p className="text-xs font-medium leading-snug line-clamp-2 mb-2">{issue.title}</p>
         <div className="flex items-center gap-2">
           <PriorityIcon priority={issue.priority} />
           {issue.assigneeAgentId && (() => {
@@ -169,7 +169,7 @@ function KanbanCard({
             return name ? (
               <Identity name={name} size="xs" />
             ) : (
-              <span className="text-xs text-muted-foreground font-mono">
+              <span className="text-[10px] text-muted-foreground font-mono">
                 {issue.assigneeAgentId.slice(0, 8)}
               </span>
             );

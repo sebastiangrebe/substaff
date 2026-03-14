@@ -17,12 +17,18 @@ import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
 import { EmptyState } from "../components/EmptyState";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { ApprovalCard } from "../components/ApprovalCard";
+import { typeLabel, typeIcon, defaultTypeIcon, ApprovalPayloadRenderer } from "../components/ApprovalPayload";
 import { StatusBadge } from "../components/StatusBadge";
 import { timeAgo } from "../lib/timeAgo";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Tabs } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -265,6 +271,8 @@ export function Inbox() {
   const [allCategoryFilter, setAllCategoryFilter] = useState<InboxCategoryFilter>("everything");
   const [allApprovalFilter, setAllApprovalFilter] = useState<InboxApprovalFilter>("all");
   const [rejectPlanTarget, setRejectPlanTarget] = useState<TaskPlanWithIssue | null>(null);
+  const [reviewPlan, setReviewPlan] = useState<TaskPlanWithIssue | null>(null);
+  const [reviewApproval, setReviewApproval] = useState<(typeof allApprovals)[number] | null>(null);
 
   const pathSegment = location.pathname.split("/").pop() ?? "new";
   const tab: InboxTab = pathSegment === "all" ? "all" : "new";
@@ -573,14 +581,25 @@ export function Inbox() {
     !isRunsLoading &&
     !isPlansLoading;
 
-  const showSeparatorBefore = (key: SectionKey) => visibleSections.indexOf(key) > 0;
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-lg font-semibold">My Work</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Tasks, notifications, and items that need your attention.</p>
+    <div className="space-y-6">
+      {/* Page header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">My Work</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground leading-relaxed">
+            {allLoaded && newItemCount === 0
+              ? "You're all caught up. Nothing needs your attention right now."
+              : allLoaded
+                ? <><span className="text-foreground font-medium">{newItemCount} {newItemCount === 1 ? "item" : "items"}</span> need your attention</>
+                : "Loading your workspace..."
+            }
+          </p>
+        </div>
       </div>
+
+      {/* Tabs + filters */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <Tabs value={tab} onValueChange={(value) => navigate(`/inbox/${value === "all" ? "all" : "new"}`)}>
           <PageTabBar
@@ -591,7 +610,7 @@ export function Inbox() {
                   <>
                     Action needed
                     {newItemCount > 0 && (
-                      <span className="ml-1.5 rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-500">
+                      <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                         {newItemCount}
                       </span>
                     )}
@@ -604,12 +623,12 @@ export function Inbox() {
         </Tabs>
 
         {tab === "all" && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <Select
               value={allCategoryFilter}
               onValueChange={(value) => setAllCategoryFilter(value as InboxCategoryFilter)}
             >
-              <SelectTrigger className="h-8 w-[170px] text-xs">
+              <SelectTrigger className="h-7 w-auto gap-1.5 rounded-full border-border/60 bg-muted/40 px-3 text-xs font-medium">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -630,7 +649,7 @@ export function Inbox() {
                 value={allApprovalFilter}
                 onValueChange={(value) => setAllApprovalFilter(value as InboxApprovalFilter)}
               >
-                <SelectTrigger className="h-8 w-[170px] text-xs">
+                <SelectTrigger className="h-7 w-auto gap-1.5 rounded-full border-border/60 bg-muted/40 px-3 text-xs font-medium">
                   <SelectValue placeholder="Review status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -652,337 +671,481 @@ export function Inbox() {
       )}
 
       {allLoaded && visibleSections.length === 0 && (
-        <EmptyState
-          icon={InboxIcon}
-          message={tab === "new" ? "You're all caught up!" : "No inbox items match these filters."}
-        />
-      )}
-
-      {showAssignedSection && (
-        <>
-          {showSeparatorBefore("assigned_to_me") && <Separator />}
-          <div>
-            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
-              My Tasks
-            </h3>
-            <div className="divide-y divide-border/50 border border-border/50 rounded-xl overflow-hidden">
-              {assignedToMeIssues.map((issue) => (
-                <Link
-                  key={issue.id}
-                  to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
-                >
-                  <UserCheck className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
-                  <PriorityIcon priority={issue.priority} />
-                  <StatusIcon status={issue.status} />
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {issue.identifier ?? issue.id.slice(0, 8)}
-                  </span>
-                  <span className="flex-1 truncate text-sm">{issue.title}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    updated {timeAgo(issue.updatedAt)}
-                  </span>
-                </Link>
-              ))}
-            </div>
+        <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+          <div className="rounded-2xl bg-emerald-500/10 p-4 mb-4">
+            <Check className="h-8 w-8 text-emerald-500" />
           </div>
-        </>
+          <p className="text-lg font-semibold mb-1">You're all caught up</p>
+          <p className="text-sm text-muted-foreground max-w-[300px]">
+            {tab === "new" ? "Nothing needs your attention right now. Your team is running smoothly." : "No items match these filters."}
+          </p>
+        </div>
       )}
 
+      {/* Alerts — shown at top for urgency */}
+      {showAlertsSection && (
+        <div className="space-y-2">
+          {creditsDepleted && (
+            <Link
+              to="/billing"
+              className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 hover:bg-red-500/10 transition-colors no-underline text-inherit"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/15 shrink-0">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Credits depleted</p>
+                <p className="text-xs text-muted-foreground">Agents are blocked. Top up your balance to continue.</p>
+              </div>
+              <span className="text-xs font-medium text-red-500 shrink-0">Top up &rarr;</span>
+            </Link>
+          )}
+          {showAggregateAgentError && (
+            <Link
+              to="/agents"
+              className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 hover:bg-red-500/10 transition-colors no-underline text-inherit"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/15 shrink-0">
+                <AlertTriangle className="h-4 w-4 text-red-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">{dashboard!.agents.error} {dashboard!.agents.error === 1 ? "team member" : "team members"} with errors</p>
+                <p className="text-xs text-muted-foreground">Check your team page to investigate and resolve.</p>
+              </div>
+              <span className="text-xs font-medium text-primary shrink-0">View &rarr;</span>
+            </Link>
+          )}
+          {showBudgetAlert && (
+            <Link
+              to="/billing"
+              className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 hover:bg-amber-500/10 transition-colors no-underline text-inherit"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 shrink-0">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">Budget at {dashboard!.costs.monthUtilizationPercent}%</p>
+                <p className="text-xs text-muted-foreground">Monthly spend is approaching your configured limit.</p>
+              </div>
+              <span className="text-xs font-medium text-primary shrink-0">Review &rarr;</span>
+            </Link>
+          )}
+        </div>
+      )}
+
+      {/* Blocked Tasks */}
       {showBlockedSection && (
-        <>
-          {showSeparatorBefore("blocked") && <Separator />}
-          <div>
-            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
-              Blocked Tasks
-              <span className="ml-2 text-xs font-normal normal-case text-destructive">
-                {blockedIssues.length}
-              </span>
-            </h3>
-            <div className="divide-y divide-border/50 border border-border/50 rounded-xl overflow-hidden">
-              {blockedIssues.map((issue) => (
-                <Link
-                  key={issue.id}
-                  to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
-                >
-                  <StatusIcon status="blocked" />
-                  <PriorityIcon priority={issue.priority} />
-                  <span className="text-xs font-mono text-muted-foreground">
-                    {issue.identifier ?? issue.id.slice(0, 8)}
+        <InboxSection
+          title="Blocked Tasks"
+          count={blockedIssues.length}
+          countTone="danger"
+          icon={<AlertTriangle className="h-3.5 w-3.5 text-red-500" />}
+        >
+          <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs">
+            {blockedIssues.map((issue) => (
+              <Link
+                key={issue.id}
+                to={`/issues/${issue.identifier ?? issue.id}`}
+                className="group flex items-center gap-3 px-4 h-11 hover:bg-accent/40 transition-colors no-underline text-inherit"
+              >
+                <StatusIcon status="blocked" />
+                <PriorityIcon priority={issue.priority} />
+                <span className="text-xs font-mono text-muted-foreground">
+                  {issue.identifier ?? issue.id.slice(0, 8)}
+                </span>
+                <span className="flex-1 truncate text-sm">{issue.title}</span>
+                {issue.assigneeAgentId && (
+                  <span className="text-xs text-muted-foreground truncate max-w-[120px]">
+                    {agentById.get(issue.assigneeAgentId) ?? issue.assigneeAgentId.slice(0, 8)}
                   </span>
-                  <span className="flex-1 truncate text-sm">{issue.title}</span>
-                  {issue.assigneeAgentId && (
-                    <span className="text-xs text-muted-foreground truncate max-w-[120px]">
-                      {agentById.get(issue.assigneeAgentId) ?? issue.assigneeAgentId.slice(0, 8)}
-                    </span>
-                  )}
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {timeAgo(issue.updatedAt)}
-                  </span>
-                </Link>
-              ))}
-            </div>
+                )}
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {timeAgo(issue.updatedAt)}
+                </span>
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 text-primary px-2.5 h-7 text-xs font-medium hover:bg-primary/20 transition-colors">
+                  <ArrowUpRight className="h-3 w-3" />
+                  View
+                </span>
+              </Link>
+            ))}
           </div>
-        </>
+        </InboxSection>
       )}
 
-      {showApprovalsSection && (
-        <>
-          {showSeparatorBefore("approvals") && <Separator />}
-          <div>
-            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
-              {tab === "new" ? "Reviews Needing Action" : "Reviews"}
-            </h3>
-            <div className="grid gap-3">
-              {approvalsToRender.map((approval) => (
-                <ApprovalCard
-                  key={approval.id}
-                  approval={approval}
-                  requesterAgent={
-                    approval.requestedByAgentId
-                      ? (agents ?? []).find((a) => a.id === approval.requestedByAgentId) ?? null
-                      : null
-                  }
-                  onApprove={() => approveMutation.mutate(approval.id)}
-                  onReject={() => rejectMutation.mutate(approval.id)}
-                  detailLink={`/approvals/${approval.id}`}
-                  isPending={approveMutation.isPending || rejectMutation.isPending}
-                />
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
+      {/* Plans To Review */}
       {showPendingPlansSection && (
-        <>
-          {showSeparatorBefore("pending_plans") && <Separator />}
-          <div>
-            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
-              Plans To Review
-            </h3>
-            <div className="grid gap-3">
-              {pendingPlans.map((plan) => (
-                <div key={plan.id} className="rounded-xl border border-border/50 bg-card p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-md bg-blue-500/20 p-1.5">
-                          <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        </span>
-                        <Link
-                          to={`/issues/${plan.issueIdentifier ?? plan.issueId}`}
-                          className="text-sm font-medium transition-colors hover:text-foreground no-underline text-inherit"
-                        >
-                          <span className="font-mono text-muted-foreground mr-1.5">
-                            {plan.issueIdentifier ?? plan.issueId.slice(0, 8)}
-                          </span>
-                          {plan.issueTitle}
-                        </Link>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {plan.agentId && (
-                          <Identity name={agentName(plan.agentId) ?? plan.agentId.slice(0, 8)} size="sm" />
-                        )}
-                        <span>submitted {timeAgo(plan.createdAt)}</span>
-                      </div>
-                      <div className="max-h-48 overflow-y-auto rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-                        <MarkdownBody>{plan.planMarkdown}</MarkdownBody>
-                      </div>
+        <InboxSection
+          title="Plans To Review"
+          count={pendingPlans.length}
+          icon={<FileText className="h-3.5 w-3.5 text-blue-500" />}
+        >
+          <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs">
+            {pendingPlans.map((plan) => (
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => setReviewPlan(plan)}
+                className="flex items-center gap-3 px-4 py-3 w-full text-left hover:bg-accent/40 transition-colors"
+              >
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-muted-foreground">
+                      {plan.issueIdentifier ?? plan.issueId.slice(0, 8)}
+                    </span>
+                    <span className="text-sm font-medium truncate">{plan.issueTitle}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                    {plan.agentId && (
+                      <Identity name={agentName(plan.agentId) ?? plan.agentId.slice(0, 8)} size="sm" />
+                    )}
+                    <span>{timeAgo(plan.createdAt)}</span>
+                  </div>
+                </div>
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 text-primary px-2.5 h-7 text-xs font-medium hover:bg-primary/20 transition-colors" onClick={(e) => { e.stopPropagation(); setReviewPlan(plan); }}>
+                  <FileText className="h-3 w-3" />
+                  Review
+                </span>
+              </button>
+            ))}
+          </div>
+        </InboxSection>
+      )}
+
+      {/* Reviews / Approvals */}
+      {showApprovalsSection && (
+        <InboxSection
+          title={tab === "new" ? "Reviews Needing Action" : "Reviews"}
+          count={approvalsToRender.length}
+          icon={<Check className="h-3.5 w-3.5 text-primary" />}
+        >
+          <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs">
+            {approvalsToRender.map((approval) => {
+              const Icon = typeIcon[approval.type] ?? defaultTypeIcon;
+              const label = typeLabel[approval.type] ?? approval.type;
+              const requesterName = approval.requestedByAgentId ? agentById.get(approval.requestedByAgentId) : null;
+              const isActionable = ACTIONABLE_APPROVAL_STATUSES.has(approval.status);
+              return (
+                <button
+                  key={approval.id}
+                  type="button"
+                  onClick={() => setReviewApproval(approval)}
+                  className="flex items-center gap-3 px-4 py-3 w-full text-left hover:bg-accent/40 transition-colors"
+                >
+                  <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium truncate">{label}</span>
+                      {!isActionable && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground capitalize">{approval.status}</span>
+                      )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                      {requesterName && <Identity name={requesterName} size="sm" />}
+                      <span>{timeAgo(approval.createdAt)}</span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 text-primary px-2.5 h-7 text-xs font-medium hover:bg-primary/20 transition-colors">
+                    <ArrowUpRight className="h-3 w-3" />
+                    {isActionable ? "Review" : "View"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </InboxSection>
+      )}
+
+      {/* My Tasks */}
+      {showAssignedSection && (
+        <InboxSection
+          title="My Tasks"
+          count={assignedToMeIssues.length}
+          icon={<UserCheck className="h-3.5 w-3.5 text-blue-500" />}
+        >
+          <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs">
+            {assignedToMeIssues.map((issue) => (
+              <Link
+                key={issue.id}
+                to={`/issues/${issue.identifier ?? issue.id}`}
+                className="group flex items-center gap-3 px-4 h-11 hover:bg-accent/40 transition-colors no-underline text-inherit"
+              >
+                <PriorityIcon priority={issue.priority} />
+                <StatusIcon status={issue.status} />
+                <span className="text-xs font-mono text-muted-foreground">
+                  {issue.identifier ?? issue.id.slice(0, 8)}
+                </span>
+                <span className="flex-1 truncate text-sm">{issue.title}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {timeAgo(issue.updatedAt)}
+                </span>
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 text-primary px-2.5 h-7 text-xs font-medium hover:bg-primary/20 transition-colors">
+                  <ArrowUpRight className="h-3 w-3" />
+                  View
+                </span>
+              </Link>
+            ))}
+          </div>
+        </InboxSection>
+      )}
+
+      {/* Join Requests */}
+      {showJoinRequestsSection && (
+        <InboxSection
+          title="Join Requests"
+          count={joinRequests.length}
+          icon={<UserCheck className="h-3.5 w-3.5 text-primary" />}
+        >
+          <div className="space-y-3">
+            {joinRequests.map((joinRequest) => (
+              <div key={joinRequest.id} className="rounded-xl border border-border/60 bg-card shadow-xs p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">
+                      {joinRequest.requestType === "human"
+                        ? (joinRequest.requestNameSnapshot || joinRequest.requestEmailSnapshot || "Someone")
+                          + " wants to join"
+                        : `New agent request${joinRequest.agentName ? `: ${joinRequest.agentName}` : ""}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Requested {timeAgo(joinRequest.createdAt)}
+                      {joinRequest.requestEmailSnapshot &&
+                        joinRequest.requestEmailSnapshot !== "local@substaff.local"
+                        ? ` · ${joinRequest.requestEmailSnapshot}`
+                        : ""}
+                    </p>
+                    {joinRequest.adapterType && (
+                      <p className="text-xs text-muted-foreground">Runtime: {joinRequest.adapterType}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={approveJoinMutation.isPending || rejectJoinMutation.isPending}
+                      onClick={() => rejectJoinMutation.mutate(joinRequest)}
+                    >
+                      Reject
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={approveJoinMutation.isPending || rejectJoinMutation.isPending}
+                      onClick={() => approveJoinMutation.mutate(joinRequest)}
+                    >
+                      Approve
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </InboxSection>
+      )}
+
+      {/* Failed Runs / Errors */}
+      {showFailedRunsSection && (
+        <InboxSection
+          title="Errors"
+          count={failedRuns.length}
+          countTone="danger"
+          icon={<XCircle className="h-3.5 w-3.5 text-red-500" />}
+        >
+          <div className="grid gap-3">
+            {failedRuns.map((run) => (
+              <FailedRunCard
+                key={run.id}
+                run={run}
+                issueById={issueById}
+                agentName={agentName(run.agentId)}
+              />
+            ))}
+          </div>
+        </InboxSection>
+      )}
+
+      {/* Stale / Needs Attention */}
+      {showStaleSection && (
+        <InboxSection
+          title="Needs Attention"
+          count={staleIssues.length}
+          icon={<Clock className="h-3.5 w-3.5 text-amber-500" />}
+        >
+          <div className="rounded-xl border border-border/60 bg-card divide-y divide-border/50 overflow-hidden shadow-xs">
+            {staleIssues.map((issue) => (
+              <Link
+                key={issue.id}
+                to={`/issues/${issue.identifier ?? issue.id}`}
+                className="group flex items-center gap-3 px-4 h-11 hover:bg-accent/40 transition-colors no-underline text-inherit"
+              >
+                <PriorityIcon priority={issue.priority} />
+                <StatusIcon status={issue.status} />
+                <span className="text-xs font-mono text-muted-foreground">
+                  {issue.identifier ?? issue.id.slice(0, 8)}
+                </span>
+                <span className="flex-1 truncate text-sm">{issue.title}</span>
+                {issue.assigneeAgentId &&
+                  (() => {
+                    const name = agentName(issue.assigneeAgentId);
+                    return name ? (
+                      <Identity name={name} size="sm" />
+                    ) : (
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {issue.assigneeAgentId.slice(0, 8)}
+                      </span>
+                    );
+                  })()}
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {timeAgo(issue.updatedAt)}
+                </span>
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 text-primary px-2.5 h-7 text-xs font-medium hover:bg-primary/20 transition-colors">
+                  <ArrowUpRight className="h-3 w-3" />
+                  View
+                </span>
+              </Link>
+            ))}
+          </div>
+        </InboxSection>
+      )}
+
+      {/* Approval review dialog */}
+      <Dialog open={!!reviewApproval} onOpenChange={(open) => { if (!open) setReviewApproval(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col p-0 gap-0">
+          {reviewApproval && (() => {
+            const Icon = typeIcon[reviewApproval.type] ?? defaultTypeIcon;
+            const label = typeLabel[reviewApproval.type] ?? reviewApproval.type;
+            const requesterName = reviewApproval.requestedByAgentId ? agentById.get(reviewApproval.requestedByAgentId) : null;
+            const isActionable = ACTIONABLE_APPROVAL_STATUSES.has(reviewApproval.status);
+            return (
+              <>
+                <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50 shrink-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon className="h-4 w-4 text-muted-foreground" />
+                    {requesterName && (
+                      <>
+                        <span className="text-xs text-muted-foreground">requested by</span>
+                        <Identity name={requesterName} size="sm" />
+                      </>
+                    )}
+                    <span className="text-border">&middot;</span>
+                    <span className="text-xs text-muted-foreground">{timeAgo(reviewApproval.createdAt)}</span>
+                  </div>
+                  <DialogTitle className="text-base">{label}</DialogTitle>
+                  <DialogDescription className="sr-only">Review the approval request details.</DialogDescription>
+                </DialogHeader>
+                <div className="flex-1 overflow-y-auto px-6 py-5">
+                  <ApprovalPayloadRenderer type={reviewApproval.type} payload={reviewApproval.payload} />
+                  {reviewApproval.decisionNote && (
+                    <div className="mt-4 text-xs text-muted-foreground italic border-t border-border/50 pt-3">
+                      Note: {reviewApproval.decisionNote}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border/50 bg-muted/30 shrink-0">
+                  <Link
+                    to={`/approvals/${reviewApproval.id}`}
+                    className="text-xs text-primary hover:text-primary/80 transition-colors no-underline"
+                    onClick={() => setReviewApproval(null)}
+                  >
+                    View details &rarr;
+                  </Link>
+                  {isActionable ? (
+                    <div className="flex items-center gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={approvePlanMutation.isPending || rejectPlanMutation.isPending}
-                        onClick={() => setRejectPlanTarget(plan)}
+                        disabled={approveMutation.isPending || rejectMutation.isPending}
+                        onClick={() => {
+                          rejectMutation.mutate(reviewApproval.id);
+                          setReviewApproval(null);
+                        }}
                       >
                         <X className="mr-1.5 h-3.5 w-3.5" />
                         Reject
                       </Button>
                       <Button
                         size="sm"
-                        disabled={approvePlanMutation.isPending || rejectPlanMutation.isPending}
-                        onClick={() => approvePlanMutation.mutate(plan)}
+                        disabled={approveMutation.isPending || rejectMutation.isPending}
+                        onClick={() => {
+                          approveMutation.mutate(reviewApproval.id);
+                          setReviewApproval(null);
+                        }}
                       >
                         <Check className="mr-1.5 h-3.5 w-3.5" />
                         Approve
                       </Button>
                     </div>
-                  </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground capitalize">{reviewApproval.status}</span>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
-      {showJoinRequestsSection && (
-        <>
-          {showSeparatorBefore("join_requests") && <Separator />}
-          <div>
-            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
-              Join Requests
-            </h3>
-            <div className="grid gap-3">
-              {joinRequests.map((joinRequest) => (
-                <div key={joinRequest.id} className="rounded-xl border border-border/50 bg-card p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">
-                        {joinRequest.requestType === "human"
-                          ? (joinRequest.requestNameSnapshot || joinRequest.requestEmailSnapshot || "Someone")
-                            + " wants to join"
-                          : `New agent request${joinRequest.agentName ? `: ${joinRequest.agentName}` : ""}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Requested {timeAgo(joinRequest.createdAt)}
-                        {joinRequest.requestEmailSnapshot &&
-                          joinRequest.requestEmailSnapshot !== "local@substaff.local"
-                          ? ` · ${joinRequest.requestEmailSnapshot}`
-                          : ""}
-                      </p>
-                      {joinRequest.adapterType && (
-                        <p className="text-xs text-muted-foreground">Runtime: {joinRequest.adapterType}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={approveJoinMutation.isPending || rejectJoinMutation.isPending}
-                        onClick={() => rejectJoinMutation.mutate(joinRequest)}
-                      >
-                        Reject
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={approveJoinMutation.isPending || rejectJoinMutation.isPending}
-                        onClick={() => approveJoinMutation.mutate(joinRequest)}
-                      >
-                        Approve
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {showFailedRunsSection && (
-        <>
-          {showSeparatorBefore("failed_runs") && <Separator />}
-          <div>
-            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
-              Errors
-            </h3>
-            <div className="grid gap-3">
-              {failedRuns.map((run) => (
-                <FailedRunCard
-                  key={run.id}
-                  run={run}
-                  issueById={issueById}
-                  agentName={agentName(run.agentId)}
-                />
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {showAlertsSection && (
-        <>
-          {showSeparatorBefore("alerts") && <Separator />}
-          <div>
-            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
-              Alerts
-            </h3>
-            <div className="divide-y divide-border/50 border border-border/50 rounded-xl overflow-hidden">
-              {showAggregateAgentError && (
-                <Link
-                  to="/agents"
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
-                >
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
-                  <span className="text-sm">
-                    <span className="font-medium">{dashboard!.agents.error}</span>{" "}
-                    {dashboard!.agents.error === 1 ? "team member has" : "team members have"} errors
-                  </span>
-                </Link>
-              )}
-              {creditsDepleted && (
-                <Link
-                  to="/billing"
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
-                >
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
-                  <span className="text-sm">
-                    <span className="font-medium">Credits depleted</span> — agents are blocked. Top up your balance to continue.
-                  </span>
-                </Link>
-              )}
-              {showBudgetAlert && (
-                <Link
-                  to="/billing"
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
-                >
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-yellow-400" />
-                  <span className="text-sm">
-                    Budget at{" "}
-                    <span className="font-medium">{dashboard!.costs.monthUtilizationPercent}%</span>{" "}
-                    utilization this month
-                  </span>
-                </Link>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      {showStaleSection && (
-        <>
-          {showSeparatorBefore("stale_work") && <Separator />}
-          <div>
-            <h3 className="mb-3 text-[13px] font-medium text-muted-foreground">
-              Needs Attention
-            </h3>
-            <div className="divide-y divide-border/50 border border-border/50 rounded-xl overflow-hidden">
-              {staleIssues.map((issue) => (
-                <Link
-                  key={issue.id}
-                  to={`/issues/${issue.identifier ?? issue.id}`}
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/40 no-underline text-inherit"
-                >
-                  <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <PriorityIcon priority={issue.priority} />
-                  <StatusIcon status={issue.status} />
+      {/* Plan review dialog */}
+      <Dialog open={!!reviewPlan} onOpenChange={(open) => { if (!open) setReviewPlan(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
+          {reviewPlan && (
+            <>
+              <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/50 shrink-0">
+                <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-mono text-muted-foreground">
-                    {issue.identifier ?? issue.id.slice(0, 8)}
+                    {reviewPlan.issueIdentifier ?? reviewPlan.issueId.slice(0, 8)}
                   </span>
-                  <span className="flex-1 truncate text-sm">{issue.title}</span>
-                  {issue.assigneeAgentId &&
-                    (() => {
-                      const name = agentName(issue.assigneeAgentId);
-                      return name ? (
-                        <Identity name={name} size="sm" />
-                      ) : (
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {issue.assigneeAgentId.slice(0, 8)}
-                        </span>
-                      );
-                    })()}
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    updated {timeAgo(issue.updatedAt)}
-                  </span>
+                  {reviewPlan.agentId && (
+                    <>
+                      <span className="text-border">&middot;</span>
+                      <Identity name={agentName(reviewPlan.agentId) ?? reviewPlan.agentId.slice(0, 8)} size="sm" />
+                    </>
+                  )}
+                  <span className="text-border">&middot;</span>
+                  <span className="text-xs text-muted-foreground">{timeAgo(reviewPlan.createdAt)}</span>
+                </div>
+                <DialogTitle className="text-base">{reviewPlan.issueTitle}</DialogTitle>
+                <DialogDescription className="sr-only">Review the proposed plan and approve or reject it.</DialogDescription>
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto px-6 py-5 text-sm">
+                <MarkdownBody>{reviewPlan.planMarkdown}</MarkdownBody>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border/50 bg-muted/30 shrink-0">
+                <Link
+                  to={`/issues/${reviewPlan.issueIdentifier ?? reviewPlan.issueId}`}
+                  className="text-xs text-primary hover:text-primary/80 transition-colors no-underline"
+                >
+                  View task &rarr;
                 </Link>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={approvePlanMutation.isPending || rejectPlanMutation.isPending}
+                    onClick={() => {
+                      setReviewPlan(null);
+                      setTimeout(() => setRejectPlanTarget(reviewPlan), 200);
+                    }}
+                  >
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    Reject
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={approvePlanMutation.isPending || rejectPlanMutation.isPending}
+                    onClick={() => {
+                      approvePlanMutation.mutate(reviewPlan);
+                      setReviewPlan(null);
+                    }}
+                  >
+                    <Check className="mr-1.5 h-3.5 w-3.5" />
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <InputDialog
         open={!!rejectPlanTarget}
@@ -999,6 +1162,43 @@ export function Inbox() {
           setRejectPlanTarget(null);
         }}
       />
+    </div>
+  );
+}
+
+function InboxSection({
+  title,
+  count,
+  countTone,
+  icon,
+  children,
+}: {
+  title: string;
+  count?: number;
+  countTone?: "danger" | "default";
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        {icon && (
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/60 shrink-0">
+            {icon}
+          </div>
+        )}
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {count !== undefined && count > 0 && (
+          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+            countTone === "danger"
+              ? "bg-red-500/15 text-red-500"
+              : "bg-muted text-muted-foreground"
+          }`}>
+            {count}
+          </span>
+        )}
+      </div>
+      {children}
     </div>
   );
 }

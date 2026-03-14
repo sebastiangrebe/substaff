@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type UIEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, HelpCircle, LogOut, Moon, Settings, Sun } from "lucide-react";
+import { ChevronsUpDown, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { Outlet, useLocation, useNavigate, useParams } from "@/lib/router";
 import {
   Sidebar,
@@ -42,7 +42,6 @@ import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
 import { queryKeys } from "../lib/queryKeys";
 import { cn } from "../lib/utils";
-import { Button } from "@/components/ui/button";
 import { useGuidedTour } from "../hooks/useGuidedTour";
 import { useTour } from "./Tour";
 import { ChatProvider } from "../context/ChatContext";
@@ -224,31 +223,13 @@ function LayoutInner() {
       </a>
 
       <Sidebar>
-        <AppSidebar />
+        <AppSidebar
+          onToggleTheme={toggleTheme}
+          themeIcon={theme === "dark" ? Sun : Moon}
+          themeLabel={`Switch to ${nextTheme} mode`}
+          onTakeTour={() => welcomeTourRef.current?.showWelcome()}
+        />
         <SidebarFooter>
-          <div className="flex items-center gap-1 px-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground shrink-0"
-              onClick={toggleTheme}
-              aria-label={`Switch to ${nextTheme} mode`}
-              title={`Switch to ${nextTheme} mode`}
-            >
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground shrink-0 gap-1.5 text-xs"
-              onClick={() => welcomeTourRef.current?.showWelcome()}
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-              Take a tour
-            </Button>
-          </div>
           <SidebarMenu>
             <SidebarMenuItem>
               <DropdownMenu>

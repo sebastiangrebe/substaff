@@ -22,51 +22,52 @@ export function useKeyboardShortcuts({ onNewIssue, onNewProject, onNewGoal, onNe
         return;
       }
 
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.altKey) return;
+
       // Cmd+1..9 → Switch company
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "9") {
+      if (e.key >= "1" && e.key <= "9") {
         e.preventDefault();
         onSwitchCompany?.(parseInt(e.key, 10) - 1);
         return;
       }
 
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-
-      // C → New Task
-      if (e.key === "c") {
+      // Cmd+Shift+C → New Task
+      if (e.shiftKey && e.key === "c") {
         e.preventDefault();
         onNewIssue?.();
         return;
       }
 
-      // P → New Project
-      if (e.key === "p") {
+      // Cmd+Shift+P → New Project
+      if (e.shiftKey && e.key === "p") {
         e.preventDefault();
         onNewProject?.();
         return;
       }
 
-      // G → New Goal
-      if (e.key === "g") {
+      // Cmd+Shift+G → New Goal
+      if (e.shiftKey && e.key === "g") {
         e.preventDefault();
         onNewGoal?.();
         return;
       }
 
-      // A → Add Agent
-      if (e.key === "a") {
+      // Cmd+Shift+A → Add Agent
+      if (e.shiftKey && e.key === "a") {
         e.preventDefault();
         onNewAgent?.();
         return;
       }
 
-      // [ → Toggle Sidebar
+      // Cmd+[ → Toggle Sidebar
       if (e.key === "[") {
         e.preventDefault();
         onToggleSidebar?.();
         return;
       }
 
-      // ] → Toggle Panel
+      // Cmd+] → Toggle Panel
       if (e.key === "]") {
         e.preventDefault();
         onTogglePanel?.();
