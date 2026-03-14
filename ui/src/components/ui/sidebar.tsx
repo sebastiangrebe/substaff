@@ -244,9 +244,16 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
+          className="relative flex h-full w-full flex-col bg-sidebar group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow-sm"
         >
           {children}
+          {/* Subtle accent edge line */}
+          <div
+            className="pointer-events-none absolute inset-y-0 right-0 w-px group-data-[variant=floating]:hidden"
+            style={{
+              background: "linear-gradient(to bottom, transparent 5%, oklch(0.55 0.15 265 / 0.2) 30%, oklch(0.50 0.20 280 / 0.15) 70%, transparent 95%)",
+            }}
+          />
         </div>
       </div>
     </div>

@@ -20,27 +20,90 @@ export function PageSkeleton({ variant = "list" }: PageSkeletonProps) {
   if (variant === "dashboard") {
     return (
       <div className="space-y-6">
-        <div className="space-y-1.5">
-          <Skeleton className="h-6 w-20" />
-          <Skeleton className="h-4 w-72" />
-        </div>
-        <Skeleton className="h-32 w-full border border-border/50" />
-
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
+        {/* Header: greeting + button */}
+        <div className="flex items-start justify-between gap-6">
+          <div className="space-y-1.5">
+            <Skeleton className="h-7 w-40" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <Skeleton className="h-8 w-28 rounded-md" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-44 w-full" />
-          ))}
-        </div>
+        {/* Two-column body */}
+        <div className="flex gap-6">
+          {/* Main content */}
+          <div className="space-y-6 flex-1 min-w-0">
+            {/* Currently working on */}
+            <div>
+              <div className="space-y-0.5 mb-3">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-56" />
+              </div>
+              <Skeleton className="h-40 w-full rounded-xl" />
+            </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-72 w-full" />
-          <Skeleton className="h-72 w-full" />
+            {/* Goals & Projects */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i}>
+                  <div className="space-y-0.5 mb-3">
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                  <Skeleton className="h-48 w-full rounded-xl" />
+                </div>
+              ))}
+            </div>
+
+            {/* Recently completed + Recent tasks */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i}>
+                  <div className="space-y-0.5 mb-3">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-44" />
+                  </div>
+                  <div className="rounded-xl border border-border/50 overflow-hidden">
+                    {Array.from({ length: 5 }).map((_, j) => (
+                      <Skeleton key={j} className="h-10 w-full rounded-none" />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Right sidebar */}
+          <div className="hidden xl:block w-72 shrink-0 space-y-5">
+            {/* Overview stats */}
+            <div>
+              <Skeleton className="h-3 w-16 mb-2.5" />
+              <div className="grid grid-cols-2 gap-2.5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-20 w-full rounded-xl" />
+                ))}
+              </div>
+            </div>
+
+            {/* Team */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <Skeleton className="h-3 w-10" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+              <div className="rounded-xl border border-border/50 overflow-hidden">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-9 w-full rounded-none" />
+                ))}
+              </div>
+            </div>
+
+            {/* Attention */}
+            <div>
+              <Skeleton className="h-3 w-16 mb-2.5" />
+              <Skeleton className="h-9 w-full rounded-lg" />
+            </div>
+          </div>
         </div>
       </div>
     );

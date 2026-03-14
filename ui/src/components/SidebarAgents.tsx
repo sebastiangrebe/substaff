@@ -37,6 +37,15 @@ function sortByHierarchy(agents: Agent[]): Agent[] {
   return sorted;
 }
 
+const statusDotColor: Record<string, string> = {
+  active: "bg-emerald-500",
+  running: "bg-cyan-400",
+  paused: "bg-amber-400",
+  error: "bg-red-500",
+  idle: "bg-muted-foreground/30",
+  offline: "bg-muted-foreground/20",
+};
+
 export function SidebarAgents() {
   const [open, setOpen] = useState(true);
   const { selectedCompanyId } = useCompany();
@@ -76,9 +85,9 @@ export function SidebarAgents() {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <SidebarGroup>
+      <SidebarGroup className="py-0">
         <SidebarGroupLabel asChild>
-          <CollapsibleTrigger id="tour-team" className="group">
+          <CollapsibleTrigger id="tour-team" className="group text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50">
             <ChevronRight
               className={cn(
                 "h-3 w-3 transition-transform",
@@ -86,6 +95,11 @@ export function SidebarAgents() {
               )}
             />
             Team
+            {visibleAgents.length > 0 && (
+              <span className="ml-auto text-[10px] font-normal text-muted-foreground/40 tabular-nums">
+                {visibleAgents.length}
+              </span>
+            )}
           </CollapsibleTrigger>
         </SidebarGroupLabel>
 
@@ -94,6 +108,11 @@ export function SidebarAgents() {
             <SidebarMenu>
               {visibleAgents.map((agent: Agent) => {
                 const runCount = liveCountByAgent.get(agent.id) ?? 0;
+                const isWorking = runCount > 0;
+                const dotColor = isWorking
+                  ? "bg-cyan-400"
+                  : statusDotColor[agent.status] ?? statusDotColor.idle;
+
                 return (
                   <SidebarMenuItem key={agent.id}>
                     <SidebarMenuButton asChild isActive={activeAgentId === agentRouteRef(agent)} tooltip={agent.name}>
@@ -101,17 +120,20 @@ export function SidebarAgents() {
                         to={agentUrl(agent)}
                         onClick={() => { if (isMobile) setOpenMobile(false); }}
                       >
-                        <AgentIcon icon={agent.icon} className="shrink-0 h-4 w-4 text-muted-foreground" />
+                        <span className="relative shrink-0">
+                          <AgentIcon icon={agent.icon} className="h-4 w-4 text-muted-foreground" />
+                          <span
+                            className={cn(
+                              "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full shadow-[0_0_0_2px_hsl(var(--sidebar))]",
+                              dotColor,
+                              isWorking && "animate-pulse"
+                            )}
+                          />
+                        </span>
                         <span className="truncate">{agent.name}</span>
-                        {runCount > 0 && (
-                          <span className="ml-auto flex items-center gap-1.5 shrink-0">
-                            <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                            </span>
-                            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                              {runCount} working
-                            </span>
+                        {isWorking && (
+                          <span className="ml-auto text-[10px] font-medium text-cyan-600 dark:text-cyan-400 tabular-nums shrink-0">
+                            {runCount}
                           </span>
                         )}
                       </NavLink>
