@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import type { IssueComment, Agent } from "@substaff/shared";
 import { Button } from "@/components/ui/button";
@@ -105,7 +105,15 @@ const TimelineList = memo(function TimelineList({
   highlightCommentId?: string | null;
 }) {
   if (timeline.length === 0) {
-    return <p className="text-sm text-muted-foreground">No comments or runs yet.</p>;
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <div className="h-10 w-10 rounded-full bg-muted/40 flex items-center justify-center mb-3">
+          <svg className="h-5 w-5 text-muted-foreground/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+        </div>
+        <p className="text-sm font-medium text-muted-foreground">No activity yet</p>
+        <p className="text-xs text-muted-foreground/60 mt-0.5">Comments and agent runs will appear here</p>
+      </div>
+    );
   }
 
   return (
@@ -114,28 +122,25 @@ const TimelineList = memo(function TimelineList({
         if (item.kind === "run") {
           const run = item.run;
           return (
-            <div key={`run:${run.runId}`} className="border border-border bg-accent/20 p-3 overflow-hidden min-w-0 rounded-sm">
-              <div className="flex items-center justify-between mb-2">
-                <Link to={`/agents/${run.agentId}`} className="hover:underline">
-                  <Identity
-                    name={agentMap?.get(run.agentId)?.name ?? run.agentId.slice(0, 8)}
-                    size="sm"
-                  />
-                </Link>
-                <span className="text-xs text-muted-foreground">
-                  {formatDateTime(run.startedAt ?? run.createdAt)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="text-muted-foreground">Run</span>
+            <div key={`run:${run.runId}`} className="flex items-center gap-3 rounded-lg bg-muted/30 px-3.5 py-2.5 min-w-0">
+              <Link to={`/agents/${run.agentId}`} className="hover:underline shrink-0">
+                <Identity
+                  name={agentMap?.get(run.agentId)?.name ?? run.agentId.slice(0, 8)}
+                  size="sm"
+                />
+              </Link>
+              <div className="flex items-center gap-2 text-xs min-w-0 flex-1">
                 <Link
                   to={`/agents/${run.agentId}/runs/${run.runId}`}
-                  className="inline-flex items-center rounded-md border border-border bg-accent/40 px-2 py-1 font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
+                  className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground hover:border-border transition-colors shrink-0"
                 >
-                  {run.runId.slice(0, 8)}
+                  {run.runId.slice(0, 7)}
                 </Link>
                 <StatusBadge status={run.status} />
               </div>
+              <span className="text-[11px] text-muted-foreground/60 shrink-0 tabular-nums">
+                {formatDateTime(run.startedAt ?? run.createdAt)}
+              </span>
             </div>
           );
         }
@@ -146,9 +151,9 @@ const TimelineList = memo(function TimelineList({
           <div
             key={comment.id}
             id={`comment-${comment.id}`}
-            className={`border p-3 overflow-hidden min-w-0 rounded-sm transition-colors duration-1000 ${isHighlighted ? "border-primary/50 bg-primary/5" : "border-border"}`}
+            className={`rounded-lg border overflow-hidden min-w-0 transition-colors duration-1000 ${isHighlighted ? "border-primary/40 bg-primary/5 shadow-sm" : "border-border/50"}`}
           >
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between px-3.5 py-2.5 bg-muted/20 border-b border-border/30">
               {comment.authorAgentId ? (
                 <Link to={`/agents/${comment.authorAgentId}`} className="hover:underline">
                   <Identity
@@ -161,28 +166,32 @@ const TimelineList = memo(function TimelineList({
               )}
               <a
                 href={`#comment-${comment.id}`}
-                className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+                className="text-[11px] text-muted-foreground/60 hover:text-foreground hover:underline transition-colors tabular-nums"
               >
                 {formatDateTime(comment.createdAt)}
               </a>
             </div>
-            <MarkdownBody className="text-sm">{comment.body}</MarkdownBody>
-            {comment.runId && (
-              <div className="mt-2 pt-2 border-t border-border/60">
-                {comment.runAgentId ? (
-                  <Link
-                    to={`/agents/${comment.runAgentId}/runs/${comment.runId}`}
-                    className="inline-flex items-center rounded-md border border-border bg-accent/30 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-                  >
-                    run {comment.runId.slice(0, 8)}
-                  </Link>
-                ) : (
-                  <span className="inline-flex items-center rounded-md border border-border bg-accent/30 px-2 py-1 text-[10px] font-mono text-muted-foreground">
-                    run {comment.runId.slice(0, 8)}
-                  </span>
-                )}
-              </div>
-            )}
+            <div className="px-3.5 py-3">
+              <MarkdownBody className="text-sm">{comment.body}</MarkdownBody>
+              {comment.runId && (
+                <div className="mt-3 pt-2.5 border-t border-border/30">
+                  {comment.runAgentId ? (
+                    <Link
+                      to={`/agents/${comment.runAgentId}/runs/${comment.runId}`}
+                      className="inline-flex items-center gap-1.5 rounded border border-border/60 bg-muted/30 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+                      run {comment.runId.slice(0, 7)}
+                    </Link>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded border border-border/60 bg-muted/30 px-2 py-1 text-[10px] font-mono text-muted-foreground">
+                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
+                      run {comment.runId.slice(0, 7)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         );
       })}
@@ -324,74 +333,98 @@ export function CommentThread({
 
   const canSubmit = !submitting && !!body.trim();
 
+  // Auto-scroll timeline to bottom on initial load
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const hasAutoScrolled = useRef(false);
+  const scrollToBottom = useCallback(() => {
+    if (timelineRef.current) {
+      timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (timeline.length > 0 && !hasAutoScrolled.current) {
+      hasAutoScrolled.current = true;
+      // Small delay to ensure DOM has rendered
+      requestAnimationFrame(scrollToBottom);
+    }
+  }, [timeline.length, scrollToBottom]);
+
   return (
-    <div className="space-y-4">
-      <h3 className="text-sm font-semibold">Comments &amp; Runs ({timeline.length})</h3>
-
-      <TimelineList timeline={timeline} agentMap={agentMap} highlightCommentId={highlightCommentId} />
-
-      {liveRunSlot}
-
-      <div className="space-y-2">
-        <MarkdownEditor
-          ref={editorRef}
-          value={body}
-          onChange={setBody}
-          placeholder="Leave a comment..."
-          mentions={mentions}
-          onSubmit={handleSubmit}
-          imageUploadHandler={imageUploadHandler}
-          contentClassName="min-h-[60px] text-sm"
-        />
-        <div className="flex items-center justify-end gap-3">
-          {onAttachImage && (
-            <div className="mr-auto flex items-center gap-3">
-              <input
-                ref={attachInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                className="hidden"
-                onChange={handleAttachFile}
-              />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => attachInputRef.current?.click()}
-                disabled={attaching}
-                title="Attach image"
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-          {isClosed && (
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={reopen}
-                onChange={(e) => setReopen(e.target.checked)}
-                className="rounded border-border"
-              />
-              Re-open
-            </label>
-          )}
-          {enableReassign && reassignOptions.length > 0 && (
-            <InlineEntitySelector
-              value={reassignTarget}
-              options={reassignOptions}
-              placeholder="Assignee"
-              noneLabel="No assignee"
-              searchPlaceholder="Search assignees..."
-              emptyMessage="No assignees found."
-              onChange={setReassignTarget}
-              className="text-xs h-8"
-            />
-          )}
-          <Button size="sm" disabled={!canSubmit} onClick={handleSubmit}>
-            {submitting ? "Posting..." : "Comment"}
-          </Button>
+    <>
+      {/* Scrollable timeline with fade indicators */}
+      <div className="flex-1 min-h-0 relative flex flex-col">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-6 z-10 bg-gradient-to-b from-card to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 z-10 bg-gradient-to-t from-card to-transparent" />
+        <div ref={timelineRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
+          <TimelineList timeline={timeline} agentMap={agentMap} highlightCommentId={highlightCommentId} />
+          {liveRunSlot}
         </div>
       </div>
-    </div>
+
+      {/* Editor footer — pinned at bottom */}
+      <div className="shrink-0 border-t border-border/40 px-4 py-3 bg-card relative z-10">
+        <div className="rounded-lg">
+          <MarkdownEditor
+            ref={editorRef}
+            value={body}
+            onChange={setBody}
+            placeholder="Write a comment..."
+            mentions={mentions}
+            onSubmit={handleSubmit}
+            imageUploadHandler={imageUploadHandler}
+            contentClassName="min-h-[60px] text-sm"
+          />
+          <div className="flex items-center justify-end gap-3 px-3 py-2 border-t border-border/30">
+            {onAttachImage && (
+              <div className="mr-auto flex items-center gap-3">
+                <input
+                  ref={attachInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="hidden"
+                  onChange={handleAttachFile}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => attachInputRef.current?.click()}
+                  disabled={attaching}
+                  title="Attach image"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            {isClosed && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={reopen}
+                  onChange={(e) => setReopen(e.target.checked)}
+                  className="rounded border-border"
+                />
+                Re-open
+              </label>
+            )}
+            {enableReassign && reassignOptions.length > 0 && (
+              <InlineEntitySelector
+                value={reassignTarget}
+                options={reassignOptions}
+                placeholder="Assignee"
+                noneLabel="No assignee"
+                searchPlaceholder="Search assignees..."
+                emptyMessage="No assignees found."
+                onChange={setReassignTarget}
+                className="text-xs h-8"
+              />
+            )}
+            <Button size="sm" disabled={!canSubmit} onClick={handleSubmit}>
+              {submitting ? "Posting..." : "Comment"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

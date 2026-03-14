@@ -649,13 +649,13 @@ export function IssuesList({
                   onMouseEnter={() => handleRowHover(issue.id)}
                   onMouseLeave={() => handleRowHover(null)}
                 >
-                  <div className="shrink-0 flex items-center" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                  <div className="shrink-0 flex items-center" style={{ viewTransitionName: `entity-status-${issue.id}` } as React.CSSProperties} onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                     <StatusIcon
                       status={issue.status}
                       onChange={(s) => onUpdateIssue(issue.id, { status: s })}
                     />
                   </div>
-                  <span className="text-sm text-muted-foreground font-mono shrink-0">
+                  <span className="text-sm text-muted-foreground font-mono shrink-0" style={{ viewTransitionName: `entity-id-${issue.id}` } as React.CSSProperties}>
                     {issue.identifier ?? issue.id.slice(0, 8)}
                   </span>
                   <span

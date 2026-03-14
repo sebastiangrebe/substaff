@@ -9,6 +9,7 @@ import { agentsApi } from "../api/agents";
 import { authApi } from "../api/auth";
 import { projectsApi } from "../api/projects";
 import { useCompany } from "../context/CompanyContext";
+import { useDialog } from "../context/DialogContext";
 import { useToast } from "../context/ToastContext";
 import { usePanel } from "../context/PanelContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -25,18 +26,17 @@ import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
 import { StatusBadge } from "../components/StatusBadge";
 import { Identity } from "../components/Identity";
-import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity as ActivityIcon,
   Check,
   ChevronDown,
   ChevronRight,
+  Coins,
   EyeOff,
   FileText,
   Hexagon,
@@ -45,6 +45,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Paperclip,
+  Plus,
   SlidersHorizontal,
   Trash2,
   X,
@@ -110,9 +111,9 @@ function DependencyAdder({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="mt-2 gap-1.5">
-          <Link2 className="h-3.5 w-3.5" />
-          Add dependency
+        <Button variant="ghost" size="sm" className="gap-1 text-xs text-muted-foreground hover:text-foreground h-7">
+          <Link2 className="h-3 w-3" />
+          Add
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="start">
@@ -155,6 +156,7 @@ function DependencyAdder({
 export function IssueDetail() {
   const { issueId } = useParams<{ issueId: string }>();
   const { selectedCompanyId } = useCompany();
+  const { openNewIssue } = useDialog();
   const { pushToast } = useToast();
   const { openPanel, closePanel, panelVisible, setPanelVisible } = usePanel();
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -162,10 +164,10 @@ export function IssueDetail() {
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
   const [mobilePropsOpen, setMobilePropsOpen] = useState(false);
-  const [detailTab, setDetailTab] = useState("comments");
   const [secondaryOpen, setSecondaryOpen] = useState({
     approvals: false,
     cost: false,
+    activity: false,
   });
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -584,10 +586,10 @@ export function IssueDetail() {
   const isImageAttachment = (attachment: IssueAttachment) => attachment.contentType.startsWith("image/");
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div>
       {/* Parent chain breadcrumb */}
       {ancestors.length > 0 && (
-        <nav className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+        <nav className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap mb-3">
           {[...ancestors].reverse().map((ancestor, i) => (
             <span key={ancestor.id} className="flex items-center gap-1">
               {i > 0 && <ChevronRight className="h-3 w-3 shrink-0" />}
@@ -606,208 +608,356 @@ export function IssueDetail() {
       )}
 
       {issue.hiddenAt && (
-        <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-sm text-destructive mb-4">
           <EyeOff className="h-4 w-4 shrink-0" />
-          This issue is hidden
+          This task is hidden
         </div>
       )}
 
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 min-w-0 flex-wrap">
-          <StatusIcon
-            status={issue.status}
-            onChange={(status) => updateIssue.mutate({ status })}
-          />
-          <PriorityIcon
-            priority={issue.priority}
-            onChange={(priority) => updateIssue.mutate({ priority })}
-          />
-          <span className="text-sm font-mono text-muted-foreground shrink-0">{issue.identifier ?? issue.id.slice(0, 8)}</span>
+      {/* ── Two-column layout: details left, comments right ── */}
+      <div className="flex flex-col lg:flex-row gap-6">
 
-          {hasLiveRuns && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 px-2 py-0.5 text-[10px] font-medium text-cyan-600 dark:text-cyan-400 shrink-0">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-400" />
+      {/* ── Left column: task details ── */}
+      <div className="w-full lg:w-[55%] lg:shrink-0 min-w-0">
+
+      {/* ── Hero header card ─────────────────────────────── */}
+      <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
+        <div className="px-5 pt-5 pb-4 space-y-3">
+          {/* Top row: meta badges + actions */}
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <span style={{ viewTransitionName: `entity-status-${issue.id}` } as CSSProperties}>
+              <StatusIcon
+                status={issue.status}
+                onChange={(status) => updateIssue.mutate({ status })}
+              />
+            </span>
+            <PriorityIcon
+              priority={issue.priority}
+              onChange={(priority) => updateIssue.mutate({ priority })}
+            />
+            <span className="text-xs font-mono text-muted-foreground shrink-0" style={{ viewTransitionName: `entity-id-${issue.id}` } as CSSProperties}>{issue.identifier ?? issue.id.slice(0, 8)}</span>
+
+            {hasLiveRuns && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 shrink-0">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-400" />
+                </span>
+                Running
               </span>
-              Live
-            </span>
-          )}
+            )}
 
-          {issue.projectId ? (
-            <Link
-              to={`/projects/${issue.projectId}`}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors rounded px-1 -mx-1 py-0.5 min-w-0"
+            {issue.projectId ? (
+              <Link
+                to={`/projects/${issue.projectId}`}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md px-1.5 py-0.5 hover:bg-accent/40 min-w-0"
+              >
+                <Hexagon className="h-3 w-3 shrink-0" />
+                <span className="truncate">{(projects ?? []).find((p) => p.id === issue.projectId)?.name ?? issue.projectId.slice(0, 8)}</span>
+              </Link>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 px-1 py-0.5">
+                <Hexagon className="h-3 w-3 shrink-0" />
+                No project
+              </span>
+            )}
+
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="ml-auto md:hidden shrink-0"
+              onClick={() => setMobilePropsOpen(true)}
+              title="Properties"
             >
-              <Hexagon className="h-3 w-3 shrink-0" />
-              <span className="truncate">{(projects ?? []).find((p) => p.id === issue.projectId)?.name ?? issue.projectId.slice(0, 8)}</span>
-            </Link>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground opacity-50 px-1 -mx-1 py-0.5">
-              <Hexagon className="h-3 w-3 shrink-0" />
-              No project
-            </span>
-          )}
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
 
+            <div className="hidden md:flex items-center md:ml-auto shrink-0 gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className={cn(
+                  "shrink-0 transition-opacity duration-200",
+                  panelVisible ? "opacity-0 pointer-events-none w-0 overflow-hidden" : "opacity-100",
+                )}
+                onClick={() => setPanelVisible(true)}
+                title="Show properties"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+
+              <Popover open={moreOpen} onOpenChange={setMoreOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon-xs" className="shrink-0">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-44 p-1" align="end">
+                  <button
+                    className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/40 text-destructive"
+                    onClick={() => {
+                      updateIssue.mutate(
+                        { hiddenAt: new Date().toISOString() },
+                        { onSuccess: () => navigate("/issues/all") },
+                      );
+                      setMoreOpen(false);
+                    }}
+                  >
+                    <EyeOff className="h-3 w-3" />
+                    Hide this task
+                  </button>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {/* Title - large and prominent */}
+          <div style={{ viewTransitionName: `entity-title-${issue.id}` } as CSSProperties}>
+            <InlineEditor
+              value={issue.title}
+              onSave={(title) => updateIssue.mutate({ title })}
+              as="h2"
+              className="text-xl font-bold tracking-tight"
+            />
+          </div>
+
+          {/* Description */}
+          <InlineEditor
+            value={issue.description ?? ""}
+            onSave={(description) => updateIssue.mutate({ description })}
+            as="p"
+            className="text-sm text-muted-foreground leading-relaxed"
+            placeholder="Add a description..."
+            multiline
+            mentions={mentionOptions}
+            imageUploadHandler={async (file) => {
+              const attachment = await uploadAttachment.mutateAsync(file);
+              return attachment.contentPath;
+            }}
+          />
+
+          {/* Labels */}
           {(issue.labels ?? []).length > 0 && (
-            <div className="hidden sm:flex items-center gap-1">
-              {(issue.labels ?? []).slice(0, 4).map((label) => (
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              {(issue.labels ?? []).slice(0, 6).map((label) => (
                 <span
                   key={label.id}
                   className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium"
                   style={{
                     borderColor: label.color,
                     color: label.color,
-                    backgroundColor: `${label.color}1f`,
+                    backgroundColor: `${label.color}1a`,
                   }}
                 >
                   {label.name}
                 </span>
               ))}
-              {(issue.labels ?? []).length > 4 && (
-                <span className="text-[10px] text-muted-foreground">+{(issue.labels ?? []).length - 4}</span>
+              {(issue.labels ?? []).length > 6 && (
+                <span className="text-[10px] text-muted-foreground">+{(issue.labels ?? []).length - 6}</span>
               )}
             </div>
           )}
-
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="ml-auto md:hidden shrink-0"
-            onClick={() => setMobilePropsOpen(true)}
-            title="Properties"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-          </Button>
-
-          <div className="hidden md:flex items-center md:ml-auto shrink-0">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className={cn(
-                "shrink-0 transition-opacity duration-200",
-                panelVisible ? "opacity-0 pointer-events-none w-0 overflow-hidden" : "opacity-100",
-              )}
-              onClick={() => setPanelVisible(true)}
-              title="Show properties"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </Button>
-
-            <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon-xs" className="shrink-0">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-            <PopoverContent className="w-44 p-1" align="end">
-              <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/40 text-destructive"
-                onClick={() => {
-                  updateIssue.mutate(
-                    { hiddenAt: new Date().toISOString() },
-                    { onSuccess: () => navigate("/issues/all") },
-                  );
-                  setMoreOpen(false);
-                }}
-              >
-                <EyeOff className="h-3 w-3" />
-                Hide this Issue
-              </button>
-            </PopoverContent>
-            </Popover>
-          </div>
         </div>
-
-        <div style={{ viewTransitionName: `entity-title-${issue.id}` } as CSSProperties}>
-          <InlineEditor
-            value={issue.title}
-            onSave={(title) => updateIssue.mutate({ title })}
-            as="h2"
-            className="text-lg font-semibold"
-          />
-        </div>
-
-        <InlineEditor
-          value={issue.description ?? ""}
-          onSave={(description) => updateIssue.mutate({ description })}
-          as="p"
-          className="text-sm text-muted-foreground"
-          placeholder="Add a description..."
-          multiline
-          mentions={mentionOptions}
-          imageUploadHandler={async (file) => {
-            const attachment = await uploadAttachment.mutateAsync(file);
-            return attachment.contentPath;
-          }}
-        />
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-medium text-muted-foreground">Attachments</h3>
-          <div className="flex items-center gap-2">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="hidden"
-              onChange={handleFilePicked}
-            />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadAttachment.isPending}
-            >
-              <Paperclip className="h-3.5 w-3.5 mr-1.5" />
-              {uploadAttachment.isPending ? "Uploading..." : "Upload image"}
-            </Button>
+      {/* Attachments - image gallery when populated, minimal when empty */}
+      {(attachments && attachments.length > 0) ? (
+        <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-border/40">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Attachments</h3>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                onChange={handleFilePicked}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadAttachment.isPending}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Paperclip className="h-3 w-3 mr-1" />
+                {uploadAttachment.isPending ? "Uploading..." : "Add"}
+              </Button>
+            </div>
           </div>
-        </div>
 
-        {attachmentError && (
-          <p className="text-xs text-destructive">{attachmentError}</p>
-        )}
+          {attachmentError && (
+            <p className="text-xs text-destructive px-5 py-2">{attachmentError}</p>
+          )}
 
-        {(!attachments || attachments.length === 0) ? (
-          <p className="text-xs text-muted-foreground">No attachments yet.</p>
-        ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-border/30">
             {attachments.map((attachment) => (
-              <div key={attachment.id} className="border border-border rounded-md p-2">
-                <div className="flex items-center justify-between gap-2">
-                  <a
-                    href={attachment.contentPath}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs hover:underline truncate"
-                    title={attachment.originalFilename ?? attachment.id}
-                  >
-                    {attachment.originalFilename ?? attachment.id}
-                  </a>
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-destructive"
-                    onClick={() => deleteAttachment.mutate(attachment.id)}
-                    disabled={deleteAttachment.isPending}
-                    title="Delete attachment"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  {attachment.contentType} · {(attachment.byteSize / 1024).toFixed(1)} KB
-                </p>
-                {isImageAttachment(attachment) && (
-                  <a href={attachment.contentPath} target="_blank" rel="noreferrer">
+              <div key={attachment.id} className="group bg-card relative">
+                {isImageAttachment(attachment) ? (
+                  <a href={attachment.contentPath} target="_blank" rel="noreferrer" className="block">
                     <img
                       src={attachment.contentPath}
                       alt={attachment.originalFilename ?? "attachment"}
-                      className="mt-2 max-h-56 rounded border border-border object-contain bg-accent/10"
+                      className="w-full h-32 object-cover"
                       loading="lazy"
                     />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   </a>
+                ) : (
+                  <div className="w-full h-32 flex items-center justify-center bg-muted/20">
+                    <Paperclip className="h-6 w-6 text-muted-foreground/30" />
+                  </div>
+                )}
+                <div className="absolute bottom-0 left-0 right-0 px-2.5 py-1.5 flex items-center justify-between gap-1 bg-gradient-to-t from-black/60 to-transparent">
+                  <span className="text-[10px] text-white/80 truncate font-medium">
+                    {attachment.originalFilename ?? attachment.id}
+                  </span>
+                  <button
+                    type="button"
+                    className="text-white/40 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    onClick={() => deleteAttachment.mutate(attachment.id)}
+                    disabled={deleteAttachment.isPending}
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center mb-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            className="hidden"
+            onChange={handleFilePicked}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadAttachment.isPending}
+            className="text-xs text-muted-foreground/50 hover:text-foreground"
+          >
+            <Paperclip className="h-3 w-3 mr-1.5" />
+            {uploadAttachment.isPending ? "Uploading..." : "Attach image"}
+          </Button>
+          {attachmentError && (
+            <p className="text-xs text-destructive ml-2">{attachmentError}</p>
+          )}
+        </div>
+      )}
+
+      {/* ── Plans ── */}
+      <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4">
+        <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2">
+          <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Plans</span>
+          {plans && plans.length > 0 && (
+            <span className="text-xs text-muted-foreground/60 tabular-nums">{plans.length}</span>
+          )}
+        </div>
+        {!plans || plans.length === 0 ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground/60">Agents will submit plans for approval here</p>
+          </div>
+        ) : (
+          <div className="px-4 py-3 space-y-3">
+            {plans.map((plan) => (
+              <div
+                key={plan.id}
+                className="rounded-lg border border-border/50 p-3.5 space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-mono text-muted-foreground text-xs">v{plan.version}</span>
+                    {plan.agentId && (() => {
+                      const agent = agentMap.get(plan.agentId);
+                      return agent
+                        ? <Identity name={agent.name} size="sm" />
+                        : <span className="text-muted-foreground font-mono text-xs">{plan.agentId.slice(0, 8)}</span>;
+                    })()}
+                    <span className="text-xs text-muted-foreground/60">{relativeTime(plan.createdAt)}</span>
+                  </div>
+                  <StatusBadge status={plan.status} />
+                </div>
+
+                <div className="prose prose-sm dark:prose-invert max-w-none text-sm whitespace-pre-wrap break-words">
+                  {plan.planMarkdown}
+                </div>
+
+                {Array.isArray(plan.reviewerComments) && (plan.reviewerComments as Array<{ comment: string; at: string }>).length > 0 && (
+                  <div className="rounded border border-border bg-accent/10 p-2 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Reviewer comments</p>
+                    {(plan.reviewerComments as Array<{ comment: string; at: string }>).map((rc, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">{rc.comment}</p>
+                    ))}
+                  </div>
+                )}
+
+                {plan.status === "pending_review" && session && (
+                  <div className="flex items-center gap-2 pt-1">
+                    {rejectingPlanId === plan.id ? (
+                      <div className="flex-1 space-y-2">
+                        <textarea
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                          placeholder="Rejection comments (optional)"
+                          rows={2}
+                          value={rejectComments}
+                          onChange={(e) => setRejectComments(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={rejectPlan.isPending}
+                            onClick={() =>
+                              rejectPlan.mutate({
+                                planId: plan.id,
+                                comments: rejectComments || undefined,
+                              })
+                            }
+                          >
+                            <X className="h-3.5 w-3.5 mr-1" />
+                            {rejectPlan.isPending ? "Rejecting..." : "Confirm Reject"}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setRejectingPlanId(null);
+                              setRejectComments("");
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          disabled={approvePlan.isPending}
+                          onClick={() => approvePlan.mutate(plan.id)}
+                        >
+                          <Check className="h-3.5 w-3.5 mr-1" />
+                          {approvePlan.isPending ? "Approving..." : "Approve"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRejectingPlanId(plan.id)}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" />
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
@@ -815,33 +965,240 @@ export function IssueDetail() {
         )}
       </div>
 
-      <Separator />
+      {/* ── Dependencies ── */}
+      <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4">
+        <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2">
+          <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dependencies</span>
+          {dependencies && dependencies.length > 0 && (
+            <span className="text-xs text-muted-foreground/60 tabular-nums">{dependencies.length}</span>
+          )}
+          {allIssues && (
+            <div className="ml-auto">
+              <DependencyAdder
+                currentIssueId={issue.id}
+                existingDepIds={new Set((dependencies ?? []).map((d) => d.dependsOnIssueId))}
+                issues={allIssues.filter((i) => i.id !== issue.id)}
+                onAdd={(id) => addDependency.mutate(id)}
+              />
+            </div>
+          )}
+        </div>
+        {(!dependencies || dependencies.length === 0) ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground/60">No dependencies yet</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/30">
+            {dependencies.map((dep) => {
+              const depIssue = allIssues?.find((i) => i.id === dep.dependsOnIssueId);
+              return (
+                <div key={dep.id} className="flex items-center justify-between px-4 py-2.5 text-sm group">
+                  <Link
+                    to={`/issues/${depIssue?.identifier ?? dep.dependsOnIssueId}`}
+                    className="flex items-center gap-2 min-w-0 hover:underline"
+                  >
+                    {depIssue && <StatusIcon status={depIssue.status} />}
+                    <span className="font-mono text-xs text-muted-foreground shrink-0">
+                      {depIssue?.identifier ?? dep.dependsOnIssueId.slice(0, 8)}
+                    </span>
+                    <span className="truncate">{depIssue?.title ?? "Unknown"}</span>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => removeDependency.mutate(dep.dependsOnIssueId)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-      <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-3">
-        <TabsList variant="line" className="w-full justify-start gap-1">
-          <TabsTrigger value="comments" className="gap-1.5">
-            <MessageSquare className="h-3.5 w-3.5" />
-            Comments
-          </TabsTrigger>
-          <TabsTrigger value="subissues" className="gap-1.5">
-            <ListTree className="h-3.5 w-3.5" />
-            Sub-issues
-          </TabsTrigger>
-          <TabsTrigger value="dependencies" className="gap-1.5">
-            <Link2 className="h-3.5 w-3.5" />
-            Deps{dependencies && dependencies.length > 0 ? ` (${dependencies.length})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="plans" className="gap-1.5">
-            <FileText className="h-3.5 w-3.5" />
-            Plans{plans && plans.length > 0 ? ` (${plans.length})` : ""}
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="gap-1.5">
-            <ActivityIcon className="h-3.5 w-3.5" />
-            Activity
-          </TabsTrigger>
-        </TabsList>
+      {/* ── Sub-tasks ── */}
+      <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4">
+        <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2">
+          <ListTree className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Sub-tasks</span>
+          {childIssues.length > 0 && (
+            <span className="text-xs text-muted-foreground/60 tabular-nums">{childIssues.length}</span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto gap-1 text-xs text-muted-foreground hover:text-foreground h-7"
+            onClick={() => openNewIssue({ projectId: issue.projectId ?? undefined })}
+          >
+            <Plus className="h-3 w-3" />
+            Add
+          </Button>
+        </div>
+        {childIssues.length === 0 ? (
+          <div className="px-4 py-6 text-center">
+            <p className="text-xs text-muted-foreground/60">No sub-tasks yet</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/30">
+            {childIssues.map((child) => (
+              <Link
+                key={child.id}
+                to={`/issues/${child.identifier ?? child.id}`}
+                className="flex items-center justify-between px-4 py-2.5 text-sm hover:bg-accent/30 transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <StatusIcon status={child.status} />
+                  <PriorityIcon priority={child.priority} />
+                  <span className="font-mono text-xs text-muted-foreground shrink-0">
+                    {child.identifier ?? child.id.slice(0, 8)}
+                  </span>
+                  <span className="truncate">{child.title}</span>
+                </div>
+                {child.assigneeAgentId && (() => {
+                  const name = agentMap.get(child.assigneeAgentId)?.name;
+                  return name
+                    ? <Identity name={name} size="sm" />
+                    : <span className="text-muted-foreground font-mono text-xs">{child.assigneeAgentId.slice(0, 8)}</span>;
+                })()}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
 
-        <TabsContent value="comments">
+      {/* ── Activity (collapsible) ── */}
+      {activity && activity.length > 0 && (
+        <Collapsible
+          open={secondaryOpen.activity}
+          onOpenChange={(open) => setSecondaryOpen((prev) => ({ ...prev, activity: open }))}
+          className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4"
+        >
+          <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-accent/20 transition-colors">
+            <div className="flex items-center gap-2">
+              <ActivityIcon className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Activity</span>
+              <span className="text-xs text-muted-foreground/60 tabular-nums">{activity.length}</span>
+            </div>
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 text-muted-foreground/60 transition-transform", secondaryOpen.activity && "rotate-180")}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t border-border/40 px-4 py-2">
+              {activity.slice(0, 20).map((evt) => (
+                <div key={evt.id} className="flex items-center gap-2 py-2 text-xs text-muted-foreground border-b border-border/20 last:border-0">
+                  <ActorIdentity evt={evt} agentMap={agentMap} />
+                  <span className="flex-1 min-w-0 truncate">{formatActivityVerb(evt.action, evt.details)}</span>
+                  <span className="shrink-0 text-muted-foreground/60 tabular-nums">{relativeTime(evt.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {linkedApprovals && linkedApprovals.length > 0 && (
+        <Collapsible
+          open={secondaryOpen.approvals}
+          onOpenChange={(open) => setSecondaryOpen((prev) => ({ ...prev, approvals: open }))}
+          className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4"
+        >
+          <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-accent/20 transition-colors">
+            <div className="flex items-center gap-2">
+              <Check className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Approvals</span>
+              <span className="text-xs text-muted-foreground/60 tabular-nums">{linkedApprovals.length}</span>
+            </div>
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 text-muted-foreground/60 transition-transform", secondaryOpen.approvals && "rotate-180")}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t border-border/40 divide-y divide-border/30">
+              {linkedApprovals.map((approval) => (
+                <Link
+                  key={approval.id}
+                  to={`/approvals/${approval.id}`}
+                  className="flex items-center justify-between px-3.5 py-2.5 text-xs hover:bg-accent/20 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={approval.status} />
+                    <span className="font-medium">
+                      {approval.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </span>
+                    <span className="font-mono text-muted-foreground/60">{approval.id.slice(0, 8)}</span>
+                  </div>
+                  <span className="text-muted-foreground/60">{relativeTime(approval.createdAt)}</span>
+                </Link>
+              ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {linkedRuns && linkedRuns.length > 0 && (
+        <Collapsible
+          open={secondaryOpen.cost}
+          onOpenChange={(open) => setSecondaryOpen((prev) => ({ ...prev, cost: open }))}
+          className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-4"
+        >
+          <CollapsibleTrigger className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-accent/20 transition-colors">
+            <div className="flex items-center gap-2">
+              <Coins className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Cost Summary</span>
+            </div>
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 text-muted-foreground/60 transition-transform", secondaryOpen.cost && "rotate-180")}
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="border-t border-border/40 px-4 py-3">
+              {!issueCostSummary.hasCost && !issueCostSummary.hasTokens ? (
+                <div className="text-xs text-muted-foreground/60">No cost data yet.</div>
+              ) : (
+                <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  {issueCostSummary.hasCost && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground/60 block">Total cost</span>
+                      <span className="font-semibold text-foreground text-sm tabular-nums">
+                        ${issueCostSummary.cost.toFixed(4)}
+                      </span>
+                    </div>
+                  )}
+                  {issueCostSummary.hasTokens && (
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] text-muted-foreground/60 block">Tokens</span>
+                      <span className="font-medium text-foreground/80 tabular-nums">
+                        {formatTokens(issueCostSummary.totalTokens)}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/50 block">
+                        {formatTokens(issueCostSummary.input)} in · {formatTokens(issueCostSummary.output)} out
+                        {issueCostSummary.cached > 0 && ` · ${formatTokens(issueCostSummary.cached)} cached`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      </div>{/* end left column */}
+
+      {/* ── Right column: comment thread ── */}
+      <div className="w-full lg:flex-1 min-w-0">
+        <div className="lg:sticky lg:top-0 rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden flex flex-col" style={{ maxHeight: "calc(100vh - 6rem)" }}>
+          <div className="px-4 py-3 border-b border-border/40 flex items-center gap-2 shrink-0">
+            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Comments</h3>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {commentsWithRunMeta.length + timelineRuns.length}
+            </span>
+          </div>
           <CommentThread
             comments={commentsWithRunMeta}
             linkedRuns={timelineRuns}
@@ -868,276 +1225,10 @@ export function IssueDetail() {
             }}
             liveRunSlot={<LiveRunWidget issueId={issueId!} companyId={issue.companyId} />}
           />
-        </TabsContent>
+        </div>
+      </div>
 
-        <TabsContent value="subissues">
-          {childIssues.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No sub-issues.</p>
-          ) : (
-            <div className="border border-border/50 rounded-xl divide-y divide-border/50">
-              {childIssues.map((child) => (
-                <Link
-                  key={child.id}
-                  to={`/issues/${child.identifier ?? child.id}`}
-                  className="flex items-center justify-between px-3 py-2 text-sm hover:bg-accent/20 transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <StatusIcon status={child.status} />
-                    <PriorityIcon priority={child.priority} />
-                    <span className="font-mono text-muted-foreground shrink-0">
-                      {child.identifier ?? child.id.slice(0, 8)}
-                    </span>
-                    <span className="truncate">{child.title}</span>
-                  </div>
-                  {child.assigneeAgentId && (() => {
-                    const name = agentMap.get(child.assigneeAgentId)?.name;
-                    return name
-                      ? <Identity name={name} size="sm" />
-                      : <span className="text-muted-foreground font-mono">{child.assigneeAgentId.slice(0, 8)}</span>;
-                  })()}
-                </Link>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="dependencies">
-          {(!dependencies || dependencies.length === 0) ? (
-            <p className="text-xs text-muted-foreground">No dependencies.</p>
-          ) : (
-            <div className="border border-border/50 rounded-xl divide-y divide-border/50">
-              {dependencies.map((dep) => {
-                const depIssue = allIssues?.find((i) => i.id === dep.dependsOnIssueId);
-                return (
-                  <div key={dep.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                    <Link
-                      to={`/issues/${depIssue?.identifier ?? dep.dependsOnIssueId}`}
-                      className="flex items-center gap-2 min-w-0 hover:underline"
-                    >
-                      {depIssue && <StatusIcon status={depIssue.status} />}
-                      <span className="font-mono text-muted-foreground shrink-0">
-                        {depIssue?.identifier ?? dep.dependsOnIssueId.slice(0, 8)}
-                      </span>
-                      <span className="truncate">{depIssue?.title ?? "Unknown"}</span>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 shrink-0"
-                      onClick={() => removeDependency.mutate(dep.dependsOnIssueId)}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {allIssues && (
-            <DependencyAdder
-              currentIssueId={issue.id}
-              existingDepIds={new Set((dependencies ?? []).map((d) => d.dependsOnIssueId))}
-              issues={allIssues.filter((i) => i.id !== issue.id)}
-              onAdd={(id) => addDependency.mutate(id)}
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent value="plans">
-          {!plans || plans.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No plans submitted yet.</p>
-          ) : (
-            <div className="space-y-4">
-              {plans.map((plan) => (
-                <div
-                  key={plan.id}
-                  className="rounded-lg border border-border p-4 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-mono text-muted-foreground">v{plan.version}</span>
-                      {plan.agentId && (() => {
-                        const agent = agentMap.get(plan.agentId);
-                        return agent
-                          ? <Identity name={agent.name} size="sm" />
-                          : <span className="text-muted-foreground font-mono">{plan.agentId.slice(0, 8)}</span>;
-                      })()}
-                      <span className="text-muted-foreground">{relativeTime(plan.createdAt)}</span>
-                    </div>
-                    <StatusBadge status={plan.status} />
-                  </div>
-
-                  <div className="prose prose-sm dark:prose-invert max-w-none text-sm whitespace-pre-wrap break-words">
-                    {plan.planMarkdown}
-                  </div>
-
-                  {Array.isArray(plan.reviewerComments) && (plan.reviewerComments as Array<{ comment: string; at: string }>).length > 0 && (
-                    <div className="rounded border border-border bg-accent/10 p-2 space-y-1">
-                      <p className="text-xs font-medium text-muted-foreground">Reviewer comments</p>
-                      {(plan.reviewerComments as Array<{ comment: string; at: string }>).map((rc, i) => (
-                        <p key={i} className="text-xs text-muted-foreground">{rc.comment}</p>
-                      ))}
-                    </div>
-                  )}
-
-                  {plan.status === "pending_review" && session && (
-                    <div className="flex items-center gap-2 pt-1">
-                      {rejectingPlanId === plan.id ? (
-                        <div className="flex-1 space-y-2">
-                          <textarea
-                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                            placeholder="Rejection comments (optional)"
-                            rows={2}
-                            value={rejectComments}
-                            onChange={(e) => setRejectComments(e.target.value)}
-                          />
-                          <div className="flex gap-2">
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              disabled={rejectPlan.isPending}
-                              onClick={() =>
-                                rejectPlan.mutate({
-                                  planId: plan.id,
-                                  comments: rejectComments || undefined,
-                                })
-                              }
-                            >
-                              <X className="h-3.5 w-3.5 mr-1" />
-                              {rejectPlan.isPending ? "Rejecting..." : "Confirm Reject"}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setRejectingPlanId(null);
-                                setRejectComments("");
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <Button
-                            variant="default"
-                            size="sm"
-                            disabled={approvePlan.isPending}
-                            onClick={() => approvePlan.mutate(plan.id)}
-                          >
-                            <Check className="h-3.5 w-3.5 mr-1" />
-                            {approvePlan.isPending ? "Approving..." : "Approve"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setRejectingPlanId(plan.id)}
-                          >
-                            <X className="h-3.5 w-3.5 mr-1" />
-                            Reject
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="activity">
-          {!activity || activity.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No activity yet.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {activity.slice(0, 20).map((evt) => (
-                <div key={evt.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <ActorIdentity evt={evt} agentMap={agentMap} />
-                  <span>{formatActivityVerb(evt.action, evt.details)}</span>
-                  <span className="ml-auto shrink-0">{relativeTime(evt.createdAt)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {linkedApprovals && linkedApprovals.length > 0 && (
-        <Collapsible
-          open={secondaryOpen.approvals}
-          onOpenChange={(open) => setSecondaryOpen((prev) => ({ ...prev, approvals: open }))}
-          className="rounded-lg border border-border"
-        >
-          <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-left">
-            <span className="text-sm font-medium text-muted-foreground">
-              Linked Approvals ({linkedApprovals.length})
-            </span>
-            <ChevronDown
-              className={cn("h-4 w-4 text-muted-foreground transition-transform", secondaryOpen.approvals && "rotate-180")}
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="border-t border-border divide-y divide-border/50">
-              {linkedApprovals.map((approval) => (
-                <Link
-                  key={approval.id}
-                  to={`/approvals/${approval.id}`}
-                  className="flex items-center justify-between px-3 py-2 text-xs hover:bg-accent/20 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={approval.status} />
-                    <span className="font-medium">
-                      {approval.type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                    </span>
-                    <span className="font-mono text-muted-foreground">{approval.id.slice(0, 8)}</span>
-                  </div>
-                  <span className="text-muted-foreground">{relativeTime(approval.createdAt)}</span>
-                </Link>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
-
-      {linkedRuns && linkedRuns.length > 0 && (
-        <Collapsible
-          open={secondaryOpen.cost}
-          onOpenChange={(open) => setSecondaryOpen((prev) => ({ ...prev, cost: open }))}
-          className="rounded-lg border border-border"
-        >
-          <CollapsibleTrigger className="flex w-full items-center justify-between px-3 py-2 text-left">
-            <span className="text-sm font-medium text-muted-foreground">Cost Summary</span>
-            <ChevronDown
-              className={cn("h-4 w-4 text-muted-foreground transition-transform", secondaryOpen.cost && "rotate-180")}
-            />
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="border-t border-border px-3 py-2">
-              {!issueCostSummary.hasCost && !issueCostSummary.hasTokens ? (
-                <div className="text-xs text-muted-foreground">No cost data yet.</div>
-              ) : (
-                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  {issueCostSummary.hasCost && (
-                    <span className="font-medium text-foreground">
-                      ${issueCostSummary.cost.toFixed(4)}
-                    </span>
-                  )}
-                  {issueCostSummary.hasTokens && (
-                    <span>
-                      Tokens {formatTokens(issueCostSummary.totalTokens)}
-                      {issueCostSummary.cached > 0
-                        ? ` (in ${formatTokens(issueCostSummary.input)}, out ${formatTokens(issueCostSummary.output)}, cached ${formatTokens(issueCostSummary.cached)})`
-                        : ` (in ${formatTokens(issueCostSummary.input)}, out ${formatTokens(issueCostSummary.output)})`}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+      </div>{/* end two-column layout */}
 
       {/* Mobile properties drawer */}
       <Sheet open={mobilePropsOpen} onOpenChange={setMobilePropsOpen}>

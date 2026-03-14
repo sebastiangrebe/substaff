@@ -141,6 +141,74 @@ export function fileRoutes(storage: StorageService) {
   });
 
   // =========================================================================
+  // Board (UI) file upload — write a file from the dashboard
+  // =========================================================================
+
+  router.put("/companies/:companyId/files/content/*filePath", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertBoard(req);
+
+    const rawPath = req.params.filePath;
+    const filePath = Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath);
+    if (!filePath || filePath.includes("..")) {
+      throw badRequest("Invalid file path");
+    }
+
+    const chunks: Buffer[] = [];
+    let totalSize = 0;
+
+    for await (const chunk of req) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalSize += buf.length;
+      if (totalSize > MAX_AGENT_UPLOAD_BYTES) {
+        throw badRequest(`File too large (max ${MAX_AGENT_UPLOAD_BYTES / (1024 * 1024)} MB)`);
+      }
+      chunks.push(buf);
+    }
+
+    const body = Buffer.concat(chunks);
+    if (body.length === 0) {
+      throw badRequest("Empty file body");
+    }
+
+    const contentType = (req.headers["content-type"] as string) || "application/octet-stream";
+
+    // Determine namespace from the file path (first segment, e.g. "workspace")
+    const pathParts = filePath.split("/");
+    const namespace = pathParts.length > 1 ? pathParts[0] : "workspace";
+    const relativePath = pathParts.length > 1 ? pathParts.slice(1).join("/") : filePath;
+
+    const result = await storage.putFileExact({
+      companyId,
+      namespace,
+      originalFilename: relativePath,
+      contentType,
+      body,
+    });
+
+    res.status(201).json({
+      objectKey: result.objectKey,
+      size: result.byteSize,
+    });
+  });
+
+  // Delete a file from the board
+  router.delete("/companies/:companyId/files/content/*filePath", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertBoard(req);
+
+    const rawPath = req.params.filePath;
+    const filePath = Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath);
+    if (!filePath || filePath.includes("..")) {
+      throw badRequest("Invalid file path");
+    }
+
+    const objectKey = `${companyId}/${filePath}`;
+    await storage.deleteObject(companyId, objectKey);
+    res.status(204).end();
+  });
+
+  // =========================================================================
   // Agent endpoints — scoped to workspace/ (shared across all agents in the company)
   // Agents authenticate via SUBSTAFF_API_KEY (bearer token).
   // =========================================================================

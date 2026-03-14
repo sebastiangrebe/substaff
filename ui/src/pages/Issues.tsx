@@ -9,7 +9,8 @@ import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { EmptyState } from "../components/EmptyState";
 import { IssuesList } from "../components/IssuesList";
-import { CircleDot } from "lucide-react";
+import { FeatureInfoSection } from "../components/FeatureInfoSection";
+import { CircleDot, Bot, Zap, GitPullRequest } from "lucide-react";
 
 export function Issues() {
   const { selectedCompanyId } = useCompany();
@@ -61,15 +62,43 @@ export function Issues() {
   }
 
   return (
-    <IssuesList
-      issues={issues ?? []}
-      isLoading={isLoading}
-      error={error as Error | null}
-      agents={agents}
-      liveIssueIds={liveIssueIds}
-      viewStateKey="substaff:issues-view"
-      initialAssignees={searchParams.get("assignee") ? [searchParams.get("assignee")!] : undefined}
-      onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
-    />
+    <div>
+      <IssuesList
+        issues={issues ?? []}
+        isLoading={isLoading}
+        error={error as Error | null}
+        agents={agents}
+        liveIssueIds={liveIssueIds}
+        viewStateKey="substaff:issues-view"
+        initialAssignees={searchParams.get("assignee") ? [searchParams.get("assignee")!] : undefined}
+        onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
+      />
+      {!isLoading && (issues ?? []).length < 5 && (
+        <FeatureInfoSection
+          title="How tasks work"
+          subtitle="Tasks are the atomic units of work that your AI agents pick up, execute, and complete autonomously."
+          features={[
+            {
+              icon: Bot,
+              title: "Agents pick up tasks",
+              description:
+                "Create a task and assign it to an agent. They'll automatically check out the task, work on it, and report back when done.",
+            },
+            {
+              icon: Zap,
+              title: "Automatic execution",
+              description:
+                "The heartbeat engine schedules agent wakeups. When an agent has assigned tasks, it executes them in priority order without manual intervention.",
+            },
+            {
+              icon: GitPullRequest,
+              title: "Approval gates",
+              description:
+                "For sensitive actions, agents request approval before proceeding. You stay in control while your agents handle the heavy lifting.",
+            },
+          ]}
+        />
+      )}
+    </div>
   );
 }

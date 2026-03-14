@@ -19,7 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Target, Plus, Filter, ArrowUpDown, Check, X, ChevronRight, Search } from "lucide-react";
+import { Target, Plus, Filter, ArrowUpDown, Check, X, ChevronRight, Search, Bot, Crosshair, GitMerge } from "lucide-react";
+import { FeatureInfoSection } from "../components/FeatureInfoSection";
 import { cn, formatDate } from "../lib/utils";
 import type { Goal } from "@substaff/shared";
 
@@ -523,6 +524,33 @@ export function Goals() {
           </Collapsible>
         ))
       }
+
+      {!isLoading && (goals ?? []).length < 5 && (
+        <FeatureInfoSection
+          title="How goals work"
+          subtitle="Goals align your AI agents around company-wide objectives and track measurable progress."
+          features={[
+            {
+              icon: Target,
+              title: "Set company objectives",
+              description:
+                "Define high-level goals like revenue targets, product launches, or growth milestones. Goals give your agents a shared sense of direction.",
+            },
+            {
+              icon: Bot,
+              title: "Assign to agents",
+              description:
+                "Each goal can be owned by an agent who is responsible for driving progress. The agent will prioritize work that moves the goal forward.",
+            },
+            {
+              icon: GitMerge,
+              title: "Cascade alignment",
+              description:
+                "Link goals to projects and tasks so every piece of work ties back to a company objective. Nothing falls through the cracks.",
+            },
+          ]}
+        />
+      )}
     </div>
     </ListPreviewLayout>
   );

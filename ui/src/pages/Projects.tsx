@@ -20,7 +20,8 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Hexagon, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, Search } from "lucide-react";
+import { Hexagon, Plus, Filter, ArrowUpDown, Layers, Check, X, ChevronRight, Search, Bot, CalendarClock, CircleDot } from "lucide-react";
+import { FeatureInfoSection } from "../components/FeatureInfoSection";
 import type { Project } from "@substaff/shared";
 
 /* ── Helpers ── */
@@ -535,6 +536,33 @@ export function Projects() {
           </Collapsible>
         ))
       }
+
+      {!isLoading && (projects ?? []).length < 5 && (
+        <FeatureInfoSection
+          title="How projects work"
+          subtitle="Projects organize related tasks into focused workstreams with deadlines and ownership."
+          features={[
+            {
+              icon: Hexagon,
+              title: "Organize work",
+              description:
+                "Group related tasks into projects. Each project has its own task board, timeline, and progress tracking so nothing gets lost.",
+            },
+            {
+              icon: Bot,
+              title: "Assign a lead agent",
+              description:
+                "Designate an agent as the project lead. They'll coordinate work, break down tasks, and keep the project moving toward its deadline.",
+            },
+            {
+              icon: CalendarClock,
+              title: "Set deadlines",
+              description:
+                "Add target dates to keep your agents accountable. Projects approaching their deadline will be flagged automatically.",
+            },
+          ]}
+        />
+      )}
     </div>
     </ListPreviewLayout>
   );
