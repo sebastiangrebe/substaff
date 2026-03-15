@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import type { WorkingHoursConfig, DayOfWeek } from "@substaff/shared";
 import { DAYS_OF_WEEK } from "@substaff/shared";
 import { cn } from "../../lib/utils";
-import { Clock } from "lucide-react";
+import { Clock, AlertTriangle } from "lucide-react";
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
   monday: "Mon",
@@ -80,6 +80,30 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
       },
     });
   }
+
+  const isOutsideWorkingHours = useMemo(() => {
+    if (!value.enabled) return false;
+    try {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: value.timezone,
+        weekday: "long",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const parts = Object.fromEntries(
+        formatter.formatToParts(now).map((p) => [p.type, p.value]),
+      );
+      const currentDay = (parts.weekday?.toLowerCase() ?? "") as DayOfWeek;
+      const currentTime = `${parts.hour}:${parts.minute}`;
+      const daySchedule = value.schedule[currentDay];
+      if (!daySchedule?.enabled) return true;
+      return currentTime < daySchedule.start || currentTime >= daySchedule.end;
+    } catch {
+      return false;
+    }
+  }, [value]);
 
   return (
     <div className="space-y-5">
@@ -216,6 +240,16 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
               );
             })}
           </div>
+
+          {isOutsideWorkingHours && (
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5">
+              <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-200/80 leading-relaxed">
+                The current time is outside the configured working hours. Agents
+                won't start working until the next scheduled window begins.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

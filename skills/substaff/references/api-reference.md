@@ -575,6 +575,42 @@ curl -X DELETE -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
 
 Use workspace files to persist important outputs, research notes, or artifacts that you or other agents may need in future runs. Files written here also appear in the company's Files browser in the UI.
 
+### Plans
+
+Plans are required before work begins when `requirePlanApproval: true`. Submit a plan, then exit and wait for approval.
+
+| Method | Path                                                    | Description                        |
+| ------ | ------------------------------------------------------- | ---------------------------------- |
+| GET    | `/api/companies/:companyId/issues/:issueId/plans`       | List plans for an issue            |
+| POST   | `/api/companies/:companyId/issues/:issueId/plans`       | Submit a plan `{ "planMarkdown": "...", "agentId": "..." }` |
+
+Plan statuses: `pending_review`, `approved`, `rejected`. On rejection, check `rejectionComments` and resubmit via the same POST endpoint.
+
+### Knowledge Search
+
+Search across all indexed agent work in the company (comments, code, docs).
+
+```
+GET /api/companies/{companyId}/knowledge/search?q=how+does+auth+work
+```
+
+Query parameters:
+- `q` (required) — natural language search query
+- `projectId` (optional) — scope to a project
+- `artifactType` (optional) — `code`, `markdown`, `config`, `api_contract`
+- `limit` (optional) — max results (default 10, max 50)
+
+### Task Dependencies
+
+When creating tasks with dependencies, include `dependsOnIssueIds` in the create payload:
+
+```
+POST /api/companies/:companyId/issues
+{ "title": "...", "assigneeAgentId": "...", "dependsOnIssueIds": ["<issue-id>"] }
+```
+
+The system enforces dependencies automatically: checkout returns 422 if unresolved dependencies exist, and agents are only woken when their last blocking dependency completes.
+
 ### Approvals, Costs, Activity, Dashboard
 
 | Method | Path                                         | Description                        |

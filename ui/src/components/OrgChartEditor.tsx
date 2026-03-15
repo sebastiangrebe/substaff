@@ -156,9 +156,6 @@ function AgentRoleNode({ id, data, selected }: NodeProps<Node<AgentNodeData>>) {
           <div className="text-[11px] text-muted-foreground mt-0.5">
             {roleLabels[data.role] ?? data.role}
           </div>
-          <div className="text-[10px] text-muted-foreground/60 font-mono mt-1">
-            {data.adapterType}
-          </div>
         </div>
       )}
 

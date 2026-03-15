@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEve
 import { Link, useLocation } from "react-router-dom";
 import type { IssueComment, Agent } from "@substaff/shared";
 import { Button } from "@/components/ui/button";
-import { Paperclip } from "lucide-react";
+import { ExternalLink, Paperclip } from "lucide-react";
 import { Identity } from "./Identity";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
 import { MarkdownBody } from "./MarkdownBody";
@@ -130,17 +130,19 @@ const TimelineList = memo(function TimelineList({
                 />
               </Link>
               <div className="flex items-center gap-2 text-xs min-w-0 flex-1">
-                <Link
-                  to={`/agents/${run.agentId}/runs/${run.runId}`}
-                  className="inline-flex items-center rounded border border-border/60 bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground hover:text-foreground hover:border-border transition-colors shrink-0"
-                >
-                  {run.runId.slice(0, 7)}
-                </Link>
+                <span className="text-[11px] font-medium text-muted-foreground">Run</span>
                 <StatusBadge status={run.status} />
               </div>
               <span className="text-[11px] text-muted-foreground/60 shrink-0 tabular-nums">
                 {formatDateTime(run.startedAt ?? run.createdAt)}
               </span>
+              <Link
+                to={`/agents/${run.agentId}/runs/${run.runId}`}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors shrink-0"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View run
+              </Link>
             </div>
           );
         }
@@ -164,33 +166,26 @@ const TimelineList = memo(function TimelineList({
               ) : (
                 <Identity name="You" size="sm" />
               )}
-              <a
-                href={`#comment-${comment.id}`}
-                className="text-[11px] text-muted-foreground/60 hover:text-foreground hover:underline transition-colors tabular-nums"
-              >
-                {formatDateTime(comment.createdAt)}
-              </a>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <a
+                  href={`#comment-${comment.id}`}
+                  className="text-[11px] text-muted-foreground/60 hover:text-foreground hover:underline transition-colors tabular-nums"
+                >
+                  {formatDateTime(comment.createdAt)}
+                </a>
+                {comment.runId && comment.runAgentId && (
+                  <Link
+                    to={`/agents/${comment.runAgentId}/runs/${comment.runId}`}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    View run
+                  </Link>
+                )}
+              </div>
             </div>
             <div className="px-3.5 py-3">
               <MarkdownBody className="text-sm">{comment.body}</MarkdownBody>
-              {comment.runId && (
-                <div className="mt-3 pt-2.5 border-t border-border/30">
-                  {comment.runAgentId ? (
-                    <Link
-                      to={`/agents/${comment.runAgentId}/runs/${comment.runId}`}
-                      className="inline-flex items-center gap-1.5 rounded border border-border/60 bg-muted/30 px-2 py-1 text-[10px] font-mono text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
-                      run {comment.runId.slice(0, 7)}
-                    </Link>
-                  ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded border border-border/60 bg-muted/30 px-2 py-1 text-[10px] font-mono text-muted-foreground">
-                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30" />
-                      run {comment.runId.slice(0, 7)}
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         );

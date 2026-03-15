@@ -559,9 +559,6 @@ function OrgChartView({ companyId, onAddAgent }: { companyId: string; onAddAgent
                           />
                           {statusLabel}
                         </span>
-                        <span className="text-[9px] text-muted-foreground/50 font-mono truncate">
-                          {adapterLabels[agent.adapterType] ?? agent.adapterType}
-                        </span>
                       </div>
                     )}
                   </div>

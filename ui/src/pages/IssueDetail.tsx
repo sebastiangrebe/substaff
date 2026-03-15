@@ -594,22 +594,28 @@ export function IssueDetail() {
       {/* ── Hero header card ─────────────────────────────── */}
       <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
         <div className="px-5 pt-5 pb-4 space-y-3">
-          {/* Top row: meta badges + actions */}
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <span style={{ viewTransitionName: `entity-status-${issue.id}` } as CSSProperties}>
+          {/* Top row: status + title inline + slug + actions */}
+          <div className="flex items-start gap-2 min-w-0">
+            <span className="mt-1 shrink-0" style={{ viewTransitionName: `entity-status-${issue.id}` } as CSSProperties}>
               <StatusIcon
                 status={issue.status}
                 onChange={(status) => updateIssue.mutate({ status })}
               />
             </span>
-            <PriorityIcon
-              priority={issue.priority}
-              onChange={(priority) => updateIssue.mutate({ priority })}
-            />
-            <span className="text-xs font-mono text-muted-foreground shrink-0" style={{ viewTransitionName: `entity-id-${issue.id}` } as CSSProperties}>{issue.identifier ?? issue.id.slice(0, 8)}</span>
+            <div className="flex-1 min-w-0" style={{ viewTransitionName: `entity-title-${issue.id}` } as CSSProperties}>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <InlineEditor
+                  value={issue.title}
+                  onSave={(title) => updateIssue.mutate({ title })}
+                  as="h2"
+                  className="text-xl font-bold tracking-tight"
+                />
+                <span className="text-xs font-mono text-muted-foreground shrink-0" style={{ viewTransitionName: `entity-id-${issue.id}` } as CSSProperties}>{issue.identifier ?? issue.id.slice(0, 8)}</span>
+              </div>
+            </div>
 
             {hasLiveRuns && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 shrink-0">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 shrink-0 mt-1">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-400" />
@@ -618,22 +624,7 @@ export function IssueDetail() {
               </span>
             )}
 
-            {issue.projectId ? (
-              <Link
-                to={`/projects/${issue.projectId}`}
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md px-1.5 py-0.5 hover:bg-accent/40 min-w-0"
-              >
-                <Hexagon className="h-3 w-3 shrink-0" />
-                <span className="truncate">{(projects ?? []).find((p) => p.id === issue.projectId)?.name ?? issue.projectId.slice(0, 8)}</span>
-              </Link>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 px-1 py-0.5">
-                <Hexagon className="h-3 w-3 shrink-0" />
-                No project
-              </span>
-            )}
-
-            <div className="flex items-center ml-auto shrink-0 gap-0.5">
+            <div className="flex items-center shrink-0 gap-0.5 mt-0.5">
               <Popover open={moreOpen} onOpenChange={setMoreOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon-xs" className="shrink-0">
@@ -657,16 +648,6 @@ export function IssueDetail() {
                 </PopoverContent>
               </Popover>
             </div>
-          </div>
-
-          {/* Title - large and prominent */}
-          <div style={{ viewTransitionName: `entity-title-${issue.id}` } as CSSProperties}>
-            <InlineEditor
-              value={issue.title}
-              onSave={(title) => updateIssue.mutate({ title })}
-              as="h2"
-              className="text-xl font-bold tracking-tight"
-            />
           </div>
 
           {/* Description */}

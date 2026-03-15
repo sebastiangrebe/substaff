@@ -75,6 +75,25 @@ function summarizeEntry(entry: TranscriptEntry): { text: string; tone: FeedTone 
   return null;
 }
 
+function summarizeErrorText(text: string): string {
+  const jsonStart = text.indexOf("{");
+  if (jsonStart !== -1) {
+    try {
+      const parsed = JSON.parse(text.slice(jsonStart));
+      const prefix = text.slice(0, jsonStart).trim();
+      const parts: string[] = [];
+      if (prefix) parts.push(prefix);
+      if (parsed.message) parts.push(parsed.message);
+      else if (parsed.error) parts.push(typeof parsed.error === "string" ? parsed.error : JSON.stringify(parsed.error));
+      if (parsed.code) parts.push(`(${parsed.code})`);
+      if (parts.length > 0) return parts.join(" ");
+    } catch {
+      // not valid JSON
+    }
+  }
+  return text;
+}
+
 function createFeedItem(
   run: LiveRunForIssue,
   ts: string,
@@ -84,13 +103,14 @@ function createFeedItem(
 ): FeedItem | null {
   const trimmed = text.trim();
   if (!trimmed) return null;
+  const displayText = tone === "error" ? summarizeErrorText(trimmed) : trimmed;
   return {
     id: `${run.id}:${nextId}`,
     ts,
     runId: run.id,
     agentId: run.agentId,
     agentName: run.agentName,
-    text: trimmed.slice(0, 220),
+    text: displayText.slice(0, 220),
     tone,
   };
 }

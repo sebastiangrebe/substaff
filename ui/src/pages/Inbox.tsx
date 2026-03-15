@@ -113,14 +113,39 @@ function getLatestFailedRunsByAgent(runs: HeartbeatRun[]): HeartbeatRun[] {
   return Array.from(latestByAgent.values()).filter((run) => FAILED_RUN_STATUSES.has(run.status));
 }
 
-function firstNonEmptyLine(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const line = value.split("\n").map((chunk) => chunk.trim()).find(Boolean);
-  return line ?? null;
+function summarizeErrorText(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  // Try to extract a JSON object and pull out human-readable fields
+  const jsonStart = trimmed.indexOf("{");
+  if (jsonStart !== -1) {
+    try {
+      const parsed = JSON.parse(trimmed.slice(jsonStart));
+      const prefix = trimmed.slice(0, jsonStart).trim();
+      const parts: string[] = [];
+      if (prefix) parts.push(prefix);
+      if (parsed.message) parts.push(parsed.message);
+      else if (parsed.error) parts.push(typeof parsed.error === "string" ? parsed.error : JSON.stringify(parsed.error));
+      if (parsed.code) parts.push(`(${parsed.code})`);
+      if (parsed.details) {
+        const d = parsed.details;
+        const detailStr = typeof d === "string" ? d : Object.entries(d).map(([k, v]) => `${k}: ${v}`).join(", ");
+        parts.push(`— ${detailStr}`);
+      }
+      if (parts.length > 0) return parts.join(" ");
+    } catch {
+      // not valid JSON
+    }
+  }
+  // Fallback: first non-empty line (skip stack traces)
+  const line = trimmed.split("\n").map((l) => l.trim()).find((l) => l && !l.startsWith("at "));
+  return line ?? trimmed.split("\n")[0] ?? trimmed;
 }
 
 function runFailureMessage(run: HeartbeatRun): string {
-  return firstNonEmptyLine(run.error) ?? firstNonEmptyLine(run.stderrExcerpt) ?? "Run exited with an error.";
+  if (run.error) return summarizeErrorText(run.error);
+  if (run.stderrExcerpt) return summarizeErrorText(run.stderrExcerpt);
+  return "Run exited with an error.";
 }
 
 function readIssueIdFromRun(run: HeartbeatRun): string | null {

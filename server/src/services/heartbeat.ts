@@ -533,7 +533,9 @@ export function heartbeatService(db: Db) {
       repoRef: readNonEmptyString(workspace.repoRef),
     }));
 
-    const isSandboxAdapter = agent.adapterType === "e2b_sandbox";
+    const isSandboxAdapter =
+      agent.adapterType === "e2b_sandbox" ||
+      agent.adapterType === "blaxel_sandbox";
 
     if (projectWorkspaceRows.length > 0) {
       const missingProjectCwds: string[] = [];

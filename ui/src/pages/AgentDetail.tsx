@@ -581,7 +581,7 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
   const StatusIcon = statusInfo.icon;
   const summary = run.resultJson
     ? String((run.resultJson as Record<string, unknown>).summary ?? (run.resultJson as Record<string, unknown>).result ?? "")
-    : run.error ?? "";
+    : run.error ? summarizeStderr(run.error).summary : "";
 
   const metrics = runMetrics(run);
 
@@ -986,7 +986,7 @@ function RunListItem({ run, isSelected, agentId }: { run: HeartbeatRun; isSelect
   const metrics = runMetrics(run);
   const summary = run.resultJson
     ? String((run.resultJson as Record<string, unknown>).summary ?? (run.resultJson as Record<string, unknown>).result ?? "")
-    : run.error ?? "";
+    : run.error ? summarizeStderr(run.error).summary : "";
 
   return (
     <Link
@@ -1342,6 +1342,70 @@ function RunDetail({ run, agentRouteId, adapterType }: { run: HeartbeatRun; agen
   );
 }
 
+/* ---- Stderr Card (expandable error with JSON-aware summary) ---- */
+
+function summarizeStderr(text: string): { summary: string; hasMore: boolean } {
+  const lines = text.split("\n").filter((l) => l.trim());
+  // Try to extract a JSON object from the text (e.g. "[blaxel] Error: { ... }")
+  const jsonStart = text.indexOf("{");
+  if (jsonStart !== -1) {
+    try {
+      const jsonStr = text.slice(jsonStart);
+      const parsed = JSON.parse(jsonStr);
+      const prefix = text.slice(0, jsonStart).trim();
+      // Build a human-readable summary from known error fields
+      const parts: string[] = [];
+      if (prefix) parts.push(prefix);
+      if (parsed.message) parts.push(parsed.message);
+      else if (parsed.error) parts.push(typeof parsed.error === "string" ? parsed.error : JSON.stringify(parsed.error));
+      if (parsed.code) parts.push(`(${parsed.code})`);
+      if (parsed.details) {
+        const d = parsed.details;
+        const detailStr = typeof d === "string" ? d : Object.entries(d).map(([k, v]) => `${k}: ${v}`).join(", ");
+        parts.push(`— ${detailStr}`);
+      }
+      if (parts.length > 0) {
+        return { summary: parts.join(" "), hasMore: true };
+      }
+    } catch {
+      // not valid JSON, fall through
+    }
+  }
+  // Fallback: first meaningful line (strip stack traces)
+  const firstLine = lines.find((l) => !l.trim().startsWith("at ")) ?? lines[0] ?? text;
+  return { summary: firstLine, hasMore: lines.length > 1 };
+}
+
+function StderrCard({ entry, tsEl, cardBase }: { entry: { ts: string; text: string }; tsEl: React.ReactNode; cardBase: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const { summary, hasMore } = useMemo(() => summarizeStderr(entry.text), [entry.text]);
+
+  return (
+    <div className={cn(cardBase, "border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20")}>
+      <div className="flex items-center gap-2 mb-2">
+        {tsEl}
+        <span className="text-sm font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Error</span>
+      </div>
+      <div className="text-red-600 dark:text-red-300 break-words text-sm">{summary}</div>
+      {hasMore && (
+        <>
+          <button
+            className="text-xs text-red-500 dark:text-red-400 hover:underline mt-1"
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Show less" : "Show full error"}
+          </button>
+          {expanded && (
+            <pre className="mt-2 text-xs text-red-600 dark:text-red-300 whitespace-pre-wrap break-words max-h-60 overflow-auto bg-red-100/50 dark:bg-red-950/40 rounded p-2">
+              {entry.text}
+            </pre>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ---- Log Viewer ---- */
 
 function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: HeartbeatRun; adapterType: string; logMode: "human" | "raw"; onLogModeChange: (mode: "human" | "raw") => void }) {
@@ -1654,17 +1718,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                 }
 
                 if (entry.kind === "stderr") {
-                  // In summary mode, show only the first meaningful line (strip stack traces)
-                  const firstLine = entry.text.split("\n").find((l) => l.trim() && !l.trim().startsWith("at ")) ?? entry.text.split("\n")[0];
-                  return (
-                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20")}>
-                      <div className="flex items-center gap-2 mb-2">
-                        {tsEl}
-                        <span className="text-sm font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Error</span>
-                      </div>
-                      <div className="text-red-600 dark:text-red-300 break-words text-sm">{firstLine}</div>
-                    </div>
-                  );
+                  return <StderrCard key={`${entry.ts}-h-${idx}`} entry={entry} tsEl={tsEl} cardBase={cardBase} />;
                 }
 
                 // system — skip in human mode
