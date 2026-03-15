@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
  * A structured grid with animated light pulses flowing along the lines,
  * suggesting data orchestration and AI coordination.
  * Clean, premium SaaS aesthetic — not space, not particles.
+ * Supports both light and dark modes.
  */
 
 interface Pulse {
@@ -39,6 +40,10 @@ export function HeroAnimation() {
     let rows = 0;
     let offsetX = 0;
     let offsetY = 0;
+
+    function isDarkMode() {
+      return document.documentElement.classList.contains("dark");
+    }
 
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -90,26 +95,30 @@ export function HeroAnimation() {
       animRef.current = requestAnimationFrame(render);
       if (w === 0 || h === 0) return;
 
+      const dark = isDarkMode();
       const t = time * 0.001;
       ctx!.save();
       ctx!.scale(dpr, dpr);
 
       // Background
-      ctx!.fillStyle = "#08090f";
+      ctx!.fillStyle = dark ? "#08090f" : "#f5f5f8";
       ctx!.fillRect(0, 0, w, h);
 
       // Gradient mesh — soft color zones
       const g1 = ctx!.createRadialGradient(w * 0.7, h * 0.2, 0, w * 0.7, h * 0.2, w * 0.6);
-      g1.addColorStop(0, "rgba(99, 102, 241, 0.06)");
+      g1.addColorStop(0, dark ? "rgba(99, 102, 241, 0.06)" : "rgba(99, 102, 241, 0.08)");
       g1.addColorStop(1, "transparent");
       ctx!.fillStyle = g1;
       ctx!.fillRect(0, 0, w, h);
 
       const g2 = ctx!.createRadialGradient(w * 0.2, h * 0.75, 0, w * 0.2, h * 0.75, w * 0.5);
-      g2.addColorStop(0, "rgba(129, 140, 248, 0.04)");
+      g2.addColorStop(0, dark ? "rgba(129, 140, 248, 0.04)" : "rgba(129, 140, 248, 0.06)");
       g2.addColorStop(1, "transparent");
       ctx!.fillStyle = g2;
       ctx!.fillRect(0, 0, w, h);
+
+      // Grid line opacity
+      const gridAlpha = dark ? 0.07 : 0.1;
 
       // Draw grid lines
       ctx!.lineWidth = 0.5;
@@ -121,9 +130,9 @@ export function HeroAnimation() {
         if (startFade < 0.01 && midFade < 0.01 && endFade < 0.01) continue;
 
         const grad = ctx!.createLinearGradient(0, 0, w, 0);
-        grad.addColorStop(0, `rgba(99, 102, 241, ${startFade * 0.07})`);
-        grad.addColorStop(0.5, `rgba(99, 102, 241, ${midFade * 0.07})`);
-        grad.addColorStop(1, `rgba(99, 102, 241, ${endFade * 0.07})`);
+        grad.addColorStop(0, `rgba(99, 102, 241, ${startFade * gridAlpha})`);
+        grad.addColorStop(0.5, `rgba(99, 102, 241, ${midFade * gridAlpha})`);
+        grad.addColorStop(1, `rgba(99, 102, 241, ${endFade * gridAlpha})`);
         ctx!.strokeStyle = grad;
         ctx!.beginPath();
         ctx!.moveTo(0, y);
@@ -138,9 +147,9 @@ export function HeroAnimation() {
         if (startFade < 0.01 && midFade < 0.01 && endFade < 0.01) continue;
 
         const grad = ctx!.createLinearGradient(0, 0, 0, h);
-        grad.addColorStop(0, `rgba(99, 102, 241, ${startFade * 0.07})`);
-        grad.addColorStop(0.5, `rgba(99, 102, 241, ${midFade * 0.07})`);
-        grad.addColorStop(1, `rgba(99, 102, 241, ${endFade * 0.07})`);
+        grad.addColorStop(0, `rgba(99, 102, 241, ${startFade * gridAlpha})`);
+        grad.addColorStop(0.5, `rgba(99, 102, 241, ${midFade * gridAlpha})`);
+        grad.addColorStop(1, `rgba(99, 102, 241, ${endFade * gridAlpha})`);
         ctx!.strokeStyle = grad;
         ctx!.beginPath();
         ctx!.moveTo(x, 0);
@@ -149,6 +158,8 @@ export function HeroAnimation() {
       }
 
       // Grid intersection dots
+      const dotAlphaBase = dark ? 0.06 : 0.08;
+      const dotAlphaRange = dark ? 0.06 : 0.08;
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const x = offsetX + c * gridSpacing;
@@ -157,7 +168,7 @@ export function HeroAnimation() {
           if (f < 0.05) continue;
 
           const pulse = Math.sin(t * 0.5 + c * 0.4 + r * 0.3) * 0.5 + 0.5;
-          const alpha = f * (0.06 + pulse * 0.06);
+          const alpha = f * (dotAlphaBase + pulse * dotAlphaRange);
           ctx!.fillStyle = `rgba(129, 140, 248, ${alpha})`;
           ctx!.beginPath();
           ctx!.arc(x, y, 1 + pulse * 0.5, 0, Math.PI * 2);
@@ -166,6 +177,7 @@ export function HeroAnimation() {
       }
 
       // Animated pulses flowing along grid lines
+      const pulseMultiplier = dark ? 1 : 1.3;
       for (const pulse of pulses) {
         pulse.position += pulse.speed;
         // Wrap around
@@ -188,15 +200,15 @@ export function HeroAnimation() {
           if (f < 0.03) continue;
 
           const grad = ctx!.createLinearGradient(x0, 0, x1, 0);
-          const baseAlpha = f * pulse.brightness;
+          const baseAlpha = f * pulse.brightness * pulseMultiplier;
           if (pulse.speed > 0) {
-            grad.addColorStop(0, `hsla(${pulse.hue}, 60%, 65%, 0)`);
-            grad.addColorStop(0.7, `hsla(${pulse.hue}, 60%, 65%, ${baseAlpha * 0.15})`);
-            grad.addColorStop(1, `hsla(${pulse.hue}, 70%, 75%, ${baseAlpha * 0.35})`);
+            grad.addColorStop(0, `hsla(${pulse.hue}, 60%, ${dark ? 65 : 50}%, 0)`);
+            grad.addColorStop(0.7, `hsla(${pulse.hue}, 60%, ${dark ? 65 : 50}%, ${baseAlpha * 0.15})`);
+            grad.addColorStop(1, `hsla(${pulse.hue}, 70%, ${dark ? 75 : 55}%, ${baseAlpha * 0.35})`);
           } else {
-            grad.addColorStop(0, `hsla(${pulse.hue}, 70%, 75%, ${baseAlpha * 0.35})`);
-            grad.addColorStop(0.3, `hsla(${pulse.hue}, 60%, 65%, ${baseAlpha * 0.15})`);
-            grad.addColorStop(1, `hsla(${pulse.hue}, 60%, 65%, 0)`);
+            grad.addColorStop(0, `hsla(${pulse.hue}, 70%, ${dark ? 75 : 55}%, ${baseAlpha * 0.35})`);
+            grad.addColorStop(0.3, `hsla(${pulse.hue}, 60%, ${dark ? 65 : 50}%, ${baseAlpha * 0.15})`);
+            grad.addColorStop(1, `hsla(${pulse.hue}, 60%, ${dark ? 65 : 50}%, 0)`);
           }
           ctx!.strokeStyle = grad;
           ctx!.lineWidth = 1.5;
@@ -208,7 +220,7 @@ export function HeroAnimation() {
           // Head glow
           const hx = pulse.speed > 0 ? x1 : x0;
           const glow = ctx!.createRadialGradient(hx, y, 0, hx, y, gridSpacing * 0.6);
-          glow.addColorStop(0, `hsla(${pulse.hue}, 70%, 75%, ${baseAlpha * 0.08})`);
+          glow.addColorStop(0, `hsla(${pulse.hue}, 70%, ${dark ? 75 : 55}%, ${baseAlpha * 0.08})`);
           glow.addColorStop(1, "transparent");
           ctx!.fillStyle = glow;
           ctx!.fillRect(hx - gridSpacing * 0.6, y - gridSpacing * 0.6, gridSpacing * 1.2, gridSpacing * 1.2);
@@ -223,15 +235,15 @@ export function HeroAnimation() {
           if (f < 0.03) continue;
 
           const grad = ctx!.createLinearGradient(0, y0, 0, y1);
-          const baseAlpha = f * pulse.brightness;
+          const baseAlpha = f * pulse.brightness * pulseMultiplier;
           if (pulse.speed > 0) {
-            grad.addColorStop(0, `hsla(${pulse.hue}, 60%, 65%, 0)`);
-            grad.addColorStop(0.7, `hsla(${pulse.hue}, 60%, 65%, ${baseAlpha * 0.15})`);
-            grad.addColorStop(1, `hsla(${pulse.hue}, 70%, 75%, ${baseAlpha * 0.35})`);
+            grad.addColorStop(0, `hsla(${pulse.hue}, 60%, ${dark ? 65 : 50}%, 0)`);
+            grad.addColorStop(0.7, `hsla(${pulse.hue}, 60%, ${dark ? 65 : 50}%, ${baseAlpha * 0.15})`);
+            grad.addColorStop(1, `hsla(${pulse.hue}, 70%, ${dark ? 75 : 55}%, ${baseAlpha * 0.35})`);
           } else {
-            grad.addColorStop(0, `hsla(${pulse.hue}, 70%, 75%, ${baseAlpha * 0.35})`);
-            grad.addColorStop(0.3, `hsla(${pulse.hue}, 60%, 65%, ${baseAlpha * 0.15})`);
-            grad.addColorStop(1, `hsla(${pulse.hue}, 60%, 65%, 0)`);
+            grad.addColorStop(0, `hsla(${pulse.hue}, 70%, ${dark ? 75 : 55}%, ${baseAlpha * 0.35})`);
+            grad.addColorStop(0.3, `hsla(${pulse.hue}, 60%, ${dark ? 65 : 50}%, ${baseAlpha * 0.15})`);
+            grad.addColorStop(1, `hsla(${pulse.hue}, 60%, ${dark ? 65 : 50}%, 0)`);
           }
           ctx!.strokeStyle = grad;
           ctx!.lineWidth = 1.5;
@@ -243,7 +255,7 @@ export function HeroAnimation() {
           // Head glow
           const hy = pulse.speed > 0 ? y1 : y0;
           const glow = ctx!.createRadialGradient(x, hy, 0, x, hy, gridSpacing * 0.6);
-          glow.addColorStop(0, `hsla(${pulse.hue}, 70%, 75%, ${baseAlpha * 0.08})`);
+          glow.addColorStop(0, `hsla(${pulse.hue}, 70%, ${dark ? 75 : 55}%, ${baseAlpha * 0.08})`);
           glow.addColorStop(1, "transparent");
           ctx!.fillStyle = glow;
           ctx!.fillRect(x - gridSpacing * 0.6, hy - gridSpacing * 0.6, gridSpacing * 1.2, gridSpacing * 1.2);
@@ -253,7 +265,8 @@ export function HeroAnimation() {
       // Ambient glow at center — soft focus point
       const centerGlow = ctx!.createRadialGradient(w * 0.5, h * 0.43, 0, w * 0.5, h * 0.43, Math.min(w, h) * 0.3);
       const glowPulse = Math.sin(t * 0.3) * 0.5 + 0.5;
-      centerGlow.addColorStop(0, `rgba(99, 102, 241, ${0.02 + glowPulse * 0.015})`);
+      const centerAlpha = dark ? 0.02 + glowPulse * 0.015 : 0.03 + glowPulse * 0.02;
+      centerGlow.addColorStop(0, `rgba(99, 102, 241, ${centerAlpha})`);
       centerGlow.addColorStop(1, "transparent");
       ctx!.fillStyle = centerGlow;
       ctx!.fillRect(0, 0, w, h);
@@ -261,9 +274,9 @@ export function HeroAnimation() {
       // Top accent line
       const accentGrad = ctx!.createLinearGradient(0, 0, w, 0);
       accentGrad.addColorStop(0, "transparent");
-      accentGrad.addColorStop(0.3, "rgba(99, 102, 241, 0.15)");
-      accentGrad.addColorStop(0.5, "rgba(129, 140, 248, 0.25)");
-      accentGrad.addColorStop(0.7, "rgba(99, 102, 241, 0.15)");
+      accentGrad.addColorStop(0.3, `rgba(99, 102, 241, ${dark ? 0.15 : 0.2})`);
+      accentGrad.addColorStop(0.5, `rgba(129, 140, 248, ${dark ? 0.25 : 0.3})`);
+      accentGrad.addColorStop(0.7, `rgba(99, 102, 241, ${dark ? 0.15 : 0.2})`);
       accentGrad.addColorStop(1, "transparent");
       ctx!.fillStyle = accentGrad;
       ctx!.fillRect(0, 0, w, 1);

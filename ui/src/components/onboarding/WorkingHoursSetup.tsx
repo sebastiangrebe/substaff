@@ -35,7 +35,7 @@ interface WorkingHoursSetupProps {
 }
 
 const inputClass =
-  "rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-colors";
+  "rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 transition-colors";
 
 export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
   const [tzSearch, setTzSearch] = useState("");
@@ -108,12 +108,12 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3 mb-1">
-        <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
-          <Clock className="h-5 w-5 text-white/50" />
+        <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
+          <Clock className="h-5 w-5 text-muted-foreground" />
         </div>
         <div>
-          <h3 className="font-semibold text-white">Working hours</h3>
-          <p className="text-xs text-white/40">
+          <h3 className="font-semibold text-foreground">Working hours</h3>
+          <p className="text-xs text-muted-foreground">
             Define when agents are allowed to run. You can change this later.
           </p>
         </div>
@@ -121,12 +121,12 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
 
       {/* Master toggle */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-white/70">Enable working hours</span>
+        <span className="text-sm text-foreground/70">Enable working hours</span>
         <button
           type="button"
           className={cn(
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-            value.enabled ? "bg-green-600" : "bg-white/10",
+            value.enabled ? "bg-green-600" : "bg-muted-foreground/20",
           )}
           onClick={() => update({ enabled: !value.enabled })}
         >
@@ -143,7 +143,7 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
         <div className="space-y-4">
           {/* Timezone */}
           <div>
-            <label className="text-xs font-medium text-white/40 mb-1.5 block">
+            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
               Timezone
             </label>
             <div className="relative">
@@ -162,14 +162,14 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
                 className={cn(inputClass, "w-full")}
               />
               {tzOpen && (
-                <div className="absolute z-50 mt-1 max-h-40 w-full overflow-auto rounded-lg border border-white/[0.08] bg-zinc-900/95 backdrop-blur-lg shadow-xl">
+                <div className="absolute z-50 mt-1 max-h-40 w-full overflow-auto rounded-lg border border-border bg-popover/95 backdrop-blur-lg shadow-xl">
                   {filteredTimezones.map((tz) => (
                     <button
                       key={tz}
                       type="button"
                       className={cn(
-                        "w-full text-left px-3 py-1.5 text-xs text-white/70 hover:bg-white/[0.06]",
-                        tz === value.timezone && "bg-white/[0.06] text-white font-medium",
+                        "w-full text-left px-3 py-1.5 text-xs text-foreground/70 hover:bg-accent",
+                        tz === value.timezone && "bg-accent text-foreground font-medium",
                       )}
                       onMouseDown={(e) => {
                         e.preventDefault();
@@ -181,7 +181,7 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
                     </button>
                   ))}
                   {filteredTimezones.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-white/30">No timezones found</div>
+                    <div className="px-3 py-2 text-xs text-muted-foreground">No timezones found</div>
                   )}
                 </div>
               )}
@@ -190,7 +190,7 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
 
           {/* Day schedule grid */}
           <div className="space-y-1">
-            <div className="grid grid-cols-[40px_auto_1fr_1fr] gap-2 text-[10px] uppercase tracking-wider text-white/30 px-1 mb-1">
+            <div className="grid grid-cols-[40px_auto_1fr_1fr] gap-2 text-[10px] uppercase tracking-wider text-muted-foreground/60 px-1 mb-1">
               <span>Day</span>
               <span>On</span>
               <span>Start</span>
@@ -206,12 +206,12 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
                     !ds.enabled && "opacity-40",
                   )}
                 >
-                  <span className="text-sm text-white/70">{DAY_LABELS[day]}</span>
+                  <span className="text-sm text-foreground/70">{DAY_LABELS[day]}</span>
                   <button
                     type="button"
                     className={cn(
                       "relative inline-flex h-4 w-7 items-center rounded-full transition-colors",
-                      ds.enabled ? "bg-green-600" : "bg-white/10",
+                      ds.enabled ? "bg-green-600" : "bg-muted-foreground/20",
                     )}
                     onClick={() => updateDay(day, { enabled: !ds.enabled })}
                   >
@@ -227,14 +227,14 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
                     value={ds.start}
                     onChange={(e) => updateDay(day, { start: e.target.value })}
                     disabled={!ds.enabled}
-                    className={cn(inputClass, "[color-scheme:dark]")}
+                    className={cn(inputClass, "dark:[color-scheme:dark]")}
                   />
                   <input
                     type="time"
                     value={ds.end}
                     onChange={(e) => updateDay(day, { end: e.target.value })}
                     disabled={!ds.enabled}
-                    className={cn(inputClass, "[color-scheme:dark]")}
+                    className={cn(inputClass, "dark:[color-scheme:dark]")}
                   />
                 </div>
               );
@@ -243,8 +243,8 @@ export function WorkingHoursSetup({ value, onChange }: WorkingHoursSetupProps) {
 
           {isOutsideWorkingHours && (
             <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2.5">
-              <AlertTriangle className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-200/80 leading-relaxed">
+              <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-700 dark:text-amber-200/80 leading-relaxed">
                 The current time is outside the configured working hours. Agents
                 won't start working until the next scheduled window begins.
               </p>

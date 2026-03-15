@@ -139,9 +139,9 @@ export function buildSubstaffEnv(agent: { id: string; companyId: string }): Reco
     process.env.SUBSTAFF_LISTEN_HOST ?? process.env.HOST ?? "localhost",
   );
   const runtimePort = process.env.SUBSTAFF_LISTEN_PORT ?? process.env.PORT ?? "3100";
-  const apiUrl = process.env.SUBSTAFF_EXTERNAL_API_URL
+  const apiUrl = (process.env.SUBSTAFF_EXTERNAL_API_URL
     ?? process.env.SUBSTAFF_API_URL
-    ?? `http://${runtimeHost}:${runtimePort}`;
+    ?? `http://${runtimeHost}:${runtimePort}`).trim();
   vars.SUBSTAFF_API_URL = apiUrl;
   return vars;
 }

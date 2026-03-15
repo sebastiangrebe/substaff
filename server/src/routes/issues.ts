@@ -1166,11 +1166,14 @@ export function issueRoutes(db: Db, storage: StorageService) {
   router.get("/companies/:companyId/attachments/:linkType/:linkId", async (req, res) => {
     const companyId = req.params.companyId as string;
     const linkType = req.params.linkType as string;
-    const linkId = req.params.linkId as string;
+    let linkId = req.params.linkId as string;
     assertCompanyAccess(req, companyId);
     if (!VALID_LINK_TYPES.has(linkType)) {
       res.status(400).json({ error: `Invalid link type: ${linkType}` });
       return;
+    }
+    if (linkType === "issue") {
+      linkId = await normalizeIssueIdentifier(linkId);
     }
     const attachments = await svc.listAttachments(linkType, linkId);
     res.json(attachments.map(withContentPath));
@@ -1179,11 +1182,14 @@ export function issueRoutes(db: Db, storage: StorageService) {
   router.post("/companies/:companyId/attachments/:linkType/:linkId", async (req, res) => {
     const companyId = req.params.companyId as string;
     const linkType = req.params.linkType as string;
-    const linkId = req.params.linkId as string;
+    let linkId = req.params.linkId as string;
     assertCompanyAccess(req, companyId);
     if (!VALID_LINK_TYPES.has(linkType)) {
       res.status(400).json({ error: `Invalid link type: ${linkType}` });
       return;
+    }
+    if (linkType === "issue") {
+      linkId = await normalizeIssueIdentifier(linkId);
     }
 
     try {

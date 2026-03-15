@@ -193,6 +193,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     }
 
+    if (sandboxEnv.SUBSTAFF_API_URL) {
+      await ctx.onLog("stdout", `[blaxel] API URL for agent: ${sandboxEnv.SUBSTAFF_API_URL}\n`);
+    }
+
     // Ensure ANTHROPIC_API_KEY is set.
     if (!sandboxEnv.ANTHROPIC_API_KEY) {
       const envConfig = parseObject(config.env);

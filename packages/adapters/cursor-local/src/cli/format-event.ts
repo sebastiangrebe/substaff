@@ -233,6 +233,7 @@ export function printCursorStreamEvent(raw: string, _debug: boolean): void {
   }
 
   if (type === "user") {
+    if (parsed.isSynthetic === true) return;
     printUserMessage(parsed.message);
     return;
   }

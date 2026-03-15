@@ -12,8 +12,8 @@ import type { Company } from "@substaff/shared";
 import { companiesApi } from "../api/companies";
 import { ApiError } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
-import type { HealthStatus } from "../api/health";
-import type { AuthSession } from "../api/auth";
+import { healthApi, type HealthStatus } from "../api/health";
+import { authApi, type AuthSession } from "../api/auth";
 
 type CompanySelectionSource = "manual" | "route_sync" | "bootstrap";
 type CompanySelectionOptions = { source?: CompanySelectionSource };
@@ -47,10 +47,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   // Subscribe reactively to cached health/session without triggering new fetches.
   const { data: health } = useQuery<HealthStatus>({
     queryKey: queryKeys.health,
+    queryFn: () => healthApi.get(),
     enabled: false,
   });
   const { data: session } = useQuery<AuthSession | null>({
     queryKey: queryKeys.auth.session,
+    queryFn: () => authApi.getSession(),
     enabled: false,
   });
   const healthLoaded = health != null;

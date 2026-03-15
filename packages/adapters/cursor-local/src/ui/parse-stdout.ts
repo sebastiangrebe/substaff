@@ -268,6 +268,8 @@ export function parseCursorStdoutLine(line: string, ts: string): TranscriptEntry
   }
 
   if (type === "user") {
+    // Hide synthetic messages (e.g. skill prompts) from the human view
+    if (parsed.isSynthetic === true) return [];
     return parseUserMessage(parsed.message, ts);
   }
 

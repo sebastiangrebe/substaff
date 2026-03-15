@@ -351,8 +351,8 @@ export function OnboardingWizard() {
               {/* Logo + progress + close */}
               <div className="flex items-center gap-2.5 mb-8">
                 <img src="/logo.svg" alt="Substaff" className="h-7 w-7" />
-                <span className="text-base font-semibold text-white/90 tracking-tight">Get Started</span>
-                <span className="text-sm text-white/30 ml-1">Step {step} of {TOTAL_STEPS}</span>
+                <span className="text-base font-semibold text-foreground tracking-tight">Get Started</span>
+                <span className="text-sm text-muted-foreground ml-1">Step {step} of {TOTAL_STEPS}</span>
                 <div className="flex items-center gap-1.5 ml-auto">
                   {[1, 2, 3, 4, 5, 6].map((s) => (
                     <div
@@ -362,8 +362,8 @@ export function OnboardingWizard() {
                         s < step
                           ? "bg-green-400"
                           : s === step
-                            ? "bg-white"
-                            : "bg-white/15"
+                            ? "bg-primary"
+                            : "bg-muted-foreground/20"
                       )}
                     />
                   ))}
@@ -371,7 +371,7 @@ export function OnboardingWizard() {
                 {!onboardingRequired && (
                   <button
                     onClick={handleClose}
-                    className="ml-3 rounded-full p-1.5 text-white/30 hover:text-white/70 hover:bg-white/10 transition-colors"
+                    className="ml-3 rounded-full p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
                   >
                     <X className="h-4 w-4" />
                     <span className="sr-only">Close</span>
@@ -380,28 +380,28 @@ export function OnboardingWizard() {
               </div>
 
               {/* Glass card */}
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl shadow-2xl shadow-black/40 p-8">
+              <div className="rounded-2xl border border-border bg-card/80 backdrop-blur-xl shadow-2xl shadow-black/10 dark:shadow-black/40 p-8">
 
               {/* Step 1: Company name */}
               {step === 1 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
-                      <Building2 className="h-5 w-5 text-white/50" />
+                    <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
+                      <Building2 className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">Name your company</h3>
-                      <p className="text-xs text-white/40">
+                      <h3 className="font-semibold text-foreground">Name your company</h3>
+                      <p className="text-xs text-muted-foreground">
                         This is the organization your agents will work for.
                       </p>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                       Company name
                     </label>
                     <input
-                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
+                      className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground/50 transition-colors"
                       placeholder="Acme Corp"
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
@@ -409,11 +409,11 @@ export function OnboardingWizard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                       Mission / goal (optional)
                     </label>
                     <textarea
-                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors resize-none min-h-[60px]"
+                      className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground/50 transition-colors resize-none min-h-[60px]"
                       placeholder="What is this company trying to achieve?"
                       value={companyGoal}
                       onChange={(e) => setCompanyGoal(e.target.value)}
@@ -437,22 +437,22 @@ export function OnboardingWizard() {
                   {skippedTemplate ? (
                     <>
                       <div className="flex items-center gap-3 mb-1">
-                        <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
-                          <Bot className="h-5 w-5 text-white/50" />
+                        <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
+                          <Bot className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-white">Your CEO agent</h3>
-                          <p className="text-xs text-white/40">
+                          <h3 className="font-semibold text-foreground">Your CEO agent</h3>
+                          <p className="text-xs text-muted-foreground">
                             We'll create a CEO agent that manages your company.
                           </p>
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs font-medium text-white/40 mb-1.5 block">
+                        <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                           Agent name
                         </label>
                         <input
-                          className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
+                          className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground/50 transition-colors"
                           placeholder="CEO"
                           value={agentName}
                           onChange={(e) => setAgentName(e.target.value)}
@@ -463,12 +463,12 @@ export function OnboardingWizard() {
                   ) : selectedTemplate ? (
                     <>
                       <div className="flex items-center gap-3 mb-1">
-                        <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
-                          <Users className="h-5 w-5 text-white/50" />
+                        <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
+                          <Users className="h-5 w-5 text-muted-foreground" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-white">Review your team</h3>
-                          <p className="text-xs text-white/40">
+                          <h3 className="font-semibold text-foreground">Review your team</h3>
+                          <p className="text-xs text-muted-foreground">
                             Customize agent names or remove roles you don't need.
                           </p>
                         </div>
@@ -493,22 +493,22 @@ export function OnboardingWizard() {
               {step === 5 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
-                      <ListTodo className="h-5 w-5 text-white/50" />
+                    <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
+                      <ListTodo className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">Give them something to do</h3>
-                      <p className="text-xs text-white/40">
+                      <h3 className="font-semibold text-foreground">Give them something to do</h3>
+                      <p className="text-xs text-muted-foreground">
                         This task will be assigned to your {createdAgents.length > 1 ? "lead agent" : "CEO"}.
                       </p>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                       Task title
                     </label>
                     <input
-                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors"
+                      className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground/50 transition-colors"
                       placeholder="e.g. Research competitor pricing"
                       value={taskTitle}
                       onChange={(e) => setTaskTitle(e.target.value)}
@@ -516,12 +516,12 @@ export function OnboardingWizard() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-white/40 mb-1.5 block">
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
                       Description (optional)
                     </label>
                     <textarea
                       ref={textareaRef}
-                      className="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors resize-none min-h-[120px] max-h-[300px] overflow-y-auto"
+                      className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground/50 transition-colors resize-none min-h-[120px] max-h-[300px] overflow-y-auto"
                       placeholder="Add more detail about what the agent should do..."
                       value={taskDescription}
                       onChange={(e) => setTaskDescription(e.target.value)}
@@ -534,36 +534,36 @@ export function OnboardingWizard() {
               {step === 6 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
-                    <div className="h-10 w-10 rounded-xl bg-white/[0.06] flex items-center justify-center">
-                      <Rocket className="h-5 w-5 text-white/50" />
+                    <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
+                      <Rocket className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">Ready to launch</h3>
-                      <p className="text-xs text-white/40">
+                      <h3 className="font-semibold text-foreground">Ready to launch</h3>
+                      <p className="text-xs text-muted-foreground">
                         Everything is set up. Your assigned task already woke
                         the agent, so you can jump straight to the issue.
                       </p>
                     </div>
                   </div>
-                  <div className="border border-white/[0.06] divide-y divide-white/[0.06] rounded-xl overflow-hidden">
+                  <div className="border border-border divide-y divide-border rounded-xl overflow-hidden">
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <Building2 className="h-4 w-4 text-white/40 shrink-0" />
+                      <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">
+                        <p className="text-sm font-medium text-foreground truncate">
                           {companyName}
                         </p>
-                        <p className="text-xs text-white/40">Company</p>
+                        <p className="text-xs text-muted-foreground">Company</p>
                       </div>
                       <Check className="h-4 w-4 text-green-400 shrink-0" />
                     </div>
                     {createdAgents.length > 1 ? (
                       <div className="flex items-center gap-3 px-3 py-2.5">
-                        <Users className="h-4 w-4 text-white/40 shrink-0" />
+                        <Users className="h-4 w-4 text-muted-foreground shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">
+                          <p className="text-sm font-medium text-foreground truncate">
                             {createdAgents.length} agents
                           </p>
-                          <p className="text-xs text-white/40 truncate">
+                          <p className="text-xs text-muted-foreground truncate">
                             {createdAgents.map((a) => a.name).join(", ")}
                           </p>
                         </div>
@@ -571,12 +571,12 @@ export function OnboardingWizard() {
                       </div>
                     ) : (
                       <div className="flex items-center gap-3 px-3 py-2.5">
-                        <Bot className="h-4 w-4 text-white/40 shrink-0" />
+                        <Bot className="h-4 w-4 text-muted-foreground shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">
+                          <p className="text-sm font-medium text-foreground truncate">
                             {createdAgents[0]?.name ?? agentName}
                           </p>
-                          <p className="text-xs text-white/40">
+                          <p className="text-xs text-muted-foreground">
                             {getUIAdapter("blaxel_sandbox").label}
                           </p>
                         </div>
@@ -584,22 +584,22 @@ export function OnboardingWizard() {
                       </div>
                     )}
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <ListTodo className="h-4 w-4 text-white/40 shrink-0" />
+                      <ListTodo className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">
+                        <p className="text-sm font-medium text-foreground truncate">
                           {taskTitle}
                         </p>
-                        <p className="text-xs text-white/40">Task</p>
+                        <p className="text-xs text-muted-foreground">Task</p>
                       </div>
                       <Check className="h-4 w-4 text-green-400 shrink-0" />
                     </div>
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <Clock className="h-4 w-4 text-white/40 shrink-0" />
+                      <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">
+                        <p className="text-sm font-medium text-foreground truncate">
                           {workingHours.enabled ? "Working hours enabled" : "Working hours off"}
                         </p>
-                        <p className="text-xs text-white/40">
+                        <p className="text-xs text-muted-foreground">
                           {workingHours.enabled ? workingHours.timezone : "Agents can run anytime"}
                         </p>
                       </div>
@@ -608,8 +608,8 @@ export function OnboardingWizard() {
                     <div className="flex items-center gap-3 px-3 py-2.5">
                       <Wallet className="h-4 w-4 text-yellow-400 shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white">Add credits</p>
-                        <p className="text-xs text-white/40">
+                        <p className="text-sm font-medium text-foreground">Add credits</p>
+                        <p className="text-xs text-muted-foreground">
                           Agents need credits to run. Top up on the Billing page.
                         </p>
                       </div>
@@ -642,6 +642,7 @@ export function OnboardingWizard() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="text-muted-foreground"
                       onClick={() => setStep((step - 1) as Step)}
                       disabled={loading}
                     >
@@ -727,7 +728,7 @@ export function OnboardingWizard() {
               </div>{/* end glass card */}
 
               {/* Footer */}
-              <p className="mt-6 text-center text-xs text-white/30">
+              <p className="mt-6 text-center text-xs text-muted-foreground/60">
                 Autonomous workforce management
               </p>
             </div>

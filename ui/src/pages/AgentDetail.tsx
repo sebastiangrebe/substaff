@@ -156,6 +156,9 @@ function humanizeStdoutLine(raw: string): string | null {
   }
 
   if (type === "user") {
+    // Hide synthetic messages (e.g. skill prompts) from the human view
+    if (obj.isSynthetic === true) return null;
+
     const message = typeof obj.message === "object" && obj.message ? (obj.message as Record<string, unknown>) : null;
     const content = Array.isArray(message?.content) ? message!.content : [];
     const parts: string[] = [];
