@@ -499,9 +499,9 @@ export function issueService(db: Db) {
     remove: (id: string) =>
       db.transaction(async (tx) => {
         const attachmentAssetIds = await tx
-          .select({ assetId: issueAttachments.assetId })
-          .from(issueAttachments)
-          .where(eq(issueAttachments.issueId, id));
+          .select({ assetId: assetLinks.assetId })
+          .from(assetLinks)
+          .where(and(eq(assetLinks.linkType, "issue"), eq(assetLinks.linkId, id)));
 
         const removedIssue = await tx
           .delete(issues)
