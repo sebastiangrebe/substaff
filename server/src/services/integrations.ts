@@ -2,7 +2,7 @@ import { and, eq, desc, inArray } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { integrationConnections, companies } from "@substaff/db";
 import { notFound } from "../errors.js";
-import { Composio } from "@composio/core";
+import { Composio, AuthScheme } from "@composio/core";
 
 function getComposioClient() {
   return new Composio({
@@ -128,13 +128,40 @@ export function integrationService(db: Db) {
       };
     }
 
+    // Build config using the appropriate AuthScheme helper if connection params were provided
+    let config: ReturnType<typeof AuthScheme.OAuth2> | undefined;
+    if (input.connectionParams) {
+      const scheme = (authConfig.authScheme ?? "OAUTH2") as string;
+      const params = input.connectionParams as Record<string, string>;
+      switch (scheme) {
+        case "OAUTH1":
+          config = AuthScheme.OAuth1(params);
+          break;
+        case "API_KEY":
+          config = AuthScheme.APIKey(params);
+          break;
+        case "BASIC":
+          config = AuthScheme.Basic(params as any);
+          break;
+        case "BEARER_TOKEN":
+          config = AuthScheme.BearerToken(params as any);
+          break;
+        case "NO_AUTH":
+          config = AuthScheme.NoAuth(params);
+          break;
+        default:
+          config = AuthScheme.OAuth2(params);
+          break;
+      }
+    }
+
     const connectionRequest = await composio.connectedAccounts.initiate(
       companyId, // userId = our companyId
       authConfigId,
       {
         callbackUrl,
         allowMultiple: true,
-        ...(input.connectionParams ? { config: input.connectionParams } : {}),
+        ...(config ? { config } : {}),
       },
     );
 
