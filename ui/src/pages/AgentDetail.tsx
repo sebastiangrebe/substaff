@@ -909,8 +909,8 @@ function ConfigurationTab({
   onSavingChange: (saving: boolean) => void;
   updatePermissions: { mutate: (canCreate: boolean) => void; isPending: boolean };
 }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-
   const { data: adapterModels } = useQuery({
     queryKey: ["adapter-models", agent.adapterType],
     queryFn: () => agentsApi.adapterModels(agent.adapterType),
@@ -918,10 +918,14 @@ function ConfigurationTab({
 
   const updateAgent = useMutation({
     mutationFn: (data: Record<string, unknown>) => agentsApi.update(agent.id, data, companyId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.urlKey) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents.configRevisions(agent.id) });
+    onSuccess: (updatedAgent) => {
+      if (agentRouteRef(updatedAgent) !== agentRouteRef(agent)) {
+        navigate(`/agents/${agentRouteRef(updatedAgent)}/configure`, { replace: true });
+      } else {
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.id) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent.urlKey) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.configRevisions(agent.id) });
+      }
     },
   });
 
