@@ -93,20 +93,20 @@ export function integrationService(db: Db) {
 
     // Find an existing auth config for this toolkit, or create a managed one
     let authConfigId: string;
-    let authConfig: any;
     const existing = await composio.authConfigs.list({ toolkit: input.appName });
     const existingItems = existing?.items ?? [];
     if (existingItems.length > 0) {
-      authConfig = existingItems[0];
-      authConfigId = authConfig.id;
+      authConfigId = existingItems[0].id;
     } else {
       const created = await composio.authConfigs.create(input.appName.toUpperCase(), {
         name: `substaff-${input.appName}`,
         type: "use_composio_managed_auth",
       });
-      authConfig = created;
       authConfigId = created.id;
     }
+
+    // Fetch full auth config details (list response may omit expectedInputFields)
+    const authConfig: any = await composio.authConfigs.get(authConfigId);
 
     // Check if this auth config has required input fields the user must provide
     const expectedFields: any[] = authConfig.expectedInputFields ?? [];
@@ -128,29 +128,33 @@ export function integrationService(db: Db) {
       };
     }
 
-    // Build config using the appropriate AuthScheme helper if connection params were provided
-    let config: ReturnType<typeof AuthScheme.OAuth2> | undefined;
+    // Build typed config using AuthScheme helpers when connection params are provided
+    const initiateOptions: any = {
+      callbackUrl,
+      allowMultiple: true,
+    };
+
     if (input.connectionParams) {
       const scheme = (authConfig.authScheme ?? "OAUTH2") as string;
       const params = input.connectionParams as Record<string, string>;
       switch (scheme) {
         case "OAUTH1":
-          config = AuthScheme.OAuth1(params);
+          initiateOptions.config = AuthScheme.OAuth1(params);
           break;
         case "API_KEY":
-          config = AuthScheme.APIKey(params);
+          initiateOptions.config = AuthScheme.APIKey(params);
           break;
         case "BASIC":
-          config = AuthScheme.Basic(params as any);
+          initiateOptions.config = AuthScheme.Basic(params as any);
           break;
         case "BEARER_TOKEN":
-          config = AuthScheme.BearerToken(params as any);
+          initiateOptions.config = AuthScheme.BearerToken(params as any);
           break;
         case "NO_AUTH":
-          config = AuthScheme.NoAuth(params);
+          initiateOptions.config = AuthScheme.NoAuth(params);
           break;
         default:
-          config = AuthScheme.OAuth2(params);
+          initiateOptions.config = AuthScheme.OAuth2(params);
           break;
       }
     }
@@ -158,11 +162,7 @@ export function integrationService(db: Db) {
     const connectionRequest = await composio.connectedAccounts.initiate(
       companyId, // userId = our companyId
       authConfigId,
-      {
-        callbackUrl,
-        allowMultiple: true,
-        ...(config ? { config } : {}),
-      },
+      initiateOptions,
     );
 
     return {
