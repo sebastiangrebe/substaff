@@ -108,9 +108,24 @@ export function integrationService(db: Db) {
     // Fetch full auth config details (list response may omit expectedInputFields)
     const authConfig: any = await composio.authConfigs.get(authConfigId);
 
-    // Check if this auth config has required input fields the user must provide
+    // Check if this auth config has required input fields the user must provide.
+    // Exclude standard OAuth/auth credential fields — those are filled by the OAuth
+    // redirect flow itself and should never be prompted to the end user.
+    const oauthInternalFields = new Set([
+      "access_token", "refresh_token", "token_type", "id_token",
+      "expires_in", "expired_at", "scope", "code", "code_verifier",
+      "client_id", "client_secret", "api_key", "generic_api_key",
+      "username", "password", "token", "webhook_signature",
+      "oauth_token", "consumer_key", "credentials_json",
+      "callback_url", "redirect_url", "redirectUrl", "finalRedirectUri",
+      "error", "error_description", "state_prefix",
+      "registration_access_token", "registration_client_uri",
+      "composio_link_redirect_url",
+    ]);
     const expectedFields: any[] = authConfig.expectedInputFields ?? [];
-    const requiredFields = expectedFields.filter((f: any) => f.required);
+    const requiredFields = expectedFields.filter(
+      (f: any) => f.required && !oauthInternalFields.has(f.name),
+    );
 
     // If there are required fields and the caller hasn't provided them yet, return the field definitions
     if (requiredFields.length > 0 && !input.connectionParams) {
