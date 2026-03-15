@@ -105,43 +105,8 @@ export function integrationService(db: Db) {
       authConfigId = created.id;
     }
 
-    // Fetch full auth config details (list response may omit expectedInputFields)
+    // Fetch full auth config details to know the auth scheme
     const authConfig: any = await composio.authConfigs.get(authConfigId);
-
-    // Check if this auth config has required input fields the user must provide.
-    // Exclude standard OAuth/auth credential fields — those are filled by the OAuth
-    // redirect flow itself and should never be prompted to the end user.
-    const oauthInternalFields = new Set([
-      "access_token", "refresh_token", "token_type", "id_token",
-      "expires_in", "expired_at", "scope", "code", "code_verifier",
-      "client_id", "client_secret", "api_key", "generic_api_key",
-      "username", "password", "token", "webhook_signature",
-      "oauth_token", "consumer_key", "credentials_json",
-      "callback_url", "redirect_url", "redirectUrl", "finalRedirectUri",
-      "error", "error_description", "state_prefix",
-      "registration_access_token", "registration_client_uri",
-      "composio_link_redirect_url",
-    ]);
-    const expectedFields: any[] = authConfig.expectedInputFields ?? [];
-    const requiredFields = expectedFields.filter(
-      (f: any) => f.required && !oauthInternalFields.has(f.name),
-    );
-
-    // If there are required fields and the caller hasn't provided them yet, return the field definitions
-    if (requiredFields.length > 0 && !input.connectionParams) {
-      return {
-        redirectUrl: null,
-        connectedAccountId: null,
-        connectionStatus: "REQUIRES_INPUT",
-        requiredFields: requiredFields.map((f: any) => ({
-          name: f.name,
-          displayName: f.displayName ?? f.display_name ?? f.name,
-          description: f.description ?? "",
-          type: f.type ?? "string",
-          required: true,
-        })),
-      };
-    }
 
     // Build typed config using AuthScheme helpers when connection params are provided
     const initiateOptions: any = {
@@ -174,11 +139,46 @@ export function integrationService(db: Db) {
       }
     }
 
-    const connectionRequest = await composio.connectedAccounts.initiate(
-      companyId, // userId = our companyId
-      authConfigId,
-      initiateOptions,
-    );
+    // Try to initiate the connection. If Composio rejects it because of missing
+    // required fields (e.g. Shopify store subdomain), use the auth config's
+    // expectedInputFields to build a form for the user — Composio tells us
+    // exactly what's needed, no hardcoded field lists.
+    let connectionRequest;
+    try {
+      connectionRequest = await composio.connectedAccounts.initiate(
+        companyId, // userId = our companyId
+        authConfigId,
+        initiateOptions,
+      );
+    } catch (err: any) {
+      const body = err?.body ?? err?.response?.data ?? err;
+      const errMsg: string = body?.error?.message ?? body?.message ?? err?.message ?? "";
+      const slug: string = body?.error?.slug ?? "";
+
+      if (slug === "ConnectedAccount_MissingRequiredFields" || errMsg.includes("Missing required fields")) {
+        // Use expectedInputFields from the auth config which has proper field names/keys
+        const expectedFields: any[] = authConfig.expectedInputFields ?? [];
+        const fields = expectedFields
+          .filter((f: any) => f.required)
+          .map((f: any) => ({
+            name: f.name,
+            displayName: f.displayName ?? f.display_name ?? f.name,
+            description: f.description ?? "",
+            type: f.type ?? "string",
+            required: true,
+          }));
+
+        if (fields.length > 0) {
+          return {
+            redirectUrl: null,
+            connectedAccountId: null,
+            connectionStatus: "REQUIRES_INPUT",
+            requiredFields: fields,
+          };
+        }
+      }
+      throw err;
+    }
 
     return {
       redirectUrl: connectionRequest.redirectUrl,
