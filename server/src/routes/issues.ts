@@ -32,6 +32,7 @@ import { forbidden, HttpError, unauthorized } from "../errors.js";
 import { assertCompanyAccess, companyRouter, getActorInfo, getActorVendorId } from "./authz.js";
 import { indexComment } from "../vector/index.js";
 import { enqueueEmailAlert } from "../queues/email-alerts.js";
+import { isCompact, compactIssue, compactComment } from "./compact.js";
 
 const MAX_ATTACHMENT_BYTES = Number(process.env.SUBSTAFF_ATTACHMENT_MAX_BYTES) || 10 * 1024 * 1024;
 const BLOCKED_ATTACHMENT_CONTENT_TYPES = new Set([
@@ -209,7 +210,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       labelId: req.query.labelId as string | undefined,
       q: req.query.q as string | undefined,
     });
-    res.json(result);
+    res.json(isCompact(req) ? result.map((i: any) => compactIssue(i)) : result);
   });
 
   router.get("/companies/:companyId/labels", async (req, res) => {
@@ -281,7 +282,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
     const mentionedProjects = mentionedProjectIds.length > 0
       ? await projectsSvc.listByIds(issue.companyId, mentionedProjectIds)
       : [];
-    res.json({ ...issue, ancestors, project: project ?? null, goal: goal ?? null, mentionedProjects });
+    const full = { ...issue, ancestors, project: project ?? null, goal: goal ?? null, mentionedProjects };
+    res.json(isCompact(req) ? compactIssue(full) : full);
   });
 
   router.get("/issues/:id/approvals", async (req, res) => {
@@ -894,7 +896,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       limit: limit && !isNaN(limit) ? limit : undefined,
       since,
     });
-    res.json(comments);
+    res.json(isCompact(req) ? comments.map((c: any) => compactComment(c)) : comments);
   });
 
   router.get("/issues/:id/comments/:commentId", async (req, res) => {

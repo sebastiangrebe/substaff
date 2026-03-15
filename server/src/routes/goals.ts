@@ -3,6 +3,7 @@ import { createGoalSchema, updateGoalSchema } from "@substaff/shared";
 import { validate } from "../middleware/validate.js";
 import { goalService, logActivity } from "../services/index.js";
 import { assertCompanyAccess, companyRouter, getActorInfo } from "./authz.js";
+import { isCompact, compactGoalTree } from "./compact.js";
 
 export function goalRoutes(db: Db) {
   const router = companyRouter();
@@ -17,7 +18,7 @@ export function goalRoutes(db: Db) {
   router.get("/companies/:companyId/goals/tree", async (req, res) => {
     const companyId = req.params.companyId as string;
     const tree = await svc.tree(companyId);
-    res.json(tree);
+    res.json(isCompact(req) ? tree.map((g: any) => compactGoalTree(g)) : tree);
   });
 
   router.get("/goals/:id/progress", async (req, res) => {

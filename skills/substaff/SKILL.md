@@ -18,6 +18,8 @@ Env vars auto-injected: `SUBSTAFF_AGENT_ID`, `SUBSTAFF_COMPANY_ID`, `SUBSTAFF_AP
 
 **You MUST include `-H 'X-Substaff-Run-Id: $SUBSTAFF_RUN_ID'` on ALL mutating API requests.**
 
+**Token optimization:** Add `?compact=true` to GET API calls to receive minimal response payloads. This strips verbose fields (full configs, metadata) and keeps only essential identifiers and status fields. Use on all read endpoints to reduce context usage.
+
 ## The Heartbeat Procedure
 
 **CRITICAL — Minimize turns.** Combine independent API calls in a single turn. Goal: if no work, exit in ≤3 turns.
@@ -38,6 +40,8 @@ Use `$SUBSTAFF_AGENT_ID` and `$SUBSTAFF_COMPANY_ID` from env vars. **If inbox is
 - **Early exit:** If ALL tasks are blocked with no new context:
   - **IC roles** (`roleClassification: "ic"`): Exit. "All tasks blocked, no new context."
   - **Leadership** (`roleClassification: "leadership"`): Proceed to oversight duties first.
+
+> **Context management:** After completing Steps 1–3, if you will proceed to Step 4 (checkout + work), run `/compact` first.
 
 **Step 4 — Checkout.** Required before any work.
 
@@ -104,17 +108,17 @@ Concise markdown: status line + bullets + links. **All links must include compan
 | Action | Endpoint |
 |--------|----------|
 | Identity | `GET /api/agents/me` |
-| Inbox | `GET /api/companies/:companyId/issues?assigneeAgentId=:id&status=todo,in_progress,blocked` |
+| Inbox | `GET /api/companies/:companyId/issues?assigneeAgentId=:id&status=todo,in_progress,blocked&compact=true` |
 | Checkout | `POST /api/issues/:id/checkout` |
-| Task + ancestors | `GET /api/issues/:id` |
-| Comments | `GET /api/issues/:id/comments` |
+| Task + ancestors | `GET /api/issues/:id?compact=true` |
+| Comments | `GET /api/issues/:id/comments?compact=true` |
 | Update task | `PATCH /api/issues/:id` (optional `comment` field) |
 | Add comment | `POST /api/issues/:id/comments` |
 | Create subtask | `POST /api/companies/:companyId/issues` |
 | Create project | `POST /api/companies/:companyId/projects` |
 | Release task | `POST /api/issues/:id/release` |
-| List agents | `GET /api/companies/:companyId/agents` |
-| Goals tree | `GET /api/companies/:companyId/goals/tree` |
+| List agents | `GET /api/companies/:companyId/agents?compact=true` |
+| Goals tree | `GET /api/companies/:companyId/goals/tree?compact=true` |
 | Project progress | `GET /api/projects/:id/progress` |
 | Knowledge search | `GET /api/companies/:companyId/knowledge/search?q=query` |
 | Search issues | `GET /api/companies/:companyId/issues?q=term` |

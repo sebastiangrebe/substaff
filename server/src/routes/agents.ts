@@ -33,6 +33,7 @@ import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo, getActor
 import { findServerAdapter, listAdapterModels } from "../adapters/index.js";
 import { redactEventPayload } from "../redaction.js";
 import { enqueueEmailAlert } from "../queues/email-alerts.js";
+import { isCompact, compactAgent } from "./compact.js";
 
 export function agentRoutes(db: Db) {
   const DEFAULT_INSTRUCTIONS_PATH_KEYS: Record<string, string> = {
@@ -390,6 +391,10 @@ export function agentRoutes(db: Db) {
   router.get("/companies/:companyId/agents", async (req, res) => {
     const companyId = req.params.companyId as string;
     const result = await svc.list(companyId);
+    if (isCompact(req)) {
+      res.json(result.map((agent: any) => compactAgent(agent)));
+      return;
+    }
     const canReadConfigs = await actorCanReadConfigurationsForCompany(req, companyId);
     if (canReadConfigs || req.actor.type === "board") {
       res.json(result);

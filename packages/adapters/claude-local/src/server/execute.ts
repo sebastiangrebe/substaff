@@ -58,17 +58,21 @@ async function buildSkillsDir(): Promise<{ dir: string; substaffSkillContent: st
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      await fs.symlink(
-        path.join(skillsDir, entry.name),
-        path.join(target, entry.name),
-      );
       // Read the core substaff skill for system prompt injection
       if (entry.name === "substaff") {
         try {
           const content = await fs.readFile(path.join(skillsDir, entry.name, "SKILL.md"), "utf-8");
           substaffSkillContent = content;
         } catch { /* skill file missing — not critical */ }
+        // Skip symlinking substaff skill — it's already injected into the system
+        // prompt. Including it here would make it available as an invocable /substaff
+        // command, causing agents to waste ~5K tokens re-invoking it.
+        continue;
       }
+      await fs.symlink(
+        path.join(skillsDir, entry.name),
+        path.join(target, entry.name),
+      );
     }
   }
   return { dir: tmp, substaffSkillContent };

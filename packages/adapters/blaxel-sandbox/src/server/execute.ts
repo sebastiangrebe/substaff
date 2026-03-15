@@ -262,6 +262,10 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
           await sandbox.fs.mkdir(targetSkillsPath);
           for (const entry of entries) {
             if (!entry.isDirectory()) continue;
+            // Skip the substaff skill — it's already injected into the system prompt.
+            // Uploading it here would make it available as an invocable /substaff command,
+            // causing agents to waste ~5K tokens re-invoking it.
+            if (entry.name === "substaff") continue;
             const skillDir = path.join(localSkillsDir, entry.name);
             const skillFiles = await fs.readdir(skillDir);
             await sandbox.fs.mkdir(`${targetSkillsPath}/${entry.name}`);
@@ -812,7 +816,9 @@ function buildDefaultPrompt(
       }
     }
     parts.push("\n\n--- END AGENT PERSONA ---");
-    parts.push("\n\nIMPORTANT: You already have your persona and heartbeat instructions above. The /substaff skill is pre-loaded into your system prompt — do NOT invoke /substaff again. Start your heartbeat procedure immediately. Do NOT re-read persona files from disk, search for files, or read memory before checking assignments.");
+    parts.push("\n\n**CRITICAL — DO NOT INVOKE /substaff. The /substaff skill content is ALREADY in your system prompt above. Invoking it again wastes tokens and delays your work. There is NO /substaff command available.**");
+    parts.push("\n\nIMPORTANT: You already have your persona and heartbeat instructions above. Start your heartbeat procedure immediately. Do NOT re-read persona files from disk, search for files, or read memory before checking assignments.");
+    parts.push("\n\n**REMINDER: /substaff is NOT available as a command. Do NOT attempt to invoke it. All heartbeat instructions are already loaded above.**");
   }
 
   return parts.join("");
