@@ -27,6 +27,7 @@ export { issueApprovals } from "./issue_approvals.js";
 export { issueComments } from "./issue_comments.js";
 export { assets } from "./assets.js";
 export { issueAttachments } from "./issue_attachments.js";
+export { assetLinks } from "./asset_links.js";
 export { heartbeatRuns } from "./heartbeat_runs.js";
 export { heartbeatRunEvents } from "./heartbeat_run_events.js";
 export { costEvents } from "./cost_events.js";

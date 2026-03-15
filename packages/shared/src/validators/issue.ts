@@ -70,6 +70,13 @@ export const createIssueAttachmentMetadataSchema = z.object({
 
 export type CreateIssueAttachmentMetadata = z.infer<typeof createIssueAttachmentMetadataSchema>;
 
+export const linkAssetSchema = z.object({
+  linkType: z.enum(["issue", "project", "goal", "issue_comment"]),
+  linkId: z.string().uuid(),
+});
+
+export type LinkAsset = z.infer<typeof linkAssetSchema>;
+
 export const addIssueDependencySchema = z.object({
   dependsOnIssueId: z.string().uuid(),
 });

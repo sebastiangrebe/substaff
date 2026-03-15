@@ -75,6 +75,7 @@ export function companyRoutes(db: Db) {
   });
 
   router.post("/:companyId/export", validate(companyPortabilityExportSchema), async (req, res) => {
+    assertBoard(req);
     const companyId = req.params.companyId as string;
     const result = await portability.exportBundle(companyId, req.body);
     res.json(result);

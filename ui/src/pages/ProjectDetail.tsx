@@ -16,6 +16,7 @@ import { IssuesList } from "../components/IssuesList";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { projectRouteRef } from "../lib/utils";
 import { Target } from "lucide-react";
+import { EntityAttachments } from "../components/EntityAttachments";
 
 /* ── Color picker popover ── */
 
@@ -315,6 +316,11 @@ export function ProjectDetail() {
         </div>
       </div>
 
+      {/* ── Attachments ── */}
+      {project.id && resolvedCompanyId && (
+        <EntityAttachments companyId={resolvedCompanyId} linkType="project" linkId={project.id} />
+      )}
+
       {/* ── Progress ── */}
       {progress && progress.issues.total > 0 && (
         <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
@@ -327,6 +333,7 @@ export function ProjectDetail() {
           </div>
         </div>
       )}
+
     </>
   );
 

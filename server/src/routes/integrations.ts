@@ -68,6 +68,9 @@ export function integrationRoutes(db: Db) {
     }
 
     try {
+      // Validate the caller has access to this company before completing the connection
+      assertCompanyAccess(req, companyId);
+
       // Look up company prefix for redirect
       const [company] = await db
         .select({ issuePrefix: companies.issuePrefix })

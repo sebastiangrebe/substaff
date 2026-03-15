@@ -36,6 +36,7 @@ If `SUBSTAFF_APPROVAL_ID` is set:
 - **List files:** `GET /api/agent/files` (optionally `?prefix=some/path/`)
 - **Download a file:** `GET /api/agent/files/content/{filePath}`
 - **Upload a file:** `PUT /api/agent/files/content/{filePath}`
+- **Link a file to an entity:** Add `?linkTo=issue:{id}` or `?linkTo=project:{id}` or `?linkTo=goal:{id}` to link deliverables to the relevant issue, project, or goal.
 - Never recreate a file from memory if it exists in storage. Always check first.
 
 ## 6. Update Status and Communicate

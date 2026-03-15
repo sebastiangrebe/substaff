@@ -86,6 +86,12 @@ export function activityRoutes(db: Db) {
 
   router.get("/heartbeat-runs/:runId/issues", async (req, res) => {
     const runId = req.params.runId as string;
+    const run = await svc.getRunById(runId);
+    if (!run) {
+      res.status(404).json({ error: "Run not found" });
+      return;
+    }
+    assertCompanyAccess(req, run.companyId);
     const result = await svc.issuesForRun(runId);
     res.json(result);
   });

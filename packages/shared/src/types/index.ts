@@ -37,6 +37,8 @@ export type {
   IssueAncestor,
   IssueAncestorProject,
   IssueAncestorGoal,
+  AssetLink,
+  AssetLinkType,
   IssueAttachment,
   IssueDependency,
   IssueLabel,

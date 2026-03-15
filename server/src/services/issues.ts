@@ -7,7 +7,7 @@ import {
   companyMemberships,
   goals,
   heartbeatRuns,
-  issueAttachments,
+  assetLinks,
   issueDependencies,
   issueLabels,
   issueComments,
@@ -823,8 +823,9 @@ export function issueService(db: Db) {
     },
 
     createAttachment: async (input: {
-      issueId: string;
-      issueCommentId?: string | null;
+      companyId: string;
+      linkType: string;
+      linkId: string;
       provider: string;
       objectKey: string;
       contentType: string;
@@ -834,30 +835,11 @@ export function issueService(db: Db) {
       createdByAgentId?: string | null;
       createdByUserId?: string | null;
     }) => {
-      const issue = await db
-        .select({ id: issues.id, companyId: issues.companyId })
-        .from(issues)
-        .where(eq(issues.id, input.issueId))
-        .then((rows) => rows[0] ?? null);
-      if (!issue) throw notFound("Issue not found");
-
-      if (input.issueCommentId) {
-        const comment = await db
-          .select({ id: issueComments.id, companyId: issueComments.companyId, issueId: issueComments.issueId })
-          .from(issueComments)
-          .where(eq(issueComments.id, input.issueCommentId))
-          .then((rows) => rows[0] ?? null);
-        if (!comment) throw notFound("Issue comment not found");
-        if (comment.companyId !== issue.companyId || comment.issueId !== issue.id) {
-          throw unprocessable("Attachment comment must belong to same issue and company");
-        }
-      }
-
       return db.transaction(async (tx) => {
         const [asset] = await tx
           .insert(assets)
           .values({
-            companyId: issue.companyId,
+            companyId: input.companyId,
             provider: input.provider,
             objectKey: input.objectKey,
             contentType: input.contentType,
@@ -869,22 +851,22 @@ export function issueService(db: Db) {
           })
           .returning();
 
-        const [attachment] = await tx
-          .insert(issueAttachments)
+        const [link] = await tx
+          .insert(assetLinks)
           .values({
-            companyId: issue.companyId,
-            issueId: issue.id,
+            companyId: input.companyId,
             assetId: asset.id,
-            issueCommentId: input.issueCommentId ?? null,
+            linkType: input.linkType,
+            linkId: input.linkId,
           })
           .returning();
 
         return {
-          id: attachment.id,
-          companyId: attachment.companyId,
-          issueId: attachment.issueId,
-          issueCommentId: attachment.issueCommentId,
-          assetId: attachment.assetId,
+          id: link.id,
+          companyId: link.companyId,
+          assetId: link.assetId,
+          linkType: link.linkType,
+          linkId: link.linkId,
           provider: asset.provider,
           objectKey: asset.objectKey,
           contentType: asset.contentType,
@@ -893,20 +875,20 @@ export function issueService(db: Db) {
           originalFilename: asset.originalFilename,
           createdByAgentId: asset.createdByAgentId,
           createdByUserId: asset.createdByUserId,
-          createdAt: attachment.createdAt,
-          updatedAt: attachment.updatedAt,
+          createdAt: link.createdAt,
+          updatedAt: link.updatedAt,
         };
       });
     },
 
-    listAttachments: async (issueId: string) =>
+    listAttachments: async (linkType: string, linkId: string) =>
       db
         .select({
-          id: issueAttachments.id,
-          companyId: issueAttachments.companyId,
-          issueId: issueAttachments.issueId,
-          issueCommentId: issueAttachments.issueCommentId,
-          assetId: issueAttachments.assetId,
+          id: assetLinks.id,
+          companyId: assetLinks.companyId,
+          assetId: assetLinks.assetId,
+          linkType: assetLinks.linkType,
+          linkId: assetLinks.linkId,
           provider: assets.provider,
           objectKey: assets.objectKey,
           contentType: assets.contentType,
@@ -915,22 +897,22 @@ export function issueService(db: Db) {
           originalFilename: assets.originalFilename,
           createdByAgentId: assets.createdByAgentId,
           createdByUserId: assets.createdByUserId,
-          createdAt: issueAttachments.createdAt,
-          updatedAt: issueAttachments.updatedAt,
+          createdAt: assetLinks.createdAt,
+          updatedAt: assetLinks.updatedAt,
         })
-        .from(issueAttachments)
-        .innerJoin(assets, eq(issueAttachments.assetId, assets.id))
-        .where(eq(issueAttachments.issueId, issueId))
-        .orderBy(desc(issueAttachments.createdAt)),
+        .from(assetLinks)
+        .innerJoin(assets, eq(assetLinks.assetId, assets.id))
+        .where(and(eq(assetLinks.linkType, linkType), eq(assetLinks.linkId, linkId)))
+        .orderBy(desc(assetLinks.createdAt)),
 
     getAttachmentById: async (id: string) =>
       db
         .select({
-          id: issueAttachments.id,
-          companyId: issueAttachments.companyId,
-          issueId: issueAttachments.issueId,
-          issueCommentId: issueAttachments.issueCommentId,
-          assetId: issueAttachments.assetId,
+          id: assetLinks.id,
+          companyId: assetLinks.companyId,
+          assetId: assetLinks.assetId,
+          linkType: assetLinks.linkType,
+          linkId: assetLinks.linkId,
           provider: assets.provider,
           objectKey: assets.objectKey,
           contentType: assets.contentType,
@@ -939,23 +921,23 @@ export function issueService(db: Db) {
           originalFilename: assets.originalFilename,
           createdByAgentId: assets.createdByAgentId,
           createdByUserId: assets.createdByUserId,
-          createdAt: issueAttachments.createdAt,
-          updatedAt: issueAttachments.updatedAt,
+          createdAt: assetLinks.createdAt,
+          updatedAt: assetLinks.updatedAt,
         })
-        .from(issueAttachments)
-        .innerJoin(assets, eq(issueAttachments.assetId, assets.id))
-        .where(eq(issueAttachments.id, id))
+        .from(assetLinks)
+        .innerJoin(assets, eq(assetLinks.assetId, assets.id))
+        .where(eq(assetLinks.id, id))
         .then((rows) => rows[0] ?? null),
 
     removeAttachment: async (id: string) =>
       db.transaction(async (tx) => {
         const existing = await tx
           .select({
-            id: issueAttachments.id,
-            companyId: issueAttachments.companyId,
-            issueId: issueAttachments.issueId,
-            issueCommentId: issueAttachments.issueCommentId,
-            assetId: issueAttachments.assetId,
+            id: assetLinks.id,
+            companyId: assetLinks.companyId,
+            assetId: assetLinks.assetId,
+            linkType: assetLinks.linkType,
+            linkId: assetLinks.linkId,
             provider: assets.provider,
             objectKey: assets.objectKey,
             contentType: assets.contentType,
@@ -964,19 +946,37 @@ export function issueService(db: Db) {
             originalFilename: assets.originalFilename,
             createdByAgentId: assets.createdByAgentId,
             createdByUserId: assets.createdByUserId,
-            createdAt: issueAttachments.createdAt,
-            updatedAt: issueAttachments.updatedAt,
+            createdAt: assetLinks.createdAt,
+            updatedAt: assetLinks.updatedAt,
           })
-          .from(issueAttachments)
-          .innerJoin(assets, eq(issueAttachments.assetId, assets.id))
-          .where(eq(issueAttachments.id, id))
+          .from(assetLinks)
+          .innerJoin(assets, eq(assetLinks.assetId, assets.id))
+          .where(eq(assetLinks.id, id))
           .then((rows) => rows[0] ?? null);
         if (!existing) return null;
 
-        await tx.delete(issueAttachments).where(eq(issueAttachments.id, id));
+        await tx.delete(assetLinks).where(eq(assetLinks.id, id));
         await tx.delete(assets).where(eq(assets.id, existing.assetId));
         return existing;
       }),
+
+    createAssetLink: async (input: {
+      companyId: string;
+      assetId: string;
+      linkType: string;
+      linkId: string;
+    }) => {
+      const [link] = await db
+        .insert(assetLinks)
+        .values({
+          companyId: input.companyId,
+          assetId: input.assetId,
+          linkType: input.linkType,
+          linkId: input.linkId,
+        })
+        .returning();
+      return link;
+    },
 
     findMentionedAgents: async (companyId: string, body: string) => {
       const re = /\B@([^\s@,!?.]+)/g;

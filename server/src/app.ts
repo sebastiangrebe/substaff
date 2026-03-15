@@ -171,7 +171,7 @@ export async function createApp(
   api.use(billingRoutes(db));
   api.use(planRoutes(db));
   api.use(templateRoutes(db));
-  api.use(fileRoutes(opts.storageService));
+  api.use(fileRoutes(opts.storageService, db));
   api.use(knowledgeRoutes(db));
   api.use(integrationRoutes(db));
   api.use(companyRoleRoutes(db));

@@ -73,6 +73,7 @@ If `SUBSTAFF_WAKE_COMMENT_ID` is set, find that specific comment first and treat
 - **List files:** `GET /api/agent/files` (optionally `?prefix=some/path/`)
 - **Download a file:** `GET /api/agent/files/content/{filePath}` — returns the raw file content
 - **Upload a file:** `PUT /api/agent/files/content/{filePath}` — persist a file for future runs
+- **Link a file to an entity:** Add `?linkTo=issue:{issueId}` or `?linkTo=project:{projectId}` or `?linkTo=goal:{goalId}` to the PUT request. This makes the file appear as an attachment on that entity in the UI. Always link deliverables, reports, and meaningful outputs to the relevant issue or project.
 - **NEVER recreate a file from memory** if it was produced by a previous run. Always check storage first using the list/download endpoints above. If a file exists in storage, download it rather than generating a new version.
 - If a file truly does not exist in storage (404), then create it fresh — but check first.
 

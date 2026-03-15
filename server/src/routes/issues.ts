@@ -34,12 +34,10 @@ import { indexComment } from "../vector/index.js";
 import { enqueueEmailAlert } from "../queues/email-alerts.js";
 
 const MAX_ATTACHMENT_BYTES = Number(process.env.SUBSTAFF_ATTACHMENT_MAX_BYTES) || 10 * 1024 * 1024;
-const ALLOWED_ATTACHMENT_CONTENT_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "image/webp",
-  "image/gif",
+const BLOCKED_ATTACHMENT_CONTENT_TYPES = new Set([
+  "application/x-msdownload",
+  "application/x-executable",
+  "application/x-sharedlib",
 ]);
 
 export function issueRoutes(db: Db, storage: StorageService) {
@@ -658,7 +656,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       return;
     }
     assertCompanyAccess(req, existing.companyId);
-    const attachments = await svc.listAttachments(id);
+    const attachments = await svc.listAttachments("issue", id);
 
     const issue = await svc.remove(id);
     if (!issue) {
@@ -1159,6 +1157,111 @@ export function issueRoutes(db: Db, storage: StorageService) {
     res.status(201).json(comment);
   });
 
+  // =========================================================================
+  // Generic attachment endpoints — list/upload for any entity type
+  // =========================================================================
+
+  const VALID_LINK_TYPES = new Set(["issue", "project", "goal"]);
+
+  router.get("/companies/:companyId/attachments/:linkType/:linkId", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    const linkType = req.params.linkType as string;
+    const linkId = req.params.linkId as string;
+    assertCompanyAccess(req, companyId);
+    if (!VALID_LINK_TYPES.has(linkType)) {
+      res.status(400).json({ error: `Invalid link type: ${linkType}` });
+      return;
+    }
+    const attachments = await svc.listAttachments(linkType, linkId);
+    res.json(attachments.map(withContentPath));
+  });
+
+  router.post("/companies/:companyId/attachments/:linkType/:linkId", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    const linkType = req.params.linkType as string;
+    const linkId = req.params.linkId as string;
+    assertCompanyAccess(req, companyId);
+    if (!VALID_LINK_TYPES.has(linkType)) {
+      res.status(400).json({ error: `Invalid link type: ${linkType}` });
+      return;
+    }
+
+    try {
+      await runSingleFileUpload(req, res);
+    } catch (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          res.status(422).json({ error: `Attachment exceeds ${MAX_ATTACHMENT_BYTES} bytes` });
+          return;
+        }
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+
+    const file = (req as Request & { file?: { mimetype: string; buffer: Buffer; originalname: string } }).file;
+    if (!file) {
+      res.status(400).json({ error: "Missing file field 'file'" });
+      return;
+    }
+    const contentType = (file.mimetype || "application/octet-stream").toLowerCase();
+    if (BLOCKED_ATTACHMENT_CONTENT_TYPES.has(contentType)) {
+      res.status(422).json({ error: `Blocked attachment type: ${contentType}` });
+      return;
+    }
+    if (file.buffer.length <= 0) {
+      res.status(422).json({ error: "Attachment is empty" });
+      return;
+    }
+
+    const actor = getActorInfo(req);
+    const stored = await storage.putFile({
+      companyId,
+      namespace: `${linkType}s/${linkId}`,
+      originalFilename: file.originalname || null,
+      contentType,
+      body: file.buffer,
+    });
+
+    const attachment = await svc.createAttachment({
+      companyId,
+      linkType,
+      linkId,
+      provider: stored.provider,
+      objectKey: stored.objectKey,
+      contentType: stored.contentType,
+      byteSize: stored.byteSize,
+      sha256: stored.sha256,
+      originalFilename: stored.originalFilename,
+      createdByAgentId: actor.agentId,
+      createdByUserId: actor.actorType === "user" ? actor.actorId : null,
+    });
+
+    await logActivity(db, {
+      companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: `${linkType}.attachment_added`,
+      entityType: linkType,
+      entityId: linkId,
+      details: {
+        attachmentId: attachment.id,
+        originalFilename: attachment.originalFilename,
+        contentType: attachment.contentType,
+        byteSize: attachment.byteSize,
+      },
+    });
+
+    res.status(201).json(withContentPath(attachment));
+  });
+
+  // =========================================================================
+  // Legacy issue-specific attachment endpoints (kept for backward compat)
+  // =========================================================================
+
   router.get("/issues/:id/attachments", async (req, res) => {
     const issueId = req.params.id as string;
     const issue = await svc.getById(issueId);
@@ -1167,7 +1270,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       return;
     }
     assertCompanyAccess(req, issue.companyId);
-    const attachments = await svc.listAttachments(issueId);
+    const attachments = await svc.listAttachments("issue", issueId);
     res.json(attachments.map(withContentPath));
   });
 
@@ -1203,9 +1306,9 @@ export function issueRoutes(db: Db, storage: StorageService) {
       res.status(400).json({ error: "Missing file field 'file'" });
       return;
     }
-    const contentType = (file.mimetype || "").toLowerCase();
-    if (!ALLOWED_ATTACHMENT_CONTENT_TYPES.has(contentType)) {
-      res.status(422).json({ error: `Unsupported attachment type: ${contentType || "unknown"}` });
+    const contentType = (file.mimetype || "application/octet-stream").toLowerCase();
+    if (BLOCKED_ATTACHMENT_CONTENT_TYPES.has(contentType)) {
+      res.status(422).json({ error: `Blocked attachment type: ${contentType}` });
       return;
     }
     if (file.buffer.length <= 0) {
@@ -1228,9 +1331,11 @@ export function issueRoutes(db: Db, storage: StorageService) {
       body: file.buffer,
     });
 
+    // Create the main issue link
     const attachment = await svc.createAttachment({
-      issueId,
-      issueCommentId: parsedMeta.data.issueCommentId ?? null,
+      companyId,
+      linkType: "issue",
+      linkId: issueId,
       provider: stored.provider,
       objectKey: stored.objectKey,
       contentType: stored.contentType,
@@ -1240,6 +1345,16 @@ export function issueRoutes(db: Db, storage: StorageService) {
       createdByAgentId: actor.agentId,
       createdByUserId: actor.actorType === "user" ? actor.actorId : null,
     });
+
+    // If linked to a comment, create an additional link
+    if (parsedMeta.data.issueCommentId) {
+      await svc.createAssetLink({
+        companyId,
+        assetId: attachment.assetId,
+        linkType: "issue_comment",
+        linkId: parsedMeta.data.issueCommentId,
+      });
+    }
 
     await logActivity(db, {
       companyId,
@@ -1312,8 +1427,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
       agentId: actor.agentId,
       runId: actor.runId,
       action: "issue.attachment_removed",
-      entityType: "issue",
-      entityId: removed.issueId,
+      entityType: removed.linkType,
+      entityId: removed.linkId,
       details: {
         attachmentId: removed.id,
       },

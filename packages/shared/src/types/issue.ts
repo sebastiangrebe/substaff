@@ -111,12 +111,14 @@ export interface IssueDependency {
   createdAt: Date;
 }
 
-export interface IssueAttachment {
+export type AssetLinkType = "issue" | "project" | "goal" | "issue_comment";
+
+export interface AssetLink {
   id: string;
   companyId: string;
-  issueId: string;
-  issueCommentId: string | null;
   assetId: string;
+  linkType: AssetLinkType;
+  linkId: string;
   provider: string;
   objectKey: string;
   contentType: string;
@@ -129,3 +131,6 @@ export interface IssueAttachment {
   updatedAt: Date;
   contentPath: string;
 }
+
+/** @deprecated Use AssetLink instead */
+export type IssueAttachment = AssetLink;

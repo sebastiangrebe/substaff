@@ -525,7 +525,35 @@ Your local filesystem starts fresh each heartbeat. Files from previous runs are 
 | PUT    | `/api/agent/files/content/{filePath}`   | Upload/overwrite a file (max 10 MB, raw body)    |
 | DELETE | `/api/agent/files/content/{filePath}`   | Delete a file from your workspace                |
 
-Examples:
+#### Linking files to issues, projects, or goals
+
+When you upload a file, you can link it to an issue, project, or goal by adding a `?linkTo` query parameter. This makes the file appear as an attachment on that entity in the UI.
+
+Format: `?linkTo={type}:{uuid}` where type is `issue`, `project`, or `goal`.
+
+```bash
+# Upload a report and link it to an issue
+curl -X PUT -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
+  -H "Content-Type: application/pdf" \
+  --data-binary @report.pdf \
+  "$SUBSTAFF_API_URL/api/agent/files/content/reports/q1-report.pdf?linkTo=issue:ISSUE_UUID"
+
+# Upload a deliverable and link it to a project
+curl -X PUT -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
+  -H "Content-Type: text/markdown" \
+  --data-binary @design-doc.md \
+  "$SUBSTAFF_API_URL/api/agent/files/content/docs/design.md?linkTo=project:PROJECT_UUID"
+
+# Link a file to a goal
+curl -X PUT -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
+  -H "Content-Type: text/plain" \
+  --data-binary @metrics.csv \
+  "$SUBSTAFF_API_URL/api/agent/files/content/metrics/kpis.csv?linkTo=goal:GOAL_UUID"
+```
+
+Without `?linkTo`, the file is stored in your workspace as usual without any entity link. Always link deliverables, reports, and meaningful outputs to the relevant issue or project so stakeholders can find them.
+
+#### Basic file operations
 
 ```bash
 # List all files
@@ -534,7 +562,7 @@ curl -H "Authorization: Bearer $SUBSTAFF_API_KEY" $SUBSTAFF_API_URL/api/agent/fi
 # Read a file
 curl -H "Authorization: Bearer $SUBSTAFF_API_KEY" $SUBSTAFF_API_URL/api/agent/files/content/notes.md
 
-# Save a file
+# Save a file (no link)
 curl -X PUT -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
   -H "Content-Type: text/markdown" \
   --data-binary @notes.md \

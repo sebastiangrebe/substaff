@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { issuesApi } from "../api/issues";
@@ -17,6 +17,7 @@ import { queryKeys } from "../lib/queryKeys";
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { relativeTime, cn, formatTokens } from "../lib/utils";
 import { InlineEditor } from "../components/InlineEditor";
+import { EntityAttachments } from "../components/EntityAttachments";
 import { CommentThread } from "../components/CommentThread";
 import { IssueProperties } from "../components/IssueProperties";
 import { LiveRunWidget } from "../components/LiveRunWidget";
@@ -42,13 +43,13 @@ import {
   ListTree,
   MessageSquare,
   MoreHorizontal,
-  Paperclip,
+
   Plus,
-  Trash2,
+
   X,
 } from "lucide-react";
 import type { ActivityEvent, TaskPlan } from "@substaff/shared";
-import type { Agent, IssueAttachment } from "@substaff/shared";
+import type { Agent } from "@substaff/shared";
 import { formatActivityVerb, humanizeActorName } from "../lib/activity-labels";
 
 type CommentReassignment = {
@@ -165,8 +166,6 @@ export function IssueDetail() {
     cost: false,
     activity: false,
   });
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const { data: issue, isLoading, error } = useQuery({
     queryKey: queryKeys.issues.detail(issueId!),
@@ -196,12 +195,6 @@ export function IssueDetail() {
   const { data: linkedApprovals } = useQuery({
     queryKey: queryKeys.issues.approvals(issueId!),
     queryFn: () => issuesApi.listApprovals(issueId!),
-    enabled: !!issueId,
-  });
-
-  const { data: attachments } = useQuery({
-    queryKey: queryKeys.issues.attachments(issueId!),
-    queryFn: () => issuesApi.listAttachments(issueId!),
     enabled: !!issueId,
   });
 
@@ -496,24 +489,8 @@ export function IssueDetail() {
       return issuesApi.uploadAttachment(selectedCompanyId, issueId!, file);
     },
     onSuccess: () => {
-      setAttachmentError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.attachments(issueId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.attachments("issue", issueId!) });
       invalidateIssue();
-    },
-    onError: (err) => {
-      setAttachmentError(err instanceof Error ? err.message : "Upload failed");
-    },
-  });
-
-  const deleteAttachment = useMutation({
-    mutationFn: (attachmentId: string) => issuesApi.deleteAttachment(attachmentId),
-    onSuccess: () => {
-      setAttachmentError(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.issues.attachments(issueId!) });
-      invalidateIssue();
-    },
-    onError: (err) => {
-      setAttachmentError(err instanceof Error ? err.message : "Delete failed");
     },
   });
 
@@ -578,17 +555,6 @@ export function IssueDetail() {
 
   // Ancestors are returned oldest-first from the server (root at end, immediate parent at start)
   const ancestors = issue.ancestors ?? [];
-
-  const handleFilePicked = async (evt: ChangeEvent<HTMLInputElement>) => {
-    const file = evt.target.files?.[0];
-    if (!file) return;
-    await uploadAttachment.mutateAsync(file);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const isImageAttachment = (attachment: IssueAttachment) => attachment.contentType.startsWith("image/");
 
   return (
     <div>
@@ -747,95 +713,9 @@ export function IssueDetail() {
         </div>
       </div>
 
-      {/* Attachments - image gallery when populated, minimal when empty */}
-      {(attachments && attachments.length > 0) ? (
-        <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border/40">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Attachments</h3>
-            <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                className="hidden"
-                onChange={handleFilePicked}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadAttachment.isPending}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Paperclip className="h-3 w-3 mr-1" />
-                {uploadAttachment.isPending ? "Uploading..." : "Add"}
-              </Button>
-            </div>
-          </div>
-
-          {attachmentError && (
-            <p className="text-xs text-destructive px-5 py-2">{attachmentError}</p>
-          )}
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-px bg-border/30">
-            {attachments.map((attachment) => (
-              <div key={attachment.id} className="group bg-card relative">
-                {isImageAttachment(attachment) ? (
-                  <a href={attachment.contentPath} target="_blank" rel="noreferrer" className="block">
-                    <img
-                      src={attachment.contentPath}
-                      alt={attachment.originalFilename ?? "attachment"}
-                      className="w-full h-32 object-cover"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </a>
-                ) : (
-                  <div className="w-full h-32 flex items-center justify-center bg-muted/20">
-                    <Paperclip className="h-6 w-6 text-muted-foreground/30" />
-                  </div>
-                )}
-                <div className="absolute bottom-0 left-0 right-0 px-2.5 py-1.5 flex items-center justify-between gap-1 bg-gradient-to-t from-black/60 to-transparent">
-                  <span className="text-[10px] text-white/80 truncate font-medium">
-                    {attachment.originalFilename ?? attachment.id}
-                  </span>
-                  <button
-                    type="button"
-                    className="text-white/40 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                    onClick={() => deleteAttachment.mutate(attachment.id)}
-                    disabled={deleteAttachment.isPending}
-                    title="Delete"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center mb-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            className="hidden"
-            onChange={handleFilePicked}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadAttachment.isPending}
-            className="text-xs text-muted-foreground/50 hover:text-foreground"
-          >
-            <Paperclip className="h-3 w-3 mr-1.5" />
-            {uploadAttachment.isPending ? "Uploading..." : "Attach image"}
-          </Button>
-          {attachmentError && (
-            <p className="text-xs text-destructive ml-2">{attachmentError}</p>
-          )}
-        </div>
+      {/* Attachments */}
+      {selectedCompanyId && issueId && (
+        <EntityAttachments companyId={selectedCompanyId} linkType="issue" linkId={issueId} />
       )}
 
       {/* ── Plans ── */}

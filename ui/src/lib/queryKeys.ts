@@ -109,6 +109,7 @@ export const queryKeys = {
       ["plans", companyId, status] as const,
   },
   orgChart: (companyId: string) => ["org-chart", companyId] as const,
+  attachments: (linkType: string, linkId: string) => ["attachments", linkType, linkId] as const,
   files: (companyId: string, prefix: string) => ["files", companyId, prefix] as const,
   roles: {
     list: (companyId: string) => ["roles", companyId] as const,

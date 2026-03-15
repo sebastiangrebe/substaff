@@ -33,6 +33,7 @@ import {
 import { GOAL_STATUSES } from "@substaff/shared";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BudgetEditor } from "../components/BudgetEditor";
+import { EntityAttachments } from "../components/EntityAttachments";
 import type { ActivityEvent } from "@substaff/shared";
 import { Identity } from "../components/Identity";
 import { formatActivityVerb, humanizeActorName } from "../lib/activity-labels";
@@ -231,6 +232,11 @@ export function GoalDetail() {
           />
         </div>
       </div>
+
+      {/* ── Attachments ── */}
+      {resolvedCompanyId && goalId && (
+        <EntityAttachments companyId={resolvedCompanyId} linkType="goal" linkId={goalId} />
+      )}
 
       {/* ── Progress ── */}
       {progress && progress.issues.total > 0 && (

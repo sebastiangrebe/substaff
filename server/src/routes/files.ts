@@ -1,7 +1,12 @@
 import archiver from "archiver";
 import type { StorageService } from "../storage/types.js";
-import { assertBoard, companyRouter } from "./authz.js";
+import type { Db } from "@substaff/db";
+import { assets, assetLinks } from "@substaff/db";
+import { eq, and } from "drizzle-orm";
+import { linkAssetSchema } from "@substaff/shared";
+import { assertBoard, companyRouter, getActorInfo } from "./authz.js";
 import { badRequest, forbidden } from "../errors.js";
+import { logActivity } from "../services/index.js";
 
 const MAX_AGENT_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per file
 
@@ -21,7 +26,7 @@ function agentNamespace(req: Express.Request): { companyId: string; agentId: str
   };
 }
 
-export function fileRoutes(storage: StorageService) {
+export function fileRoutes(storage: StorageService, db: Db) {
   const router = companyRouter();
 
   // =========================================================================
@@ -186,6 +191,23 @@ export function fileRoutes(storage: StorageService) {
       body,
     });
 
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "file.uploaded",
+      entityType: "file",
+      entityId: result.objectKey,
+      details: {
+        objectKey: result.objectKey,
+        contentType: result.contentType,
+        byteSize: result.byteSize,
+      },
+    });
+
     res.status(201).json({
       objectKey: result.objectKey,
       size: result.byteSize,
@@ -205,6 +227,20 @@ export function fileRoutes(storage: StorageService) {
 
     const objectKey = `${companyId}/${filePath}`;
     await storage.deleteObject(companyId, objectKey);
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "file.deleted",
+      entityType: "file",
+      entityId: objectKey,
+      details: { objectKey },
+    });
+
     res.status(204).end();
   });
 
@@ -262,8 +298,10 @@ export function fileRoutes(storage: StorageService) {
   });
 
   // Write a file to the agent's workspace
+  // Supports optional ?linkTo=issue:<id> or ?linkTo=project:<id> or ?linkTo=goal:<id>
+  // to create an asset record and link it to an entity.
   router.put("/agent/files/content/*filePath", async (req, res) => {
-    const { companyId, prefix } = agentNamespace(req);
+    const { companyId, agentId, prefix } = agentNamespace(req);
 
     const rawPath = req.params.filePath;
     const filePath = Array.isArray(rawPath) ? rawPath.join("/") : String(rawPath);
@@ -299,9 +337,103 @@ export function fileRoutes(storage: StorageService) {
       body,
     });
 
+    const actor = getActorInfo(req);
+
+    // Parse optional linkTo query param (e.g. "issue:uuid" or "project:uuid" or "goal:uuid")
+    const linkToRaw = req.query.linkTo as string | undefined;
+    let linkInfo: { linkType: string; linkId: string } | null = null;
+
+    if (linkToRaw) {
+      const [type, id] = linkToRaw.split(":");
+      const parsed = linkAssetSchema.safeParse({ linkType: type, linkId: id });
+      if (!parsed.success) {
+        throw badRequest(`Invalid linkTo format. Expected "issue:<uuid>" or "project:<uuid>" or "goal:<uuid>"`);
+      }
+      linkInfo = parsed.data;
+
+      // Upsert asset record for this file
+      const existing = await db
+        .select({ id: assets.id })
+        .from(assets)
+        .where(and(eq(assets.companyId, companyId), eq(assets.objectKey, result.objectKey)))
+        .then((rows) => rows[0] ?? null);
+
+      let assetId: string;
+      if (existing) {
+        await db
+          .update(assets)
+          .set({
+            contentType: result.contentType,
+            byteSize: result.byteSize,
+            sha256: result.sha256,
+            originalFilename: result.originalFilename,
+            updatedAt: new Date(),
+          })
+          .where(eq(assets.id, existing.id));
+        assetId = existing.id;
+      } else {
+        const [asset] = await db
+          .insert(assets)
+          .values({
+            companyId,
+            provider: result.provider,
+            objectKey: result.objectKey,
+            contentType: result.contentType,
+            byteSize: result.byteSize,
+            sha256: result.sha256,
+            originalFilename: result.originalFilename,
+            createdByAgentId: agentId,
+          })
+          .returning();
+        assetId = asset.id;
+      }
+
+      // Upsert the link (avoid duplicates)
+      const existingLink = await db
+        .select({ id: assetLinks.id })
+        .from(assetLinks)
+        .where(
+          and(
+            eq(assetLinks.assetId, assetId),
+            eq(assetLinks.linkType, linkInfo.linkType),
+            eq(assetLinks.linkId, linkInfo.linkId),
+          ),
+        )
+        .then((rows) => rows[0] ?? null);
+
+      if (!existingLink) {
+        await db
+          .insert(assetLinks)
+          .values({
+            companyId,
+            assetId,
+            linkType: linkInfo.linkType,
+            linkId: linkInfo.linkId,
+          });
+      }
+    }
+
+    await logActivity(db, {
+      companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: linkInfo ? "file.uploaded_and_linked" : "file.uploaded",
+      entityType: linkInfo?.linkType ?? "file",
+      entityId: linkInfo?.linkId ?? result.objectKey,
+      details: {
+        objectKey: result.objectKey,
+        contentType: result.contentType,
+        byteSize: result.byteSize,
+        ...(linkInfo ? { linkType: linkInfo.linkType, linkId: linkInfo.linkId } : {}),
+      },
+    });
+
     res.status(201).json({
       objectKey: result.objectKey,
       size: result.byteSize,
+      ...(linkInfo ? { linked: { linkType: linkInfo.linkType, linkId: linkInfo.linkId } } : {}),
     });
   });
 
@@ -317,6 +449,20 @@ export function fileRoutes(storage: StorageService) {
 
     const objectKey = `${companyId}/${prefix}/${filePath}`;
     await storage.deleteObject(companyId, objectKey);
+
+    const actor = getActorInfo(req);
+    await logActivity(db, {
+      companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "file.deleted",
+      entityType: "file",
+      entityId: objectKey,
+      details: { objectKey },
+    });
+
     res.status(204).end();
   });
 

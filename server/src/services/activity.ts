@@ -92,6 +92,13 @@ export function activityService(db: Db) {
         )
         .orderBy(desc(heartbeatRuns.createdAt)),
 
+    getRunById: async (runId: string) =>
+      db
+        .select({ id: heartbeatRuns.id, companyId: heartbeatRuns.companyId })
+        .from(heartbeatRuns)
+        .where(eq(heartbeatRuns.id, runId))
+        .then((rows) => rows[0] ?? null),
+
     issuesForRun: async (runId: string) => {
       const run = await db
         .select({
