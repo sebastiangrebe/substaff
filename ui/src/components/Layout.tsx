@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type UIEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronsUpDown, LogOut, Moon, Settings, Sun } from "lucide-react";
+import { ChevronsUpDown, History, LogOut, Moon, Settings, Sun } from "lucide-react";
 import { Outlet, useLocation, useNavigate, useParams } from "@/lib/router";
 import {
   Sidebar,
@@ -226,7 +226,7 @@ function LayoutInner() {
         <AppSidebar
           onToggleTheme={toggleTheme}
           themeIcon={theme === "dark" ? Sun : Moon}
-          themeLabel={`Switch to ${nextTheme} mode`}
+          themeLabel={nextTheme === "dark" ? "Dark mode" : "Light mode"}
           onTakeTour={() => welcomeTourRef.current?.showWelcome()}
         />
         <SidebarFooter>
@@ -255,6 +255,10 @@ function LayoutInner() {
                     <DropdownMenuItem onClick={() => navigate("/account")}>
                       <Settings className="mr-2 h-4 w-4" />
                       Account settings
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/activity")}>
+                      <History className="mr-2 h-4 w-4" />
+                      Activity
                     </DropdownMenuItem>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />

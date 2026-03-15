@@ -7,13 +7,11 @@ import {
   FolderKanban,
   Home,
   BarChart3,
-  History,
   Plus,
   Search,
   Settings,
   FolderOpen,
   HelpCircle,
-  Network,
   Plug,
   Target,
 } from "lucide-react";
@@ -128,6 +126,55 @@ function ManageActionButton({
   );
 }
 
+/** Grid tile link button with icon + label for the 2×2 manage grid */
+function GridNavButton({
+  to,
+  icon: Icon,
+  label,
+}: {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }: { isActive: boolean }) =>
+        cn(
+          "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-muted-foreground transition-all duration-150",
+          "hover:text-foreground hover:bg-sidebar-accent",
+          isActive && "text-foreground bg-sidebar-accent"
+        )
+      }
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span className="text-[11px] leading-none truncate">{label}</span>
+    </NavLink>
+  );
+}
+
+/** Grid tile action button with icon + label for the 2×2 manage grid */
+function GridActionButton({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-sidebar-accent"
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span className="text-[11px] leading-none truncate">{label}</span>
+    </button>
+  );
+}
+
 /** Format cents as a dollar string with $ prefix (e.g. 810 → "$8.10", 310000 → "$3,100") */
 function formatCents(cents: number, showSign = false): string {
   const dollars = Math.abs(cents) / 100;
@@ -181,7 +228,7 @@ export function AppSidebar({ onToggleTheme, themeIcon, themeLabel, onTakeTour }:
           <DropdownMenuTrigger asChild>
             <button
               id={TOUR_IDS.NEW_TASK}
-              className="flex items-center gap-2 w-full rounded-md px-2.5 py-1.5 text-sm font-medium text-primary-foreground transition-all duration-150 hover:brightness-110 active:scale-[0.97]"
+              className="flex items-center gap-2 w-full rounded-md px-2.5 py-1.5 text-sm font-medium text-white transition-all duration-150 hover:brightness-110 active:scale-[0.97]"
               style={{
                 background: "linear-gradient(135deg, oklch(0.55 0.18 265), oklch(0.48 0.20 280))",
               }}
@@ -274,11 +321,12 @@ export function AppSidebar({ onToggleTheme, themeIcon, themeLabel, onTakeTour }:
         {/* Team section */}
         <SidebarAgents />
 
-        {/* Spacer pushes manage strip to bottom */}
-        <div className="flex-1" />
+      </SidebarContent>
 
-        {/* Credit usage card — shows MTD spend vs company budget */}
-        <SidebarGroup>
+      {/* Sticky bottom section — budget card + manage grid */}
+      <div className="shrink-0 border-t border-sidebar-border px-2 py-2 flex flex-col gap-2">
+        {/* Credit usage card */}
+        <div id={TOUR_IDS.BUDGET}>
           {billingLoading || !billingInfo ? (
             <div className="rounded-lg border border-border/40 bg-sidebar-accent/30 px-3 py-2.5 min-w-0">
               <div className="flex items-center justify-between mb-2">
@@ -340,27 +388,20 @@ export function AppSidebar({ onToggleTheme, themeIcon, themeLabel, onTakeTour }:
               </NavLink>
             );
           })()}
-        </SidebarGroup>
+        </div>
 
-
-        {/* Manage — compact icon strip */}
-        <SidebarGroup className="py-1.5">
-          <SidebarGroupContent>
-            <div className="flex items-center justify-center gap-0.5 px-1">
-              <ManageIconButton to="/org" icon={Network} label="Org Chart" />
-              <ManageIconButton to="/analytics" icon={BarChart3} label="Analytics" />
-              <ManageIconButton to="/activity" icon={History} label="Activity" />
-              <ManageIconButton to="/company/settings" icon={Settings} label="Settings" />
-              {onToggleTheme && themeIcon && (
-                <ManageActionButton icon={themeIcon} label={themeLabel ?? "Toggle theme"} onClick={onToggleTheme} />
-              )}
-              {onTakeTour && (
-                <ManageActionButton icon={HelpCircle} label="Take a tour" onClick={onTakeTour} />
-              )}
-            </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
+        {/* Manage — 2×2 grid */}
+        <div className="grid grid-cols-2 gap-1">
+          <GridNavButton to="/analytics" icon={BarChart3} label="Analytics" />
+          <GridNavButton to="/company/settings" icon={Settings} label="Settings" />
+          {onToggleTheme && themeIcon && (
+            <GridActionButton icon={themeIcon} label={themeLabel ?? "Toggle theme"} onClick={onToggleTheme} />
+          )}
+          {onTakeTour && (
+            <GridActionButton icon={HelpCircle} label="Take a tour" onClick={onTakeTour} />
+          )}
+        </div>
+      </div>
     </>
   );
 }

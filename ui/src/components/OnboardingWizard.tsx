@@ -306,6 +306,9 @@ export function OnboardingWizard() {
   async function handleLaunch() {
     setLoading(false);
     reset();
+    // Signal that onboarding just completed so WelcomeTourDialog can pick it up
+    // even if it wasn't mounted during onboarding (Layout mounts after navigation).
+    try { sessionStorage.setItem("substaff-onboarding-just-finished", "true"); } catch { /* */ }
     closeOnboarding();
     if (createdCompanyPrefix && createdIssueRef) {
       navigate(`/${createdCompanyPrefix}/issues/${createdIssueRef}`);

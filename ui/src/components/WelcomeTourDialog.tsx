@@ -40,6 +40,18 @@ export const WelcomeTourDialog = forwardRef<WelcomeTourDialogHandle>(
       if (onboardingOpen) setWasOnboarding(true);
     }, [onboardingOpen]);
 
+    // Also detect onboarding completion when Layout/WelcomeTourDialog wasn't
+    // mounted during onboarding (new signup flow: onboarding runs at "/" before
+    // Layout mounts at "/:companyPrefix/dashboard").
+    useEffect(() => {
+      try {
+        if (sessionStorage.getItem("substaff-onboarding-just-finished") === "true") {
+          sessionStorage.removeItem("substaff-onboarding-just-finished");
+          setWasOnboarding(true);
+        }
+      } catch { /* ignore */ }
+    }, []);
+
     useEffect(() => {
       if (!wasOnboarding || onboardingOpen || welcomeOpen || summaryOpen) return;
       try {

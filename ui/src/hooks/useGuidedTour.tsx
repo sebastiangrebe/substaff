@@ -17,6 +17,18 @@ export const TOUR_IDS = {
 
 const TOUR_STEPS: TourStep[] = [
   {
+    selectorId: TOUR_IDS.NEW_TASK,
+    position: "right",
+    content: (
+      <div>
+        <p className="font-medium text-sm mb-1">Create tasks</p>
+        <p className="text-xs text-muted-foreground">
+          Click here to create a new task and assign it to a team member. They'll start working on it right away.
+        </p>
+      </div>
+    ),
+  },
+  {
     selectorId: TOUR_IDS.HOME,
     position: "right",
     content: (
@@ -77,13 +89,25 @@ const TOUR_STEPS: TourStep[] = [
     ),
   },
   {
-    selectorId: TOUR_IDS.NEW_TASK,
+    selectorId: TOUR_IDS.FILES,
     position: "right",
     content: (
       <div>
-        <p className="font-medium text-sm mb-1">Create tasks</p>
+        <p className="font-medium text-sm mb-1">Files</p>
         <p className="text-xs text-muted-foreground">
-          Click here to create a new task and assign it to a team member. They'll start working on it right away.
+          Browse files and artifacts created by your team. Everything your team produces is stored here.
+        </p>
+      </div>
+    ),
+  },
+  {
+    selectorId: TOUR_IDS.INTEGRATIONS,
+    position: "right",
+    content: (
+      <div>
+        <p className="font-medium text-sm mb-1">Integrations</p>
+        <p className="text-xs text-muted-foreground">
+          Connect external tools and services to your workspace. Extend what your team can do.
         </p>
       </div>
     ),
@@ -108,30 +132,6 @@ const TOUR_STEPS: TourStep[] = [
         <p className="font-medium text-sm mb-1">Budget</p>
         <p className="text-xs text-muted-foreground">
           Track spending and set limits for your team. You're always in control of costs.
-        </p>
-      </div>
-    ),
-  },
-  {
-    selectorId: TOUR_IDS.FILES,
-    position: "right",
-    content: (
-      <div>
-        <p className="font-medium text-sm mb-1">Files</p>
-        <p className="text-xs text-muted-foreground">
-          Browse files and artifacts created by your team. Everything your team produces is stored here.
-        </p>
-      </div>
-    ),
-  },
-  {
-    selectorId: TOUR_IDS.INTEGRATIONS,
-    position: "right",
-    content: (
-      <div>
-        <p className="font-medium text-sm mb-1">Integrations</p>
-        <p className="text-xs text-muted-foreground">
-          Connect external tools and services to your workspace. Extend what your team can do.
         </p>
       </div>
     ),

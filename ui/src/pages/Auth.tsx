@@ -50,7 +50,22 @@ export function AuthPage() {
       navigate(nextPath, { replace: true });
     },
     onError: (err) => {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      if (err instanceof Error && 'status' in err) {
+        const status = (err as { status: number }).status;
+        if (status === 401 || status === 403) {
+          setError(mode === "sign_in" ? "Invalid email or password." : "You are not authorized to create an account.");
+          return;
+        }
+        if (status === 409) {
+          setError("An account with this email already exists.");
+          return;
+        }
+        if (status === 429) {
+          setError("Too many attempts. Please wait a moment and try again.");
+          return;
+        }
+      }
+      setError(mode === "sign_in" ? "Unable to sign in. Please try again." : "Unable to create account. Please try again.");
     },
   });
 

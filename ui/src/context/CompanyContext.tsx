@@ -12,6 +12,8 @@ import type { Company } from "@substaff/shared";
 import { companiesApi } from "../api/companies";
 import { ApiError } from "../api/client";
 import { queryKeys } from "../lib/queryKeys";
+import type { HealthStatus } from "../api/health";
+import type { AuthSession } from "../api/auth";
 
 type CompanySelectionSource = "manual" | "route_sync" | "bootstrap";
 type CompanySelectionOptions = { source?: CompanySelectionSource };
@@ -41,6 +43,20 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [selectionSource, setSelectionSource] = useState<CompanySelectionSource>("bootstrap");
   const [selectedCompanyId, setSelectedCompanyIdState] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY));
 
+  // In authenticated mode, wait for a valid session before fetching companies.
+  // Subscribe reactively to cached health/session without triggering new fetches.
+  const { data: health } = useQuery<HealthStatus>({
+    queryKey: queryKeys.health,
+    enabled: false,
+  });
+  const { data: session } = useQuery<AuthSession | null>({
+    queryKey: queryKeys.auth.session,
+    enabled: false,
+  });
+  const healthLoaded = health != null;
+  const needsAuth = health?.deploymentMode === "authenticated";
+  const hasSession = !!session?.user?.id;
+
   const { data: companies = [], isLoading, error } = useQuery({
     queryKey: queryKeys.companies.all,
     queryFn: async () => {
@@ -53,6 +69,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
+    enabled: healthLoaded && (!needsAuth || hasSession),
     retry: false,
   });
   const sidebarCompanies = useMemo(

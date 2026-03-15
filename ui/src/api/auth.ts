@@ -39,7 +39,9 @@ async function authPost(path: string, body: Record<string, unknown>) {
       typeof (payload as { error?: { message?: string } | string }).error === "object"
         ? ((payload as { error?: { message?: string } }).error?.message ?? `Request failed: ${res.status}`)
         : (payload as { error?: string } | null)?.error ?? `Request failed: ${res.status}`;
-    throw new Error(message);
+    const error = new Error(message);
+    (error as Error & { status: number }).status = res.status;
+    throw error;
   }
   return payload;
 }

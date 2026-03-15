@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { NavLink, useLocation } from "@/lib/router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Network } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
-import { useSidebar, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
+import { useSidebar, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuSub, SidebarMenuSubItem, SidebarMenuSubButton } from "@/components/ui/sidebar";
 import { agentsApi } from "../api/agents";
 import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { cn, agentRouteRef, agentUrl } from "../lib/utils";
@@ -78,67 +78,81 @@ export function SidebarAgents() {
   const activeAgentId = agentMatch?.[1] ?? null;
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <SidebarGroup className="py-0">
-        <SidebarGroupLabel asChild>
-          <CollapsibleTrigger id="tour-team" className="group text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50">
-            <ChevronRight
-              className={cn(
-                "h-3 w-3 transition-transform",
-                open && "rotate-90"
-              )}
-            />
-            Team
-            {visibleAgents.length > 0 && (
-              <span className="ml-auto text-[10px] font-normal text-muted-foreground/40 tabular-nums">
-                {visibleAgents.length}
-              </span>
-            )}
-          </CollapsibleTrigger>
-        </SidebarGroupLabel>
+    <SidebarGroup id="tour-team" className="py-0">
+      <SidebarGroupLabel className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground/50">Team</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          <Collapsible open={open} onOpenChange={setOpen}>
+            <SidebarMenuItem>
+              <div className="flex items-center">
+                <SidebarMenuButton asChild tooltip="Team" isActive={/^\/(?:[^/]+\/)?agents(\/|$)/.test(location.pathname)} className="flex-1 min-w-0">
+                  <NavLink
+                    to="/agents/all"
+                    onClick={() => { if (isMobile) setOpenMobile(false); }}
+                  >
+                    <span className="flex-1 truncate">All agents</span>
+                  </NavLink>
+                </SidebarMenuButton>
+                <NavLink
+                  to="/org"
+                  className="flex items-center justify-center h-5 w-5 shrink-0 rounded bg-primary/15 text-primary hover:bg-primary/25 transition-colors"
+                  onClick={() => { if (isMobile) setOpenMobile(false); }}
+                >
+                  <Network className="h-2.5 w-2.5" />
+                </NavLink>
+                <CollapsibleTrigger className="flex items-center justify-center h-8 w-8 shrink-0 text-muted-foreground/60 hover:text-foreground transition-colors">
+                  <ChevronRight
+                    className={cn(
+                      "h-3 w-3 transition-transform",
+                      open && "rotate-90"
+                    )}
+                  />
+                </CollapsibleTrigger>
+              </div>
 
-        <CollapsibleContent>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {visibleAgents.map((agent: Agent) => {
-                const runCount = liveCountByAgent.get(agent.id) ?? 0;
-                const isWorking = runCount > 0;
-                const dotColor = isWorking
-                  ? "bg-cyan-400"
-                  : statusDotColor[agent.status] ?? statusDotColor.idle;
+              <CollapsibleContent>
+                <SidebarMenuSub>
+                  {visibleAgents.map((agent: Agent) => {
+                    const runCount = liveCountByAgent.get(agent.id) ?? 0;
+                    const isWorking = runCount > 0;
+                    const dotColor = isWorking
+                      ? "bg-cyan-400"
+                      : statusDotColor[agent.status] ?? statusDotColor.idle;
 
-                return (
-                  <SidebarMenuItem key={agent.id}>
-                    <SidebarMenuButton asChild isActive={activeAgentId === agentRouteRef(agent)} tooltip={agent.name}>
-                      <NavLink
-                        to={agentUrl(agent)}
-                        onClick={() => { if (isMobile) setOpenMobile(false); }}
-                      >
-                        <span className="relative shrink-0">
-                          <AgentIcon icon={agent.icon} className="h-4 w-4 text-muted-foreground" />
-                          <span
-                            className={cn(
-                              "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full shadow-[0_0_0_2px_hsl(var(--sidebar))]",
-                              dotColor,
-                              isWorking && "animate-pulse"
+                    return (
+                      <SidebarMenuSubItem key={agent.id}>
+                        <SidebarMenuSubButton asChild isActive={activeAgentId === agentRouteRef(agent)}>
+                          <NavLink
+                            to={agentUrl(agent)}
+                            onClick={() => { if (isMobile) setOpenMobile(false); }}
+                          >
+                            <span className="relative shrink-0">
+                              <AgentIcon icon={agent.icon} className="h-4 w-4 text-muted-foreground" />
+                              <span
+                                className={cn(
+                                  "absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full shadow-[0_0_0_2px_hsl(var(--sidebar))]",
+                                  dotColor,
+                                  isWorking && "animate-pulse"
+                                )}
+                              />
+                            </span>
+                            <span className="truncate">{agent.name}</span>
+                            {isWorking && (
+                              <span className="ml-auto text-[10px] font-medium text-cyan-600 dark:text-cyan-400 tabular-nums shrink-0">
+                                {runCount}
+                              </span>
                             )}
-                          />
-                        </span>
-                        <span className="truncate">{agent.name}</span>
-                        {isWorking && (
-                          <span className="ml-auto text-[10px] font-medium text-cyan-600 dark:text-cyan-400 tabular-nums shrink-0">
-                            {runCount}
-                          </span>
-                        )}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </CollapsibleContent>
-      </SidebarGroup>
-    </Collapsible>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    );
+                  })}
+                </SidebarMenuSub>
+              </CollapsibleContent>
+            </SidebarMenuItem>
+          </Collapsible>
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }

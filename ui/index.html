@@ -40,7 +40,82 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static loader — replaced when React mounts -->
+      <style>
+        .sl{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;font-family:"Inter",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+        .dark .sl{background:oklch(0.13 0.012 265);color:oklch(0.95 0.005 265)}
+        .sl:not(.dark *){background:oklch(0.985 0.002 265);color:oklch(0.15 0.01 265)}
+        .sl-glow{position:absolute;border-radius:50%;filter:blur(120px);animation:sl-drift 8s ease-in-out infinite alternate}
+        .dark .sl-glow--p{width:400px;height:400px;top:30%;left:40%;background:oklch(0.70 0.15 265);opacity:0.12}
+        .dark .sl-glow--s{width:300px;height:300px;bottom:25%;right:35%;background:oklch(0.60 0.15 265);opacity:0.08;animation-delay:-4s;animation-direction:alternate-reverse}
+        .sl:not(.dark *) .sl-glow--p{width:400px;height:400px;top:30%;left:40%;background:oklch(0.45 0.18 265);opacity:0.08}
+        .sl:not(.dark *) .sl-glow--s{width:300px;height:300px;bottom:25%;right:35%;background:oklch(0.55 0.15 265);opacity:0.05;animation-delay:-4s;animation-direction:alternate-reverse}
+        @keyframes sl-drift{0%{transform:translate(0,0) scale(1)}100%{transform:translate(30px,-20px) scale(1.15)}}
+        .sl-grid{position:absolute;inset:0;background-image:linear-gradient(oklch(1 0 0/8%) 1px,transparent 1px),linear-gradient(90deg,oklch(1 0 0/8%) 1px,transparent 1px);background-size:60px 60px;opacity:0.25;mask-image:radial-gradient(ellipse 50% 50% at center,black,transparent);-webkit-mask-image:radial-gradient(ellipse 50% 50% at center,black,transparent)}
+        .sl:not(.dark *) .sl-grid{background-image:linear-gradient(oklch(0 0 0/6%) 1px,transparent 1px),linear-gradient(90deg,oklch(0 0 0/6%) 1px,transparent 1px)}
+        .sl-center{position:relative;display:flex;flex-direction:column;align-items:center;gap:1.5rem}
+        .sl-logo-wrap{position:relative;display:flex;align-items:center;justify-content:center}
+        .sl-ring{position:absolute;border-radius:50%;border:1px solid;animation:sl-pulse 3s ease-in-out infinite}
+        .dark .sl-ring{border-color:oklch(0.70 0.15 265/0.1)}
+        .sl:not(.dark *) .sl-ring{border-color:oklch(0.45 0.18 265/0.1)}
+        .sl-ring--1{width:5rem;height:5rem}
+        .sl-ring--2{width:7rem;height:7rem;animation-delay:1.5s}
+        @keyframes sl-pulse{0%,100%{opacity:0;transform:scale(0.85)}50%{opacity:1;transform:scale(1)}}
+        .sl-logo-inner{position:relative;width:3.5rem;height:3.5rem;display:flex;align-items:center;justify-content:center}
+        .sl-logo-glow{position:absolute;inset:0;border-radius:0.75rem;filter:blur(16px);animation:sl-breathe 2.5s ease-in-out infinite}
+        .dark .sl-logo-glow{background:oklch(0.70 0.15 265/0.1)}
+        .sl:not(.dark *) .sl-logo-glow{background:oklch(0.45 0.18 265/0.08)}
+        @keyframes sl-breathe{0%,100%{opacity:0.4;transform:scale(1)}50%{opacity:0.8;transform:scale(1.2)}}
+        .sl-svg{position:relative;animation:sl-logo-in 0.6s cubic-bezier(0.16,1,0.3,1) both}
+        .dark .sl-svg{color:oklch(0.70 0.15 265)}
+        .sl:not(.dark *) .sl-svg{color:oklch(0.45 0.18 265)}
+        @keyframes sl-logo-in{0%{opacity:0;transform:scale(0.7)}100%{opacity:1;transform:scale(1)}}
+        .sl-node{animation:sl-node-p 2.4s ease-in-out infinite}
+        .sl-node--1{animation-delay:0s}.sl-node--2{animation-delay:0.3s}.sl-node--3{animation-delay:0.6s}
+        @keyframes sl-node-p{0%,100%{opacity:0.4}40%{opacity:1}}
+        .sl-text{display:flex;flex-direction:column;align-items:center;gap:0.75rem}
+        .sl-title{font-size:1.125rem;font-weight:600;letter-spacing:-0.01em;animation:sl-fade 0.5s ease-out 0.3s both}
+        .sl-bar-track{width:9rem;height:2px;border-radius:9999px;overflow:hidden;animation:sl-fade 0.5s ease-out 0.5s both}
+        .dark .sl-bar-track{background:oklch(0.22 0.015 265)}
+        .sl:not(.dark *) .sl-bar-track{background:oklch(0.92 0.005 265)}
+        .sl-bar-fill{height:100%;width:40%;border-radius:9999px;animation:sl-bar 1.8s ease-in-out infinite}
+        .dark .sl-bar-fill{background:oklch(0.70 0.15 265/0.6)}
+        .sl:not(.dark *) .sl-bar-fill{background:oklch(0.45 0.18 265/0.6)}
+        @keyframes sl-bar{0%{transform:translateX(-100%)}50%{transform:translateX(150%)}100%{transform:translateX(250%)}}
+        .sl-msg{font-size:0.75rem;animation:sl-fade 0.5s ease-out 0.7s both}
+        .dark .sl-msg{color:oklch(0.65 0.02 265)}
+        .sl:not(.dark *) .sl-msg{color:oklch(0.5 0.02 265)}
+        @keyframes sl-fade{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+        @media(prefers-reduced-motion:reduce){.sl-glow,.sl-ring,.sl-logo-glow,.sl-svg,.sl-node,.sl-title,.sl-bar-track,.sl-bar-fill,.sl-msg{animation:none!important;opacity:1!important}}
+      </style>
+      <div class="sl">
+        <div class="sl-glow sl-glow--p"></div>
+        <div class="sl-glow sl-glow--s"></div>
+        <div class="sl-grid"></div>
+        <div class="sl-center">
+          <div class="sl-logo-wrap">
+            <div class="sl-ring sl-ring--1"></div>
+            <div class="sl-ring sl-ring--2"></div>
+            <div class="sl-logo-inner">
+              <div class="sl-logo-glow"></div>
+              <svg class="sl-svg" width="40" height="40" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 12V18M16 12L9 20M16 12L23 20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="16" cy="9" r="3.5" fill="currentColor"/>
+                <circle cx="9" cy="22" r="3" fill="currentColor" opacity="0.5" class="sl-node sl-node--1"/>
+                <circle cx="16" cy="22" r="3" fill="currentColor" opacity="0.5" class="sl-node sl-node--2"/>
+                <circle cx="23" cy="22" r="3" fill="currentColor" opacity="0.5" class="sl-node sl-node--3"/>
+              </svg>
+            </div>
+          </div>
+          <div class="sl-text">
+            <span class="sl-title">Substaff</span>
+            <div class="sl-bar-track"><div class="sl-bar-fill"></div></div>
+            <span class="sl-msg">Loading your workspace…</span>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
