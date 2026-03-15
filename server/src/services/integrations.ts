@@ -75,7 +75,7 @@ export function integrationService(db: Db) {
 
   async function initiateConnection(
     companyId: string,
-    input: { appName: string; integrationId?: string },
+    input: { appName: string; integrationId?: string; connectionParams?: Record<string, unknown> },
   ) {
     const [company] = await db
       .select({ vendorId: companies.vendorId })
@@ -93,16 +93,39 @@ export function integrationService(db: Db) {
 
     // Find an existing auth config for this toolkit, or create a managed one
     let authConfigId: string;
+    let authConfig: any;
     const existing = await composio.authConfigs.list({ toolkit: input.appName });
     const existingItems = existing?.items ?? [];
     if (existingItems.length > 0) {
-      authConfigId = existingItems[0].id;
+      authConfig = existingItems[0];
+      authConfigId = authConfig.id;
     } else {
       const created = await composio.authConfigs.create(input.appName.toUpperCase(), {
         name: `substaff-${input.appName}`,
         type: "use_composio_managed_auth",
       });
+      authConfig = created;
       authConfigId = created.id;
+    }
+
+    // Check if this auth config has required input fields the user must provide
+    const expectedFields: any[] = authConfig.expectedInputFields ?? [];
+    const requiredFields = expectedFields.filter((f: any) => f.required);
+
+    // If there are required fields and the caller hasn't provided them yet, return the field definitions
+    if (requiredFields.length > 0 && !input.connectionParams) {
+      return {
+        redirectUrl: null,
+        connectedAccountId: null,
+        connectionStatus: "REQUIRES_INPUT",
+        requiredFields: requiredFields.map((f: any) => ({
+          name: f.name,
+          displayName: f.displayName ?? f.display_name ?? f.name,
+          description: f.description ?? "",
+          type: f.type ?? "string",
+          required: true,
+        })),
+      };
     }
 
     const connectionRequest = await composio.connectedAccounts.initiate(
@@ -111,6 +134,7 @@ export function integrationService(db: Db) {
       {
         callbackUrl,
         allowMultiple: true,
+        ...(input.connectionParams ? { config: input.connectionParams } : {}),
       },
     );
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const connectIntegrationSchema = z.object({
   appName: z.string(),
   integrationId: z.string().optional(),
+  connectionParams: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const updateIntegrationSchema = z.object({

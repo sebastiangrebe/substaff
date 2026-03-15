@@ -38,6 +38,7 @@ export function integrationRoutes(db: Db) {
         const result = await svc.initiateConnection(companyId, {
           appName: req.body.appName,
           integrationId: req.body.integrationId,
+          connectionParams: req.body.connectionParams,
         });
 
         res.status(200).json(result);

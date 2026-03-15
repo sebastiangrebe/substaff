@@ -36,6 +36,11 @@ export function Integrations() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [consentOpen, setConsentOpen] = useState(false);
   const [pendingToolkit, setPendingToolkit] = useState<ComposioToolkit | null>(null);
+  const [requiredFieldsDialog, setRequiredFieldsDialog] = useState<{
+    toolkit: ComposioToolkit;
+    fields: Array<{ name: string; displayName: string; description: string; type: string; required: boolean }>;
+  } | null>(null);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
 
   // Handle OAuth redirect results
   useEffect(() => {
@@ -88,13 +93,22 @@ export function Integrations() {
   });
 
   const performConnect = useCallback(
-    async (toolkit: ComposioToolkit) => {
+    async (toolkit: ComposioToolkit, connectionParams?: Record<string, unknown>) => {
       if (!selectedCompanyId) return;
       setConnectingApp(toolkit.slug);
       try {
         const result = await integrationsApi.connect(selectedCompanyId, {
           appName: toolkit.slug,
+          ...(connectionParams ? { connectionParams } : {}),
         });
+
+        if (result.connectionStatus === "REQUIRES_INPUT" && result.requiredFields?.length) {
+          // Show a dialog to collect required fields from the user
+          setRequiredFieldsDialog({ toolkit, fields: result.requiredFields });
+          setFieldValues({});
+          return;
+        }
+
         if (result.redirectUrl) {
           window.location.href = result.redirectUrl;
         } else {
@@ -112,6 +126,16 @@ export function Integrations() {
     },
     [selectedCompanyId, queryClient],
   );
+
+  const handleRequiredFieldsSubmit = useCallback(() => {
+    if (!requiredFieldsDialog) return;
+    const { toolkit, fields } = requiredFieldsDialog;
+    // Validate all required fields have values
+    const missing = fields.filter((f) => f.required && !fieldValues[f.name]?.trim());
+    if (missing.length > 0) return;
+    setRequiredFieldsDialog(null);
+    performConnect(toolkit, fieldValues);
+  }, [requiredFieldsDialog, fieldValues, performConnect]);
 
   const handleConnect = useCallback(
     (toolkit: ComposioToolkit) => {
@@ -535,6 +559,53 @@ export function Integrations() {
           </p>
         </div>
       )}
+
+      {/* ── Required fields dialog (e.g. Shopify store subdomain) ── */}
+      <Dialog open={!!requiredFieldsDialog} onOpenChange={(open) => { if (!open) setRequiredFieldsDialog(null); }}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>
+              {requiredFieldsDialog?.toolkit.name} — additional info needed
+            </DialogTitle>
+            <DialogDescription>
+              This integration requires the following information to connect.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {requiredFieldsDialog?.fields.map((field) => (
+              <div key={field.name} className="space-y-1.5">
+                <label htmlFor={`field-${field.name}`} className="text-sm font-medium">
+                  {field.displayName}
+                  {field.required && <span className="text-destructive ml-0.5">*</span>}
+                </label>
+                {field.description && (
+                  <p className="text-xs text-muted-foreground">{field.description}</p>
+                )}
+                <Input
+                  id={`field-${field.name}`}
+                  value={fieldValues[field.name] ?? ""}
+                  onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+                  placeholder={field.displayName}
+                  className="h-9"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setRequiredFieldsDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRequiredFieldsSubmit}
+              disabled={
+                requiredFieldsDialog?.fields.some((f) => f.required && !fieldValues[f.name]?.trim()) ?? true
+              }
+            >
+              Continue
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── First-connection consent dialog ── */}
       <Dialog open={consentOpen}>

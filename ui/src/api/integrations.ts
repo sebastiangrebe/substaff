@@ -13,9 +13,14 @@ export const integrationsApi = {
 
   connect: (
     companyId: string,
-    data: { appName: string; integrationId?: string },
+    data: { appName: string; integrationId?: string; connectionParams?: Record<string, unknown> },
   ) =>
-    api.post<{ redirectUrl: string | null; connectedAccountId: string; connectionStatus: string }>(
+    api.post<{
+      redirectUrl: string | null;
+      connectedAccountId: string | null;
+      connectionStatus: string;
+      requiredFields?: Array<{ name: string; displayName: string; description: string; type: string; required: boolean }>;
+    }>(
       `/companies/${companyId}/integrations`,
       data,
     ),
