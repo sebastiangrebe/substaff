@@ -11,6 +11,7 @@ export const sharedQueries = {
       queryKey: ["live-runs", companyId] as const,
       queryFn: () => heartbeatsApi.liveRunsForCompany(companyId),
       enabled: !!companyId,
+      staleTime: 10_000,
       refetchInterval: 10_000,
     }),
   sidebarBadges: (companyId: string) =>
@@ -18,6 +19,7 @@ export const sharedQueries = {
       queryKey: ["sidebar-badges", companyId] as const,
       queryFn: () => sidebarBadgesApi.get(companyId),
       enabled: !!companyId,
+      staleTime: 15_000,
       refetchInterval: 15_000,
     }),
 };

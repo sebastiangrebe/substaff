@@ -19,9 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { cn } from "../lib/utils";
-import { queryKeys } from "../lib/queryKeys";
-import { sidebarBadgesApi } from "../api/sidebarBadges";
-import { heartbeatsApi } from "../api/heartbeats";
+import { sharedQueries } from "../lib/queryKeys";
 import {
   Tooltip,
   TooltipContent,
@@ -161,18 +159,10 @@ export function CompanyRail() {
   const companyIds = useMemo(() => sidebarCompanies.map((company) => company.id), [sidebarCompanies]);
 
   const liveRunsQueries = useQueries({
-    queries: companyIds.map((companyId) => ({
-      queryKey: queryKeys.liveRuns(companyId),
-      queryFn: () => heartbeatsApi.liveRunsForCompany(companyId),
-      refetchInterval: 10_000,
-    })),
+    queries: companyIds.map((companyId) => sharedQueries.liveRuns(companyId)),
   });
   const sidebarBadgeQueries = useQueries({
-    queries: companyIds.map((companyId) => ({
-      queryKey: queryKeys.sidebarBadges(companyId),
-      queryFn: () => sidebarBadgesApi.get(companyId),
-      refetchInterval: 15_000,
-    })),
+    queries: companyIds.map((companyId) => sharedQueries.sidebarBadges(companyId)),
   });
   const hasLiveAgentsByCompanyId = useMemo(() => {
     const result = new Map<string, boolean>();

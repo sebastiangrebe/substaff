@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { Agent, Issue, LiveEvent } from "@substaff/shared";
+import type { AuthSession } from "../api/auth";
 import { useCompany } from "./CompanyContext";
 import type { ToastInput } from "./ToastContext";
 import { useToast } from "./ToastContext";
@@ -9,6 +10,8 @@ import { queryKeys } from "../lib/queryKeys";
 const TOAST_COOLDOWN_WINDOW_MS = 10_000;
 const TOAST_COOLDOWN_MAX = 3;
 const RECONNECT_SUPPRESS_MS = 2000;
+/** Minimum ms between processing events of the same type to prevent invalidation cascades */
+const EVENT_DEDUP_WINDOW_MS = 500;
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -301,10 +304,10 @@ function invalidateHeartbeatQueries(
 ) {
   queryClient.invalidateQueries({ queryKey: queryKeys.liveRuns(companyId) });
   queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId) });
-  queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
-  queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(companyId) });
-  queryClient.invalidateQueries({ queryKey: queryKeys.costs(companyId) });
-  queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });
+  queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId), refetchType: "active" });
+  queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(companyId), refetchType: "active" });
+  queryClient.invalidateQueries({ queryKey: ["costs", companyId], refetchType: "active" });
+  queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId), refetchType: "active" });
 
   const agentId = readString(payload.agentId);
   if (agentId) {
@@ -318,63 +321,67 @@ function invalidateActivityQueries(
   companyId: string,
   payload: Record<string, unknown>,
 ) {
-  queryClient.invalidateQueries({ queryKey: queryKeys.activity(companyId) });
-  queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(companyId) });
-  queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId) });
+  queryClient.invalidateQueries({ queryKey: queryKeys.activity(companyId), refetchType: "active" });
+  queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(companyId), refetchType: "active" });
+  queryClient.invalidateQueries({ queryKey: queryKeys.sidebarBadges(companyId), refetchType: "active" });
 
   const entityType = readString(payload.entityType);
   const entityId = readString(payload.entityId);
 
   if (entityType === "issue") {
-    queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId) });
+    // Prefix-match: also invalidates search, labels, listByProject, listAssignedToMe
+    queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(companyId), refetchType: "active" });
     if (entityId) {
       const details = readRecord(payload.details);
       const issueRefs = resolveIssueQueryRefs(queryClient, companyId, entityId, details);
       for (const ref of issueRefs) {
         queryClient.invalidateQueries({ queryKey: queryKeys.issues.detail(ref) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.comments(ref) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.activity(ref) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.runs(ref) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.liveRuns(ref) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.issues.activeRun(ref) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.comments(ref), refetchType: "active" });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.activity(ref), refetchType: "active" });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.runs(ref), refetchType: "active" });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.liveRuns(ref), refetchType: "active" });
+        queryClient.invalidateQueries({ queryKey: queryKeys.issues.activeRun(ref), refetchType: "active" });
       }
     }
     return;
   }
 
   if (entityType === "agent") {
-    queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.org(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(companyId), refetchType: "active" });
+    queryClient.invalidateQueries({ queryKey: queryKeys.org(companyId), refetchType: "active" });
     if (entityId) {
       queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(entityId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId, entityId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(companyId, entityId), refetchType: "active" });
     }
     return;
   }
 
   if (entityType === "project") {
-    queryClient.invalidateQueries({ queryKey: queryKeys.projects.list(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.projects.list(companyId), refetchType: "active" });
     if (entityId) queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(entityId) });
     return;
   }
 
   if (entityType === "goal") {
-    queryClient.invalidateQueries({ queryKey: queryKeys.goals.list(companyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.goals.list(companyId), refetchType: "active" });
     if (entityId) queryClient.invalidateQueries({ queryKey: queryKeys.goals.detail(entityId) });
     return;
   }
 
   if (entityType === "approval") {
-    queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(companyId) });
+    // Prefix-match: also invalidates status-filtered approval lists
+    queryClient.invalidateQueries({ queryKey: queryKeys.approvals.list(companyId), refetchType: "active" });
     return;
   }
 
   if (entityType === "cost_event") {
-    queryClient.invalidateQueries({ queryKey: queryKeys.costs(companyId) });
+    // Use ["costs", companyId] prefix to catch all date-range variants
+    queryClient.invalidateQueries({ queryKey: ["costs", companyId], refetchType: "active" });
     return;
   }
 
   if (entityType === "company") {
+    // Prefix-match: also invalidates company detail and stats
     queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
   }
 }
@@ -382,6 +389,8 @@ function invalidateActivityQueries(
 interface ToastGate {
   cooldownHits: Map<string, number[]>;
   suppressUntil: number;
+  /** Tracks last invalidation time per event-type+entity to deduplicate rapid-fire events */
+  lastInvalidation: Map<string, number>;
 }
 
 function shouldSuppressToast(gate: ToastGate, category: string): boolean {
@@ -417,6 +426,7 @@ function gatedPushToast(
 function handleLiveEvent(
   queryClient: QueryClient,
   expectedCompanyId: string,
+  currentUserId: string | null,
   event: LiveEvent,
   pushToast: (toast: ToastInput) => string | null,
   gate: ToastGate,
@@ -428,6 +438,16 @@ function handleLiveEvent(
   if (event.type === "heartbeat.run.log") {
     return;
   }
+
+  // Deduplicate rapid-fire events of the same type+entity to prevent invalidation cascades
+  const entityId = readString(payload.entityId) ?? readString(payload.agentId) ?? readString(payload.runId) ?? "";
+  const dedupKey = `${event.type}:${entityId}`;
+  const now = Date.now();
+  const lastTime = gate.lastInvalidation.get(dedupKey) ?? 0;
+  if (now - lastTime < EVENT_DEDUP_WINDOW_MS) {
+    return;
+  }
+  gate.lastInvalidation.set(dedupKey, now);
 
   if (event.type === "heartbeat.run.queued" || event.type === "heartbeat.run.status") {
     invalidateHeartbeatQueries(queryClient, expectedCompanyId, payload);
@@ -443,9 +463,9 @@ function handleLiveEvent(
   }
 
   if (event.type === "agent.status") {
-    queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(expectedCompanyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(expectedCompanyId) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.org(expectedCompanyId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.agents.list(expectedCompanyId), refetchType: "active" });
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard(expectedCompanyId), refetchType: "active" });
+    queryClient.invalidateQueries({ queryKey: queryKeys.org(expectedCompanyId), refetchType: "active" });
     const agentId = readString(payload.agentId);
     if (agentId) queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agentId) });
     const toast = buildAgentStatusToast(payload, nameOf, queryClient, expectedCompanyId);
@@ -454,10 +474,19 @@ function handleLiveEvent(
   }
 
   if (event.type === "activity.logged") {
-    invalidateActivityQueries(queryClient, expectedCompanyId, payload);
-    const action = readString(payload.action);
-    const toast = buildActivityToast(queryClient, expectedCompanyId, payload);
-    if (toast) gatedPushToast(gate, pushToast, `activity:${action ?? "unknown"}`, toast);
+    // Skip invalidation for own actions — the mutation onSuccess already updated the cache.
+    // Still show activity for other users/agents so the UI stays in sync with collaborators.
+    const isOwnAction =
+      currentUserId &&
+      readString(payload.actorType) === "user" &&
+      readString(payload.actorId) === currentUserId;
+
+    if (!isOwnAction) {
+      invalidateActivityQueries(queryClient, expectedCompanyId, payload);
+      const action = readString(payload.action);
+      const toast = buildActivityToast(queryClient, expectedCompanyId, payload);
+      if (toast) gatedPushToast(gate, pushToast, `activity:${action ?? "unknown"}`, toast);
+    }
   }
 }
 
@@ -465,7 +494,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
   const { selectedCompanyId } = useCompany();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
-  const gateRef = useRef<ToastGate>({ cooldownHits: new Map(), suppressUntil: 0 });
+  const gateRef = useRef<ToastGate>({ cooldownHits: new Map(), suppressUntil: 0, lastInvalidation: new Map() });
 
   useEffect(() => {
     if (!selectedCompanyId) return;
@@ -511,7 +540,9 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
 
         try {
           const parsed = JSON.parse(raw) as LiveEvent;
-          handleLiveEvent(queryClient, selectedCompanyId, parsed, pushToast, gateRef.current);
+          const session = queryClient.getQueryData<AuthSession | null>(queryKeys.auth.session);
+          const currentUserId = session?.user?.id ?? null;
+          handleLiveEvent(queryClient, selectedCompanyId, currentUserId, parsed, pushToast, gateRef.current);
         } catch {
           // Ignore non-JSON payloads.
         }
