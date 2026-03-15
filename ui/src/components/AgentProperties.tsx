@@ -8,6 +8,7 @@ import { StatusBadge } from "./StatusBadge";
 import { Identity } from "./Identity";
 import { formatDate, agentUrl } from "../lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { BudgetEditor } from "./BudgetEditor";
 
 interface AgentPropertiesProps {
   agent: Agent;
@@ -126,6 +127,20 @@ export function AgentProperties({ agent, runtimeState }: AgentPropertiesProps) {
             </div>
           </PropertyRow>
         )}
+      </div>
+
+      <Separator />
+
+      <div>
+        <span className="text-xs text-muted-foreground font-medium">Budget</span>
+        <div className="mt-2">
+          <BudgetEditor
+            budgetMonthlyCents={agent.budgetMonthlyCents}
+            platformSpentMonthlyCents={agent.platformSpentMonthlyCents}
+            budgetTotalCents={agent.budgetTotalCents}
+            platformSpentTotalCents={agent.platformSpentTotalCents}
+          />
+        </div>
       </div>
     </div>
   );

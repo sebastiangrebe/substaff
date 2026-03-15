@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   Bot,
   Briefcase,
@@ -6,7 +7,6 @@ import {
   FolderKanban,
   Home,
   BarChart3,
-  DollarSign,
   History,
   Plus,
   Search,
@@ -37,6 +37,7 @@ import { CompanySwitcher } from "./CompanySwitcher";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
 import { billingApi } from "../api/billing";
+import { costsApi } from "../api/costs";
 import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { TOUR_IDS } from "../hooks/useGuidedTour";
 import {
@@ -51,6 +52,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { NavLink } from "@/lib/router";
 import { cn } from "../lib/utils";
 import type { LucideIcon } from "lucide-react";
@@ -126,6 +128,15 @@ function ManageActionButton({
   );
 }
 
+/** Format cents as a dollar string with $ prefix (e.g. 810 → "$8.10", 310000 → "$3,100") */
+function formatCents(cents: number, showSign = false): string {
+  const dollars = Math.abs(cents) / 100;
+  const prefix = showSign && cents < 0 ? "-$" : "$";
+  if (dollars >= 1000) return prefix + dollars.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  if (dollars >= 100) return prefix + dollars.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  return prefix + dollars.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 interface AppSidebarProps {
   onToggleTheme?: () => void;
   themeIcon?: LucideIcon;
@@ -140,12 +151,23 @@ export function AppSidebar({ onToggleTheme, themeIcon, themeLabel, onTakeTour }:
   const { data: liveRuns } = useQuery(sharedQueries.liveRuns(selectedCompanyId!));
   const liveRunCount = liveRuns?.length ?? 0;
 
-  const { data: billingInfo } = useQuery({
+  const { data: billingInfo, isLoading: billingLoading } = useQuery({
     queryKey: queryKeys.billing.me,
     queryFn: () => billingApi.getMyBilling(),
     refetchInterval: 60_000,
   });
-  const balanceDepleted = (billingInfo?.creditBalanceCents ?? 1) <= 0;
+
+  // MTD cost summary for sidebar credit card
+  const mtdFrom = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  }, []);
+  const { data: mtdCosts } = useQuery({
+    queryKey: queryKeys.costs(selectedCompanyId!, mtdFrom, undefined),
+    queryFn: () => costsApi.summary(selectedCompanyId!, mtdFrom),
+    enabled: !!selectedCompanyId,
+    refetchInterval: 60_000,
+  });
 
   function openSearch() {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
@@ -255,13 +277,76 @@ export function AppSidebar({ onToggleTheme, themeIcon, themeLabel, onTakeTour }:
         {/* Spacer pushes manage strip to bottom */}
         <div className="flex-1" />
 
-        <SidebarSeparator />
+        {/* Credit usage card — shows MTD spend vs company budget */}
+        <SidebarGroup>
+          {billingLoading || !billingInfo ? (
+            <div className="rounded-lg border border-border/40 bg-sidebar-accent/30 px-3 py-2.5 min-w-0">
+              <div className="flex items-center justify-between mb-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-3 w-14" />
+              </div>
+              <Skeleton className="w-full h-1.5 rounded-full" />
+            </div>
+          ) : (() => {
+            const spent = mtdCosts?.platformSpendCents ?? 0;
+            const balance = billingInfo.creditBalanceCents;
+            const depleted = balance <= 0;
+            const remaining = Math.max(0, balance);
+            const total = spent + remaining;
+            const pct = total > 0 ? Math.min(100, (spent / total) * 100) : (spent > 0 ? 100 : 0);
+            return (
+              <NavLink
+                to="/billing"
+                className={cn(
+                  "block rounded-lg border px-3 py-2.5 min-w-0 transition-colors",
+                  depleted
+                    ? "border-red-500/30 bg-red-500/5 hover:bg-red-500/10"
+                    : "border-border/40 bg-sidebar-accent/30 hover:bg-sidebar-accent/50"
+                )}
+              >
+                {depleted ? (
+                  <>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-red-500">Balance depleted</span>
+                      <span className="text-xs text-red-500">
+                        {formatCents(balance, true)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Add credits to resume</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground">Credits used</span>
+                      <span className="text-xs font-semibold">
+                        {formatCents(spent)}/{formatCents(total)}
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 bg-muted/50 rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all",
+                          pct >= 90
+                            ? "bg-red-500"
+                            : pct >= 60
+                              ? "bg-yellow-400"
+                              : "bg-green-500"
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </>
+                )}
+              </NavLink>
+            );
+          })()}
+        </SidebarGroup>
+
 
         {/* Manage — compact icon strip */}
         <SidebarGroup className="py-1.5">
           <SidebarGroupContent>
             <div className="flex items-center justify-center gap-0.5 px-1">
-              <ManageIconButton id={TOUR_IDS.BUDGET} to="/billing" icon={DollarSign} label="Billing" alert={balanceDepleted} />
               <ManageIconButton to="/org" icon={Network} label="Org Chart" />
               <ManageIconButton to="/analytics" icon={BarChart3} label="Analytics" />
               <ManageIconButton to="/activity" icon={History} label="Activity" />

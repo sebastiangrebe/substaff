@@ -12,6 +12,8 @@ import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ArrowUpRight, Plus, Target, User, X } from "lucide-react";
+import { BudgetEditor } from "./BudgetEditor";
+
 
 interface ProjectPropertiesProps {
   project: Project;
@@ -133,7 +135,8 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-3">
+      <div className="grid grid-cols-4 gap-x-4 gap-y-3">
+        {/* Row 1: Status, Lead, Target/Created, Updated */}
         <PropertyCell label="Status">
           <span style={{ viewTransitionName: `entity-status-${project.id}` } as CSSProperties}>
             {onUpdate ? (
@@ -202,9 +205,29 @@ export function ProjectProperties({ project, onUpdate }: ProjectPropertiesProps)
           <span className="text-sm">{formatDate(project.createdAt)}</span>
         </PropertyCell>
 
-        <PropertyCell label="Updated">
-          <span className="text-sm">{formatDate(project.updatedAt)}</span>
-        </PropertyCell>
+        {!project.targetDate && (
+          <PropertyCell label="Updated">
+            <span className="text-sm">{formatDate(project.updatedAt)}</span>
+          </PropertyCell>
+        )}
+
+        {/* Row 2: Budget + Updated (if target date shown above) */}
+        <div className="col-span-2">
+          <BudgetEditor
+            budgetMonthlyCents={project.budgetMonthlyCents}
+            platformSpentMonthlyCents={project.platformSpentMonthlyCents}
+            budgetTotalCents={project.budgetTotalCents}
+            platformSpentTotalCents={project.platformSpentTotalCents}
+            onUpdateMonthly={onUpdate ? (cents) => onUpdate({ budgetMonthlyCents: cents }) : undefined}
+            onUpdateTotal={onUpdate ? (cents) => onUpdate({ budgetTotalCents: cents }) : undefined}
+          />
+        </div>
+
+        {project.targetDate && (
+          <PropertyCell label="Updated">
+            <span className="text-sm">{formatDate(project.updatedAt)}</span>
+          </PropertyCell>
+        )}
       </div>
 
       {/* Goals section */}

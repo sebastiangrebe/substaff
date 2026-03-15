@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { agents, companies, costEvents, heartbeatRuns, issues, projects, vendors } from "@substaff/db";
+import { agents, companies, costEvents, goals, heartbeatRuns, issues, projects, vendors } from "@substaff/db";
 import { DEFAULT_MARKUP_BASIS_POINTS } from "@substaff/shared";
 import { notFound, unprocessable } from "../errors.js";
 
@@ -36,6 +36,9 @@ export function costService(db: Db) {
         companyId,
         agentId: event.agentId,
         rawCostCents: event.costCents,
+        issueId: event.issueId,
+        projectId: event.projectId,
+        goalId: event.goalId,
       });
 
       // Fallback: inline budget update if queue unavailable
@@ -53,6 +56,8 @@ export function costService(db: Db) {
           .set({
             spentMonthlyCents: sql`${agents.spentMonthlyCents} + ${event.costCents}`,
             platformSpentMonthlyCents: sql`${agents.platformSpentMonthlyCents} + ${platformCost}`,
+            spentTotalCents: sql`${agents.spentTotalCents} + ${event.costCents}`,
+            platformSpentTotalCents: sql`${agents.platformSpentTotalCents} + ${platformCost}`,
             updatedAt: new Date(),
           })
           .where(eq(agents.id, event.agentId));
@@ -62,21 +67,94 @@ export function costService(db: Db) {
           .set({
             spentMonthlyCents: sql`${companies.spentMonthlyCents} + ${event.costCents}`,
             platformSpentMonthlyCents: sql`${companies.platformSpentMonthlyCents} + ${platformCost}`,
+            spentTotalCents: sql`${companies.spentTotalCents} + ${event.costCents}`,
+            platformSpentTotalCents: sql`${companies.platformSpentTotalCents} + ${platformCost}`,
             updatedAt: new Date(),
           })
           .where(eq(companies.id, companyId));
 
-        // Inline budget check fallback
+        // Increment entity-level spend
+        if (event.issueId) {
+          await db
+            .update(issues)
+            .set({
+              spentMonthlyCents: sql`${issues.spentMonthlyCents} + ${event.costCents}`,
+              platformSpentMonthlyCents: sql`${issues.platformSpentMonthlyCents} + ${platformCost}`,
+              spentTotalCents: sql`${issues.spentTotalCents} + ${event.costCents}`,
+              platformSpentTotalCents: sql`${issues.platformSpentTotalCents} + ${platformCost}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(issues.id, event.issueId));
+        }
+
+        if (event.projectId) {
+          await db
+            .update(projects)
+            .set({
+              spentMonthlyCents: sql`${projects.spentMonthlyCents} + ${event.costCents}`,
+              platformSpentMonthlyCents: sql`${projects.platformSpentMonthlyCents} + ${platformCost}`,
+              spentTotalCents: sql`${projects.spentTotalCents} + ${event.costCents}`,
+              platformSpentTotalCents: sql`${projects.platformSpentTotalCents} + ${platformCost}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(projects.id, event.projectId));
+        }
+
+        if (event.goalId) {
+          await db
+            .update(goals)
+            .set({
+              spentMonthlyCents: sql`${goals.spentMonthlyCents} + ${event.costCents}`,
+              platformSpentMonthlyCents: sql`${goals.platformSpentMonthlyCents} + ${platformCost}`,
+              spentTotalCents: sql`${goals.spentTotalCents} + ${event.costCents}`,
+              platformSpentTotalCents: sql`${goals.platformSpentTotalCents} + ${platformCost}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(goals.id, event.goalId));
+        }
+
+        // Inline budget check fallback — check all levels
         const updatedAgent = await db
           .select()
           .from(agents)
           .where(eq(agents.id, event.agentId))
           .then((rows) => rows[0] ?? null);
 
+        let shouldPause = false;
+
+        // Check entity-level budgets
+        if (event.issueId) {
+          const [issue] = await db.select({ budgetMonthlyCents: issues.budgetMonthlyCents, spentMonthlyCents: issues.spentMonthlyCents, budgetTotalCents: issues.budgetTotalCents, spentTotalCents: issues.spentTotalCents }).from(issues).where(eq(issues.id, event.issueId));
+          if (issue && ((issue.budgetMonthlyCents > 0 && issue.spentMonthlyCents >= issue.budgetMonthlyCents) || (issue.budgetTotalCents > 0 && issue.spentTotalCents >= issue.budgetTotalCents))) shouldPause = true;
+        }
+        if (!shouldPause && event.projectId) {
+          const [project] = await db.select({ budgetMonthlyCents: projects.budgetMonthlyCents, spentMonthlyCents: projects.spentMonthlyCents, budgetTotalCents: projects.budgetTotalCents, spentTotalCents: projects.spentTotalCents }).from(projects).where(eq(projects.id, event.projectId));
+          if (project && ((project.budgetMonthlyCents > 0 && project.spentMonthlyCents >= project.budgetMonthlyCents) || (project.budgetTotalCents > 0 && project.spentTotalCents >= project.budgetTotalCents))) shouldPause = true;
+        }
+        if (!shouldPause && event.goalId) {
+          const [goal] = await db.select({ budgetMonthlyCents: goals.budgetMonthlyCents, spentMonthlyCents: goals.spentMonthlyCents, budgetTotalCents: goals.budgetTotalCents, spentTotalCents: goals.spentTotalCents }).from(goals).where(eq(goals.id, event.goalId));
+          if (goal && ((goal.budgetMonthlyCents > 0 && goal.spentMonthlyCents >= goal.budgetMonthlyCents) || (goal.budgetTotalCents > 0 && goal.spentTotalCents >= goal.budgetTotalCents))) shouldPause = true;
+        }
+
+        // Check agent budget (monthly + total)
         if (
+          !shouldPause &&
           updatedAgent &&
-          updatedAgent.budgetMonthlyCents > 0 &&
-          updatedAgent.spentMonthlyCents >= updatedAgent.budgetMonthlyCents &&
+          ((updatedAgent.budgetMonthlyCents > 0 && updatedAgent.spentMonthlyCents >= updatedAgent.budgetMonthlyCents) ||
+           (updatedAgent.budgetTotalCents > 0 && updatedAgent.spentTotalCents >= updatedAgent.budgetTotalCents))
+        ) {
+          shouldPause = true;
+        }
+
+        // Check company budget (monthly + total)
+        if (!shouldPause) {
+          const [company] = await db.select({ budgetMonthlyCents: companies.budgetMonthlyCents, spentMonthlyCents: companies.spentMonthlyCents, budgetTotalCents: companies.budgetTotalCents, spentTotalCents: companies.spentTotalCents }).from(companies).where(eq(companies.id, companyId));
+          if (company && ((company.budgetMonthlyCents > 0 && company.spentMonthlyCents >= company.budgetMonthlyCents) || (company.budgetTotalCents > 0 && company.spentTotalCents >= company.budgetTotalCents))) shouldPause = true;
+        }
+
+        if (
+          shouldPause &&
+          updatedAgent &&
           updatedAgent.status !== "paused" &&
           updatedAgent.status !== "terminated"
         ) {

@@ -12,6 +12,7 @@ import { formatDate, cn, agentUrl } from "../lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { User, ArrowUpRight } from "lucide-react";
+import { BudgetEditor } from "./BudgetEditor";
 
 interface GoalPropertiesProps {
   goal: Goal;
@@ -175,6 +176,22 @@ export function GoalProperties({ goal, onUpdate }: GoalPropertiesProps) {
             )}
           </span>
         </PropertyRow>
+      </div>
+
+      <Separator />
+
+      <div>
+        <span className="text-xs text-muted-foreground font-medium">Budget</span>
+        <div className="mt-2">
+          <BudgetEditor
+            budgetMonthlyCents={goal.budgetMonthlyCents}
+            platformSpentMonthlyCents={goal.platformSpentMonthlyCents}
+            budgetTotalCents={goal.budgetTotalCents}
+            platformSpentTotalCents={goal.platformSpentTotalCents}
+            onUpdateMonthly={onUpdate ? (cents) => onUpdate({ budgetMonthlyCents: cents }) : undefined}
+            onUpdateTotal={onUpdate ? (cents) => onUpdate({ budgetTotalCents: cents }) : undefined}
+          />
+        </div>
       </div>
 
       <Separator />

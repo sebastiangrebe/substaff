@@ -26,6 +26,9 @@ export interface Agent {
   budgetMonthlyCents: number;
   /** Platform cost with markup applied. Raw LLM cost is internal only. */
   platformSpentMonthlyCents: number;
+  budgetTotalCents: number;
+  /** Platform total cost with markup applied. Raw LLM cost is internal only. */
+  platformSpentTotalCents: number;
   integrations: string[] | null;
   permissions: AgentPermissions;
   lastHeartbeatAt: Date | null;

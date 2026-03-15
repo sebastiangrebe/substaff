@@ -28,23 +28,28 @@ function aggregateIssueCounts(rows: { status: string; count: number }[]): IssueC
   return counts;
 }
 
+function normalizeGoalRow(row: typeof goals.$inferSelect) {
+  const { spentMonthlyCents: _rawMonthly, spentTotalCents: _rawTotal, ...rest } = row;
+  return rest;
+}
+
 export function goalService(db: Db) {
   return {
-    list: (companyId: string) => db.select().from(goals).where(eq(goals.companyId, companyId)),
+    list: (companyId: string) => db.select().from(goals).where(eq(goals.companyId, companyId)).then((rows) => rows.map(normalizeGoalRow)),
 
     getById: (id: string) =>
       db
         .select()
         .from(goals)
         .where(eq(goals.id, id))
-        .then((rows) => rows[0] ?? null),
+        .then((rows) => rows[0] ? normalizeGoalRow(rows[0]) : null),
 
     create: (companyId: string, data: Omit<typeof goals.$inferInsert, "companyId">) =>
       db
         .insert(goals)
         .values({ ...data, companyId })
         .returning()
-        .then((rows) => rows[0]),
+        .then((rows) => normalizeGoalRow(rows[0])),
 
     update: (id: string, data: Partial<typeof goals.$inferInsert>) =>
       db
@@ -52,7 +57,7 @@ export function goalService(db: Db) {
         .set({ ...data, updatedAt: new Date() })
         .where(eq(goals.id, id))
         .returning()
-        .then((rows) => rows[0] ?? null),
+        .then((rows) => rows[0] ? normalizeGoalRow(rows[0]) : null),
 
     remove: (id: string) =>
       db

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { useParams } from "@/lib/router";
+import { useParams, Link } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Agent, GoalProgress } from "@substaff/shared";
+import type { Agent, Goal, GoalProgress } from "@substaff/shared";
 import { goalsApi } from "../api/goals";
 import { projectsApi } from "../api/projects";
 import { issuesApi } from "../api/issues";
@@ -11,9 +11,7 @@ import { assetsApi } from "../api/assets";
 import { authApi } from "../api/auth";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
-import { usePanel } from "../context/PanelContext";
 import { queryKeys } from "../lib/queryKeys";
-import { GoalProperties } from "../components/GoalProperties";
 import { StatusBadge } from "../components/StatusBadge";
 import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
@@ -21,15 +19,20 @@ import { InlineEditor } from "../components/InlineEditor";
 import { EntityRow } from "../components/EntityRow";
 import { ActivityRow } from "../components/ActivityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
-import { cn, projectUrl, relativeTime } from "../lib/utils";
+import { cn, formatDate, projectUrl, relativeTime, agentUrl } from "../lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Activity as ActivityIcon,
+  ArrowUpRight,
   ChevronDown,
   Hexagon,
   ListTodo,
   Target,
+  User,
 } from "lucide-react";
+import { GOAL_STATUSES } from "@substaff/shared";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { BudgetEditor } from "../components/BudgetEditor";
 import type { ActivityEvent } from "@substaff/shared";
 import { Identity } from "../components/Identity";
 import { formatActivityVerb, humanizeActorName } from "../lib/activity-labels";
@@ -47,7 +50,6 @@ export function GoalDetail() {
   const { goalId } = useParams<{ goalId: string }>();
   const { selectedCompanyId, setSelectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
-  const { openPanel, closePanel } = usePanel();
   const queryClient = useQueryClient();
   const [activityOpen, setActivityOpen] = useState(false);
 
@@ -183,16 +185,6 @@ export function GoalDetail() {
     ]);
   }, [setBreadcrumbs, goal, goalId]);
 
-  // Open properties panel (matching IssueDetail pattern)
-  useEffect(() => {
-    if (goal) {
-      openPanel(
-        <GoalProperties goal={goal} onUpdate={(data) => updateGoal.mutate(data)} />
-      );
-    }
-    return () => closePanel();
-  }, [goal]); // eslint-disable-line react-hooks/exhaustive-deps
-
   if (isLoading) return <PageSkeleton variant="detail" />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!goal) return null;
@@ -202,30 +194,17 @@ export function GoalDetail() {
       {/* ── Hero header card ─────────────────────────────── */}
       <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
         <div className="px-5 pt-5 pb-4 space-y-3">
-          {/* Top row: status badge + meta */}
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <span style={{ viewTransitionName: `entity-status-${goal.id}` } as CSSProperties}>
-              <StatusBadge status={goal.status} />
-            </span>
-
-            {goal.ownerAgentId && (() => {
-              const owner = agentMap.get(goal.ownerAgentId);
-              return owner ? (
-                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Identity name={owner.name} size="sm" />
-                </span>
-              ) : null;
-            })()}
-          </div>
-
-          {/* Title */}
-          <div style={{ viewTransitionName: `entity-title-${goal.id}` } as CSSProperties}>
-            <InlineEditor
-              value={goal.title}
-              onSave={(title) => updateGoal.mutate({ title })}
-              as="h2"
-              className="text-xl font-bold tracking-tight"
-            />
+          {/* Title row: icon + title */}
+          <div className="flex items-center gap-2 min-w-0">
+            <Target className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="flex-1 min-w-0" style={{ viewTransitionName: `entity-title-${goal.id}` } as CSSProperties}>
+              <InlineEditor
+                value={goal.title}
+                onSave={(title) => updateGoal.mutate({ title })}
+                as="h2"
+                className="text-xl font-bold tracking-tight"
+              />
+            </div>
           </div>
 
           {/* Description */}
@@ -240,6 +219,15 @@ export function GoalDetail() {
               const asset = await uploadImage.mutateAsync(file);
               return asset.contentPath;
             }}
+          />
+        </div>
+
+        {/* ── Inline properties ── */}
+        <div className="border-t border-border/40 px-5 py-3">
+          <GoalInlineProperties
+            goal={goal}
+            agents={agents ?? []}
+            onUpdate={(data) => updateGoal.mutate(data)}
           />
         </div>
       </div>
@@ -354,6 +342,141 @@ export function GoalDetail() {
           </CollapsibleContent>
         </Collapsible>
       )}
+    </div>
+  );
+}
+
+/* ── Inline Properties (rendered inside the hero card) ── */
+
+const editableClasses =
+  "inline-flex items-center gap-1.5 cursor-pointer hover:bg-accent/50 rounded px-1 -mx-1 py-0.5 transition-colors";
+
+function statusLabel(s: string): string {
+  return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function PropertyCell({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-1.5 min-w-0">{children}</div>
+    </div>
+  );
+}
+
+function GoalInlineProperties({
+  goal,
+  agents,
+  onUpdate,
+}: {
+  goal: Goal;
+  agents: { id: string; name: string; urlKey?: string }[];
+  onUpdate: (data: Record<string, unknown>) => void;
+}) {
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [ownerOpen, setOwnerOpen] = useState(false);
+
+  const ownerAgent = goal.ownerAgentId
+    ? agents.find((a) => a.id === goal.ownerAgentId)
+    : null;
+
+  return (
+    <div className="grid grid-cols-4 gap-x-4 gap-y-3">
+      {/* Row 1: Status, Owner, Created, Updated */}
+      <PropertyCell label="Status">
+        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+          <PopoverTrigger asChild>
+            <button className={editableClasses}>
+              <StatusBadge status={goal.status} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-40 p-1" align="start" collisionPadding={16}>
+            {GOAL_STATUSES.map((opt) => (
+              <button
+                key={opt}
+                className={cn(
+                  "flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent/50 transition-colors",
+                  opt === goal.status && "bg-accent",
+                )}
+                onClick={() => { onUpdate({ status: opt }); setStatusOpen(false); }}
+              >
+                {statusLabel(opt)}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      </PropertyCell>
+
+      <PropertyCell label="Owner">
+        <span className="flex items-center gap-1">
+          <Popover open={ownerOpen} onOpenChange={setOwnerOpen}>
+            <PopoverTrigger asChild>
+              <button className={editableClasses}>
+                {ownerAgent ? (
+                  <Identity name={ownerAgent.name} size="sm" />
+                ) : (
+                  <>
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">No owner</span>
+                  </>
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-48 p-1" align="start" collisionPadding={16}>
+              <button
+                className={cn(
+                  "flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent/50 transition-colors",
+                  !goal.ownerAgentId && "bg-accent",
+                )}
+                onClick={() => { onUpdate({ ownerAgentId: null }); setOwnerOpen(false); }}
+              >
+                No owner
+              </button>
+              {agents.map((agent) => (
+                <button
+                  key={agent.id}
+                  className={cn(
+                    "flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent/50 transition-colors",
+                    agent.id === goal.ownerAgentId && "bg-accent",
+                  )}
+                  onClick={() => { onUpdate({ ownerAgentId: agent.id }); setOwnerOpen(false); }}
+                >
+                  {agent.name}
+                </button>
+              ))}
+            </PopoverContent>
+          </Popover>
+          {ownerAgent && (
+            <Link
+              to={agentUrl(ownerAgent)}
+              className="inline-flex items-center justify-center h-5 w-5 rounded hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          )}
+        </span>
+      </PropertyCell>
+
+      <PropertyCell label="Created">
+        <span className="text-sm">{formatDate(goal.createdAt)}</span>
+      </PropertyCell>
+
+      <PropertyCell label="Updated">
+        <span className="text-sm">{formatDate(goal.updatedAt)}</span>
+      </PropertyCell>
+
+      {/* Row 2: Budgets (span 2 cols) */}
+      <div className="col-span-2">
+        <BudgetEditor
+          budgetMonthlyCents={goal.budgetMonthlyCents}
+          platformSpentMonthlyCents={goal.platformSpentMonthlyCents}
+          budgetTotalCents={goal.budgetTotalCents}
+          platformSpentTotalCents={goal.platformSpentTotalCents}
+          onUpdateMonthly={(cents) => onUpdate({ budgetMonthlyCents: cents })}
+          onUpdateTotal={(cents) => onUpdate({ budgetTotalCents: cents })}
+        />
+      </div>
     </div>
   );
 }

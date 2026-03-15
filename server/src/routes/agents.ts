@@ -28,7 +28,7 @@ import {
   logActivity,
   secretService,
 } from "../services/index.js";
-import { conflict, forbidden, unprocessable } from "../errors.js";
+import { conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { assertBoard, assertCompanyAccess, companyRouter, getActorInfo, getActorVendorId } from "./authz.js";
 import { findServerAdapter, listAdapterModels } from "../adapters/index.js";
 import { redactEventPayload } from "../redaction.js";
@@ -149,7 +149,10 @@ export function agentRoutes(db: Db) {
     if (resolved.ambiguous) {
       throw conflict("Agent shortname is ambiguous in this company. Use the agent ID.");
     }
-    return resolved.agent?.id ?? raw;
+    if (!resolved.agent) {
+      throw notFound(`Agent not found: ${raw}`);
+    }
+    return resolved.agent.id;
   }
 
   function parseSourceIssueIds(input: {

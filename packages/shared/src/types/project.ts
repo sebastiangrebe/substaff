@@ -35,6 +35,10 @@ export interface Project {
   color: string | null;
   workspaces: ProjectWorkspace[];
   primaryWorkspace: ProjectWorkspace | null;
+  budgetMonthlyCents: number;
+  platformSpentMonthlyCents: number;
+  budgetTotalCents: number;
+  platformSpentTotalCents: number;
   archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;

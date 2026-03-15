@@ -17,8 +17,12 @@ export const createCostEventSchema = z.object({
 export type CreateCostEvent = z.infer<typeof createCostEventSchema>;
 
 export const updateBudgetSchema = z.object({
-  budgetMonthlyCents: z.number().int().nonnegative(),
-});
+  budgetMonthlyCents: z.number().int().nonnegative().optional(),
+  budgetTotalCents: z.number().int().nonnegative().optional(),
+}).refine(
+  (data) => data.budgetMonthlyCents !== undefined || data.budgetTotalCents !== undefined,
+  { message: "At least one budget field must be provided" },
+);
 
 export type UpdateBudget = z.infer<typeof updateBudgetSchema>;
 

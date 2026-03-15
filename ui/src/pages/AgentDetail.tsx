@@ -392,10 +392,8 @@ export function AgentDetail() {
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!agent) return null;
   const isPendingApproval = agent.status === "pending_approval";
-  const showConfigActionBar = activeView === "configure" && configDirty;
-
   return (
-    <div className={cn("space-y-5", isMobile && showConfigActionBar && "pb-24")}>
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-4 min-w-0">
@@ -524,62 +522,6 @@ export function AgentDetail() {
         <p className="text-sm text-amber-500">
           This agent is pending board approval and cannot be invoked yet.
         </p>
-      )}
-
-      {/* Floating Save/Cancel (desktop) */}
-      {!isMobile && activeView === "configure" && (
-        <div
-          className={cn(
-            "sticky top-6 z-10 float-right transition-opacity duration-150",
-            showConfigActionBar
-              ? "opacity-100"
-              : "opacity-0 pointer-events-none"
-          )}
-        >
-          <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm border border-border/50 rounded-xl px-3 py-1.5 shadow-lg">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => cancelConfigActionRef.current?.()}
-              disabled={configSaving}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => saveConfigActionRef.current?.()}
-              disabled={configSaving}
-            >
-              {configSaving ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile bottom Save/Cancel bar */}
-      {isMobile && showConfigActionBar && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 backdrop-blur-sm">
-          <div
-            className="flex items-center justify-end gap-2 px-3 py-2"
-            style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
-          >
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => cancelConfigActionRef.current?.()}
-              disabled={configSaving}
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => saveConfigActionRef.current?.()}
-              disabled={configSaving}
-            >
-              {configSaving ? "Saving…" : "Save"}
-            </Button>
-          </div>
-        </div>
       )}
 
       {/* View content */}
@@ -987,48 +929,48 @@ function ConfigurationTab({
     onSavingChange(updateAgent.isPending);
   }, [onSavingChange, updateAgent.isPending]);
 
-  return (
-    <div className="space-y-8">
-      <AgentConfigForm
-        mode="edit"
-        agent={agent}
-        onSave={(patch) => updateAgent.mutate(patch)}
-        isSaving={updateAgent.isPending}
-        adapterModels={adapterModels}
-        onDirtyChange={onDirtyChange}
-        onSaveActionChange={onSaveActionChange}
-        onCancelActionChange={onCancelActionChange}
-        hideInlineSave
-        sectionLayout="cards"
-      />
-
-      <div>
-        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Permissions</h3>
-        <div className="border border-border/40 rounded-xl bg-card/50 p-5">
-          <div className="flex items-center justify-between py-1">
-            <span className="text-sm">Can create new agents</span>
-            <button
+  const permissionsSlot = (
+    <div>
+      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">Permissions</h3>
+      <div className="border border-border rounded-xl bg-card p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm">Can create new agents</span>
+          <button
+            className={cn(
+              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+              agent.permissions?.canCreateAgents ? "bg-green-600" : "bg-muted",
+              updatePermissions.isPending && "opacity-50 pointer-events-none"
+            )}
+            onClick={() =>
+              updatePermissions.mutate(!Boolean(agent.permissions?.canCreateAgents))
+            }
+            disabled={updatePermissions.isPending}
+          >
+            <span
               className={cn(
-                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                agent.permissions?.canCreateAgents ? "bg-green-600" : "bg-muted",
-                updatePermissions.isPending && "opacity-50 pointer-events-none"
+                "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow-xs",
+                agent.permissions?.canCreateAgents ? "translate-x-4.5" : "translate-x-0.5"
               )}
-              onClick={() =>
-                updatePermissions.mutate(!Boolean(agent.permissions?.canCreateAgents))
-              }
-              disabled={updatePermissions.isPending}
-            >
-              <span
-                className={cn(
-                  "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow-xs",
-                  agent.permissions?.canCreateAgents ? "translate-x-4.5" : "translate-x-0.5"
-                )}
-              />
-            </button>
-          </div>
+            />
+          </button>
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <AgentConfigForm
+      mode="edit"
+      agent={agent}
+      onSave={(patch) => updateAgent.mutate(patch)}
+      isSaving={updateAgent.isPending}
+      adapterModels={adapterModels}
+      onDirtyChange={onDirtyChange}
+      onSaveActionChange={onSaveActionChange}
+      onCancelActionChange={onCancelActionChange}
+      sectionLayout="cards"
+      afterScheduleSlot={permissionsSlot}
+    />
   );
 }
 

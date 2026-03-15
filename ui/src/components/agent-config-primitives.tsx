@@ -47,7 +47,8 @@ export const help: Record<string, string> = {
   wakeOnDemand: "Allow this agent to be triggered by task assignments, API calls, or UI actions.",
   cooldownSec: "Minimum seconds between consecutive work sessions.",
   maxConcurrentRuns: "Maximum number of work sessions that can run simultaneously for this agent.",
-  budgetMonthlyCents: "Monthly spending limit in cents. 0 means no limit.",
+  budgetMonthlyCents: "Monthly spending limit in cents. 0 means no limit. Resets on the 1st of each month.",
+  budgetTotalCents: "Total lifetime spending limit in cents. 0 means no limit. Never resets.",
   workingHours: "Define when this agent runs automatic heartbeat sessions. Manual triggers and ticket responses still work outside working hours. Overrides the company-level working hours if set.",
 };
 

@@ -29,8 +29,6 @@ import { Identity } from "../components/Identity";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Activity as ActivityIcon,
   Check,
@@ -46,7 +44,6 @@ import {
   MoreHorizontal,
   Paperclip,
   Plus,
-  SlidersHorizontal,
   Trash2,
   X,
 } from "lucide-react";
@@ -158,12 +155,11 @@ export function IssueDetail() {
   const { selectedCompanyId } = useCompany();
   const { openNewIssue } = useDialog();
   const { pushToast } = useToast();
-  const { openPanel, closePanel, panelVisible, setPanelVisible } = usePanel();
+  const { closePanel } = usePanel();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [moreOpen, setMoreOpen] = useState(false);
-  const [mobilePropsOpen, setMobilePropsOpen] = useState(false);
   const [secondaryOpen, setSecondaryOpen] = useState({
     approvals: false,
     cost: false,
@@ -411,6 +407,19 @@ export function IssueDetail() {
 
   const updateIssue = useMutation({
     mutationFn: (data: Record<string, unknown>) => issuesApi.update(issueId!, data),
+    onMutate: async (data) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.issues.detail(issueId!) });
+      const previous = queryClient.getQueryData(queryKeys.issues.detail(issueId!));
+      queryClient.setQueryData(queryKeys.issues.detail(issueId!), (old: Record<string, unknown> | undefined) =>
+        old ? { ...old, ...data } : old,
+      );
+      return { previous };
+    },
+    onError: (_err, _data, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.issues.detail(issueId!), context.previous);
+      }
+    },
     onSuccess: (updated) => {
       invalidateIssue();
       const issueRef = updated.identifier ?? `Task ${updated.id.slice(0, 8)}`;
@@ -544,14 +553,10 @@ export function IssueDetail() {
     }
   }, [issue, issueId, navigate]);
 
+  // Close any stale panel from a previous page
   useEffect(() => {
-    if (issue) {
-      openPanel(
-        <IssueProperties issue={issue} onUpdate={(data) => updateIssue.mutate(data)} />
-      );
-    }
     return () => closePanel();
-  }, [issue]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addDependency = useMutation({
     mutationFn: (dependsOnIssueId: string) => issuesApi.addDependency(issueId!, dependsOnIssueId),
@@ -662,30 +667,7 @@ export function IssueDetail() {
               </span>
             )}
 
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              className="ml-auto md:hidden shrink-0"
-              onClick={() => setMobilePropsOpen(true)}
-              title="Properties"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </Button>
-
-            <div className="hidden md:flex items-center md:ml-auto shrink-0 gap-0.5">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                className={cn(
-                  "shrink-0 transition-opacity duration-200",
-                  panelVisible ? "opacity-0 pointer-events-none w-0 overflow-hidden" : "opacity-100",
-                )}
-                onClick={() => setPanelVisible(true)}
-                title="Show properties"
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
-
+            <div className="flex items-center ml-auto shrink-0 gap-0.5">
               <Popover open={moreOpen} onOpenChange={setMoreOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon-xs" className="shrink-0">
@@ -757,6 +739,11 @@ export function IssueDetail() {
               )}
             </div>
           )}
+        </div>
+
+        {/* ── Inline properties ── */}
+        <div className="border-t border-border/40 px-5 py-3">
+          <IssueProperties issue={issue} onUpdate={(data) => updateIssue.mutate(data)} inline />
         </div>
       </div>
 
@@ -1230,19 +1217,6 @@ export function IssueDetail() {
 
       </div>{/* end two-column layout */}
 
-      {/* Mobile properties drawer */}
-      <Sheet open={mobilePropsOpen} onOpenChange={setMobilePropsOpen}>
-        <SheetContent side="bottom" className="max-h-[85dvh] pb-[env(safe-area-inset-bottom)]">
-          <SheetHeader>
-            <SheetTitle className="text-sm">Properties</SheetTitle>
-          </SheetHeader>
-          <ScrollArea className="flex-1 overflow-y-auto">
-            <div className="px-4 pb-4">
-              <IssueProperties issue={issue} onUpdate={(data) => updateIssue.mutate(data)} inline />
-            </div>
-          </ScrollArea>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }

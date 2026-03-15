@@ -13,7 +13,6 @@ import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { ProjectProperties } from "../components/ProjectProperties";
 import { InlineEditor } from "../components/InlineEditor";
 import { IssuesList } from "../components/IssuesList";
-import { StatusBadge } from "../components/StatusBadge";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { projectRouteRef } from "../lib/utils";
 import { Target } from "lucide-react";
@@ -276,25 +275,20 @@ export function ProjectDetail() {
       {/* ── Hero header card ─────────────────────────────── */}
       <div className="rounded-xl border border-border/60 bg-card shadow-xs overflow-hidden mb-6">
         <div className="px-5 pt-5 pb-4 space-y-3">
-          {/* Top row: color + status */}
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          {/* Title row: color + title */}
+          <div className="flex items-center gap-2 min-w-0">
             <ColorPicker
               currentColor={project.color ?? "#6366f1"}
               onSelect={(color) => updateProject.mutate({ color })}
             />
-            <span style={{ viewTransitionName: `entity-status-${project.id}` } as CSSProperties}>
-              <StatusBadge status={project.status} />
-            </span>
-          </div>
-
-          {/* Title */}
-          <div style={{ viewTransitionName: `entity-title-${project.id}` } as CSSProperties}>
-            <InlineEditor
-              value={project.name}
-              onSave={(name) => updateProject.mutate({ name })}
-              as="h2"
-              className="text-xl font-bold tracking-tight"
-            />
+            <div className="flex-1 min-w-0" style={{ viewTransitionName: `entity-title-${project.id}` } as CSSProperties}>
+              <InlineEditor
+                value={project.name}
+                onSave={(name) => updateProject.mutate({ name })}
+                as="h2"
+                className="text-xl font-bold tracking-tight"
+              />
+            </div>
           </div>
 
           {/* Description */}

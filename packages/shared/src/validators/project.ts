@@ -44,6 +44,8 @@ const projectFields = {
   targetDate: z.string().optional().nullable(),
   color: z.string().optional().nullable(),
   archivedAt: z.string().datetime().optional().nullable(),
+  budgetMonthlyCents: z.number().int().nonnegative().optional(),
+  budgetTotalCents: z.number().int().nonnegative().optional(),
 };
 
 export const createProjectSchema = z.object({

@@ -1,7 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import { sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { agents, companies, vendors } from "@substaff/db";
+import { agents, companies, goals, issues, projects, vendors } from "@substaff/db";
 import { stripeService } from "../services/stripe.js";
 import { logger } from "../middleware/logger.js";
 
@@ -77,6 +77,21 @@ export function createBillingSyncWorker(redisUrl: string, db: Db) {
             .update(companies)
             .set({ spentMonthlyCents: 0, platformSpentMonthlyCents: 0, updatedAt: new Date() })
             .where(sql`${companies.spentMonthlyCents} > 0 OR ${companies.platformSpentMonthlyCents} > 0`);
+
+          await db
+            .update(goals)
+            .set({ spentMonthlyCents: 0, platformSpentMonthlyCents: 0, updatedAt: new Date() })
+            .where(sql`${goals.spentMonthlyCents} > 0 OR ${goals.platformSpentMonthlyCents} > 0`);
+
+          await db
+            .update(projects)
+            .set({ spentMonthlyCents: 0, platformSpentMonthlyCents: 0, updatedAt: new Date() })
+            .where(sql`${projects.spentMonthlyCents} > 0 OR ${projects.platformSpentMonthlyCents} > 0`);
+
+          await db
+            .update(issues)
+            .set({ spentMonthlyCents: 0, platformSpentMonthlyCents: 0, updatedAt: new Date() })
+            .where(sql`${issues.spentMonthlyCents} > 0 OR ${issues.platformSpentMonthlyCents} > 0`);
 
           logger.info("Monthly spend reset complete");
           break;

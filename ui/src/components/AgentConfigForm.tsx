@@ -17,8 +17,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from "@/components/ui/button";
-import { FolderOpen, Heart, ChevronDown, X } from "lucide-react";
+import { FolderOpen, ChevronDown, X } from "lucide-react";
 import { cn } from "../lib/utils";
 import { queryKeys } from "../lib/queryKeys";
 import { useCompany } from "../context/CompanyContext";
@@ -37,6 +36,7 @@ import { getUIAdapter } from "../adapters";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { ChoosePathButton } from "./PathInstructionsModal";
 import { WorkingHoursEditor } from "./WorkingHoursEditor";
+import { BudgetEditor } from "./BudgetEditor";
 import { InputDialog } from "./InputDialog";
 import type { WorkingHoursConfig } from "@substaff/shared";
 
@@ -54,9 +54,10 @@ type AgentConfigFormProps = {
   onDirtyChange?: (dirty: boolean) => void;
   onSaveActionChange?: (save: (() => void) | null) => void;
   onCancelActionChange?: (cancel: (() => void) | null) => void;
-  hideInlineSave?: boolean;
   /** "cards" renders each section as heading + bordered card (for settings pages). Default: "inline" (border-b dividers). */
   sectionLayout?: "inline" | "cards";
+  /** Slot rendered between Schedule and Configuration sections (e.g. Permissions). */
+  afterScheduleSlot?: React.ReactNode;
 } & (
   | {
       mode: "create";
@@ -220,8 +221,12 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   }
 
   /** Build accumulated patch and send to parent */
-  function handleSave() {
-    if (isCreate || !isDirty) return;
+  const buildPatch = useRef(() => {
+    // no-op placeholder, replaced below
+    return null as Record<string, unknown> | null;
+  });
+  buildPatch.current = () => {
+    if (isCreate || !isOverlayDirty(overlay)) return null;
     const agent = props.agent;
     const patch: Record<string, unknown> = {};
 
@@ -230,8 +235,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     }
     if (overlay.adapterType !== undefined) {
       patch.adapterType = overlay.adapterType;
-      // When adapter type changes, send only the new config — don't merge
-      // with old config since old adapter fields are meaningless for the new type
       patch.adapterConfig = overlay.adapterConfig;
     } else if (Object.keys(overlay.adapterConfig).length > 0) {
       const existing = (agent.adapterConfig ?? {}) as Record<string, unknown>;
@@ -245,7 +248,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       }
       if (Object.keys(overlay.workingHours).length > 0) {
         const rc = (patch.runtimeConfig ?? existingRc) as Record<string, unknown>;
-        // _full contains the complete WorkingHoursConfig or null
         patch.runtimeConfig = { ...rc, workingHours: overlay.workingHours._full ?? null };
       }
     }
@@ -253,8 +255,25 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
       Object.assign(patch, overlay.runtime);
     }
 
-    props.onSave(patch);
+    return patch;
+  };
+
+  function handleSave() {
+    const patch = buildPatch.current();
+    if (patch && !isCreate) props.onSave(patch);
   }
+
+  // Debounced auto-save: fires 800ms after the last overlay change
+  useEffect(() => {
+    if (isCreate || !isOverlayDirty(overlay)) return;
+    const timer = setTimeout(() => {
+      const patch = buildPatch.current();
+      if (patch && !isCreate) {
+        props.onSave(patch);
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [overlay]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isCreate) {
@@ -314,7 +333,6 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
 
   // Section toggle state — advanced always starts collapsed
   const [runPolicyAdvancedOpen, setRunPolicyAdvancedOpen] = useState(false);
-  const [workingHoursOpen, setWorkingHoursOpen] = useState(false);
   // Popover states
   const [modelOpen, setModelOpen] = useState(false);
   const [thinkingEffortOpen, setThinkingEffortOpen] = useState(false);
@@ -355,152 +373,302 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     ? val!.thinkingEffort
     : eff("adapterConfig", "effort", String(config.effort ?? ""));
 
+  /* ---- Shared section rendering helpers ---- */
+  const sectionHeading = (title: string) =>
+    cards
+      ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">{title}</h3>
+      : <div className="px-4 py-2 text-sm font-medium text-muted-foreground">{title}</div>;
+
   return (
-    <div className={cn("relative", cards && "space-y-8")}>
-      {/* ---- Floating Save button (edit mode, when dirty) ---- */}
-      {isDirty && !props.hideInlineSave && (
-        <div className="sticky top-0 z-10 flex items-center justify-end px-4 py-2 bg-background/90 backdrop-blur-sm border-b border-primary/20 rounded-b-lg">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">Unsaved changes</span>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={!isCreate && props.isSaving}
-            >
-              {!isCreate && props.isSaving ? "Saving..." : "Save"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* ---- Identity (edit only) ---- */}
-      {!isCreate && (
-        <div className={cn(!cards && "border-b border-border")}>
-          {cards
-            ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Identity</h3>
-            : <div className="px-4 py-2 text-sm font-medium text-muted-foreground">Identity</div>
-          }
-          <div className={cn(cards ? "border border-border rounded-xl bg-card p-5 space-y-5" : "px-4 pb-3 space-y-3")}>
-            <Field label="Name" hint={help.name}>
-              <DraftInput
-                value={eff("identity", "name", props.agent.name)}
-                onCommit={(v) => mark("identity", "name", v)}
-                immediate
-                className={inputClass}
-                placeholder="Agent name"
-              />
-            </Field>
-            <Field label="Title" hint={help.title}>
-              <DraftInput
-                value={eff("identity", "title", props.agent.title ?? "")}
-                onCommit={(v) => mark("identity", "title", v || null)}
-                immediate
-                className={inputClass}
-                placeholder="e.g. VP of Engineering"
-              />
-            </Field>
-            <Field label="Capabilities" hint={help.capabilities}>
-              <MarkdownEditor
-                value={eff("identity", "capabilities", props.agent.capabilities ?? "")}
-                onChange={(v) => mark("identity", "capabilities", v || null)}
-                placeholder="Describe what this agent can do..."
-                contentClassName="min-h-[44px] text-sm font-mono"
-                imageUploadHandler={async (file) => {
-                  const asset = await uploadMarkdownImage.mutateAsync({
-                    file,
-                    namespace: `agents/${props.agent.id}/capabilities`,
-                  });
-                  return asset.contentPath;
-                }}
-              />
-            </Field>
-            {!isCreate && integrationConnections && integrationConnections.length > 0 && (
-              <Field label="Integrations" hint="MCP integrations this agent can use. Unselected integrations won't be loaded, saving tokens.">
-                <div className="flex flex-wrap gap-2">
-                  {integrationConnections.map((conn) => {
-                    const currentIntegrations: string[] = eff("identity", "integrations", props.agent.integrations ?? []) as string[];
-                    const isSelected = currentIntegrations.includes(conn.provider);
-                    return (
-                      <button
-                        key={conn.id}
-                        type="button"
-                        className={cn(
-                          "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors",
-                          isSelected
-                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                            : "border-border text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground",
-                        )}
-                        onClick={() => {
-                          const updated = isSelected
-                            ? currentIntegrations.filter((s) => s !== conn.provider)
-                            : [...currentIntegrations, conn.provider];
-                          mark("identity", "integrations", updated.length > 0 ? updated : null);
-                        }}
-                      >
-                        {conn.toolkit?.name ?? conn.provider}
-                      </button>
-                    );
-                  })}
-                </div>
-                {(eff("identity", "integrations", props.agent.integrations ?? []) as string[]).length === 0 && (
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {props.agent.reportsTo
-                      ? "No integrations selected — no MCP tools will be loaded."
-                      : "No integrations selected — all company integrations loaded (root agent default)."}
-                  </p>
-                )}
-              </Field>
-            )}
-            {isLocal && (
-              <Field label="Prompt Template" hint={help.promptTemplate}>
-                <MarkdownEditor
-                  value={eff(
-                    "adapterConfig",
-                    "promptTemplate",
-                    String(config.promptTemplate ?? ""),
-                  )}
-                  onChange={(v) => mark("adapterConfig", "promptTemplate", v || undefined)}
-                  placeholder="You are agent {{ agent.name }}. Your role is {{ agent.role }}..."
-                  contentClassName="min-h-[88px] text-sm font-mono"
-                  imageUploadHandler={async (file) => {
-                    const namespace = `agents/${props.agent.id}/prompt-template`;
-                    const asset = await uploadMarkdownImage.mutateAsync({ file, namespace });
-                    return asset.contentPath;
-                  }}
-                />
-              </Field>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ---- Configuration (includes adapter fields when in edit mode) ---- */}
-      {isLocal && (
-        <div className={cn(!cards && (isCreate ? "border-t border-border" : "border-b border-border"))}>
-          {cards
-            ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Configuration</h3>
-            : <div className="px-4 py-2 text-sm font-medium text-muted-foreground">Configuration</div>
-          }
-          <div className={cn(cards ? "border border-border rounded-xl bg-card p-5 space-y-5" : "px-4 pb-3 space-y-4")}>
-            {/* Adapter-specific fields (edit mode) */}
-            {!isCreate && <uiAdapter.ConfigFields {...adapterFieldProps} />}
-              {/* Prompt template (create mode only — edit mode shows in Identity) */}
-              {isCreate && (
-                <Field label="Prompt template" hint={help.promptTemplate}>
+    <div className={cn("relative", cards && "space-y-5")}>
+      {/* ---- Edit mode: Two-column overview layout ---- */}
+      {!isCreate && cards && (
+        <div className="grid grid-cols-2 gap-5 items-start">
+          {/* Left column: Identity + Permissions */}
+          <div className="space-y-5">
+            <div>
+              {sectionHeading("Identity")}
+              <div className="border border-border rounded-xl bg-card p-4 space-y-3">
+                <Field label="Name" hint={help.name}>
+                  <DraftInput
+                    value={eff("identity", "name", props.agent.name)}
+                    onCommit={(v) => mark("identity", "name", v)}
+                    immediate
+                    className={inputClass}
+                    placeholder="Agent name"
+                  />
+                </Field>
+                <Field label="Title" hint={help.title}>
+                  <DraftInput
+                    value={eff("identity", "title", props.agent.title ?? "")}
+                    onCommit={(v) => mark("identity", "title", v || null)}
+                    immediate
+                    className={inputClass}
+                    placeholder="e.g. VP of Engineering"
+                  />
+                </Field>
+                <Field label="Capabilities" hint={help.capabilities}>
                   <MarkdownEditor
-                    value={val!.promptTemplate}
-                    onChange={(v) => set!({ promptTemplate: v })}
-                    placeholder="You are agent {{ agent.name }}. Your role is {{ agent.role }}..."
-                    contentClassName="min-h-[88px] text-sm"
+                    value={eff("identity", "capabilities", props.agent.capabilities ?? "")}
+                    onChange={(v) => mark("identity", "capabilities", v || null)}
+                    placeholder="Describe what this agent can do..."
+                    contentClassName="min-h-[44px] text-sm font-mono"
                     imageUploadHandler={async (file) => {
-                      const namespace = "agents/drafts/prompt-template";
-                      const asset = await uploadMarkdownImage.mutateAsync({ file, namespace });
+                      const asset = await uploadMarkdownImage.mutateAsync({
+                        file,
+                        namespace: `agents/${props.agent.id}/capabilities`,
+                      });
                       return asset.contentPath;
                     }}
                   />
                 </Field>
-              )}
+              </div>
+            </div>
+            {props.afterScheduleSlot}
+          </div>
 
+          {/* Right column: Budget (includes spending + working hours + schedule) */}
+          <div>
+            {sectionHeading("Budget")}
+            <div className="border border-border rounded-xl bg-card overflow-hidden">
+              <div className="p-4 space-y-4">
+                <BudgetEditor
+                  variant="settings"
+                  budgetMonthlyCents={eff("runtime", "budgetMonthlyCents", (props as { agent: Agent }).agent.budgetMonthlyCents)}
+                  platformSpentMonthlyCents={(props as { agent: Agent }).agent.platformSpentMonthlyCents}
+                  budgetTotalCents={eff("runtime", "budgetTotalCents", (props as { agent: Agent }).agent.budgetTotalCents)}
+                  platformSpentTotalCents={(props as { agent: Agent }).agent.platformSpentTotalCents}
+                  onUpdateMonthly={(cents) => mark("runtime", "budgetMonthlyCents", cents)}
+                  onUpdateTotal={(cents) => mark("runtime", "budgetTotalCents", cents)}
+                />
+                <div className="border-t border-border/50 pt-4">
+                  <WorkingHoursEditor
+                    value={eff("workingHours", "_full", agentWorkingHours) as WorkingHoursConfig | null}
+                    onChange={(wh) => {
+                      if (wh) {
+                        mark("workingHours", "_full", wh);
+                      } else {
+                        mark("workingHours", "_full", null);
+                      }
+                    }}
+                    overrideMode
+                  />
+                </div>
+              </div>
+              <CollapsibleSection
+                title="Advanced"
+                bordered={cards}
+                open={runPolicyAdvancedOpen}
+                onToggle={() => setRunPolicyAdvancedOpen(!runPolicyAdvancedOpen)}
+              >
+                <div className="space-y-3">
+                  <ToggleWithNumber
+                    label="Run on a recurring schedule"
+                    hint={help.heartbeatInterval}
+                    checked={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
+                    onCheckedChange={(v) => mark("heartbeat", "enabled", v)}
+                    number={eff("heartbeat", "intervalSec", Number(heartbeat.intervalSec ?? 300))}
+                    onNumberChange={(v) => mark("heartbeat", "intervalSec", v)}
+                    numberLabel="sec"
+                    numberPrefix="Run every"
+                    numberHint={help.intervalSec}
+                    showNumber={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
+                  />
+                  <ToggleField
+                    label="Trigger on demand"
+                    hint={help.wakeOnDemand}
+                    checked={eff(
+                      "heartbeat",
+                      "wakeOnDemand",
+                      heartbeat.wakeOnDemand !== false,
+                    )}
+                    onChange={(v) => mark("heartbeat", "wakeOnDemand", v)}
+                  />
+                  <Field label="Cooldown (sec)" hint={help.cooldownSec}>
+                    <DraftNumberInput
+                      value={eff(
+                        "heartbeat",
+                        "cooldownSec",
+                        Number(heartbeat.cooldownSec ?? 10),
+                      )}
+                      onCommit={(v) => mark("heartbeat", "cooldownSec", v)}
+                      immediate
+                      className={inputClass}
+                    />
+                  </Field>
+                  <Field label="Max concurrent sessions" hint={help.maxConcurrentRuns}>
+                    <DraftNumberInput
+                      value={eff(
+                        "heartbeat",
+                        "maxConcurrentRuns",
+                        Number(heartbeat.maxConcurrentRuns ?? 1),
+                      )}
+                      onCommit={(v) => mark("heartbeat", "maxConcurrentRuns", v)}
+                      immediate
+                      className={inputClass}
+                    />
+                  </Field>
+                </div>
+              </CollapsibleSection>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Edit mode: inline (non-cards) fallback ---- */}
+      {!isCreate && !cards && (
+        <>
+          <div className="border-b border-border">
+            <div className="px-4 py-2 text-sm font-medium text-muted-foreground">Identity</div>
+            <div className="px-4 pb-3 space-y-3">
+              <Field label="Name" hint={help.name}>
+                <DraftInput
+                  value={eff("identity", "name", props.agent.name)}
+                  onCommit={(v) => mark("identity", "name", v)}
+                  immediate
+                  className={inputClass}
+                  placeholder="Agent name"
+                />
+              </Field>
+              <Field label="Title" hint={help.title}>
+                <DraftInput
+                  value={eff("identity", "title", props.agent.title ?? "")}
+                  onCommit={(v) => mark("identity", "title", v || null)}
+                  immediate
+                  className={inputClass}
+                  placeholder="e.g. VP of Engineering"
+                />
+              </Field>
+              <Field label="Capabilities" hint={help.capabilities}>
+                <MarkdownEditor
+                  value={eff("identity", "capabilities", props.agent.capabilities ?? "")}
+                  onChange={(v) => mark("identity", "capabilities", v || null)}
+                  placeholder="Describe what this agent can do..."
+                  contentClassName="min-h-[44px] text-sm font-mono"
+                  imageUploadHandler={async (file) => {
+                    const asset = await uploadMarkdownImage.mutateAsync({
+                      file,
+                      namespace: `agents/${props.agent.id}/capabilities`,
+                    });
+                    return asset.contentPath;
+                  }}
+                />
+              </Field>
+            </div>
+          </div>
+          <div className="border-b border-border">
+            <div className="px-4 py-2 text-sm font-medium text-muted-foreground">Budget</div>
+            <div className="px-4 pb-3 space-y-3">
+              <BudgetEditor
+                variant="settings"
+                budgetMonthlyCents={eff("runtime", "budgetMonthlyCents", (props as { agent: Agent }).agent.budgetMonthlyCents)}
+                platformSpentMonthlyCents={(props as { agent: Agent }).agent.platformSpentMonthlyCents}
+                budgetTotalCents={eff("runtime", "budgetTotalCents", (props as { agent: Agent }).agent.budgetTotalCents)}
+                platformSpentTotalCents={(props as { agent: Agent }).agent.platformSpentTotalCents}
+                onUpdateMonthly={(cents) => mark("runtime", "budgetMonthlyCents", cents)}
+                onUpdateTotal={(cents) => mark("runtime", "budgetTotalCents", cents)}
+              />
+              <WorkingHoursEditor
+                value={eff("workingHours", "_full", agentWorkingHours) as WorkingHoursConfig | null}
+                onChange={(wh) => {
+                  if (wh) {
+                    mark("workingHours", "_full", wh);
+                  } else {
+                    mark("workingHours", "_full", null);
+                  }
+                }}
+                overrideMode
+              />
+              <ToggleWithNumber
+                label="Run on a recurring schedule"
+                hint={help.heartbeatInterval}
+                checked={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
+                onCheckedChange={(v) => mark("heartbeat", "enabled", v)}
+                number={eff("heartbeat", "intervalSec", Number(heartbeat.intervalSec ?? 300))}
+                onNumberChange={(v) => mark("heartbeat", "intervalSec", v)}
+                numberLabel="sec"
+                numberPrefix="Run every"
+                numberHint={help.intervalSec}
+                showNumber={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
+              />
+            </div>
+          </div>
+          {props.afterScheduleSlot}
+        </>
+      )}
+
+      {/* Schedule — create mode (full width) */}
+      {isCreate && (
+        <div className={cn(!cards && "border-b border-border")}>
+          {sectionHeading("Schedule")}
+          <div className={cn(cards ? "border border-border rounded-xl bg-card p-4 space-y-3" : "px-4 pb-3 space-y-3")}>
+            <ToggleWithNumber
+              label="Run on a recurring schedule"
+              hint={help.heartbeatInterval}
+              checked={val!.heartbeatEnabled}
+              onCheckedChange={(v) => set!({ heartbeatEnabled: v })}
+              number={val!.intervalSec}
+              onNumberChange={(v) => set!({ intervalSec: v })}
+              numberLabel="sec"
+              numberPrefix="Run every"
+              numberHint={help.intervalSec}
+              showNumber={val!.heartbeatEnabled}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ---- 4. Configuration (technical — moved down for consumer-friendly ordering) ---- */}
+      {isLocal && (
+        <div className={cn(!cards && (isCreate ? "border-t border-border" : "border-b border-border"))}>
+          {sectionHeading("Configuration")}
+          <div className={cn(cards ? "border border-border rounded-xl bg-card p-4 space-y-4" : "px-4 pb-3 space-y-4")}>
+            {/* Integrations (edit only) — first in configuration */}
+            {!isCreate && integrationConnections && integrationConnections.length > 0 && (
+              <div>
+                <Field label="Integrations" hint="External tools and services this agent can access during work sessions.">
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Select which integrations this agent can use. Each integration gives the agent access to external tools and APIs. Fewer integrations means faster startup and lower token usage.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {integrationConnections.map((conn) => {
+                      const currentIntegrations: string[] = eff("identity", "integrations", props.agent.integrations ?? []) as string[];
+                      const isSelected = currentIntegrations.includes(conn.provider);
+                      return (
+                        <button
+                          key={conn.id}
+                          type="button"
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors",
+                            isSelected
+                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                              : "border-border text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground",
+                          )}
+                          onClick={() => {
+                            const updated = isSelected
+                              ? currentIntegrations.filter((s) => s !== conn.provider)
+                              : [...currentIntegrations, conn.provider];
+                            mark("identity", "integrations", updated.length > 0 ? updated : null);
+                          }}
+                        >
+                          {conn.toolkit?.name ?? conn.provider}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {(eff("identity", "integrations", props.agent.integrations ?? []) as string[]).length === 0 && (
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      {props.agent.reportsTo
+                        ? "No integrations selected — no MCP tools will be loaded."
+                        : "No integrations selected — all company integrations loaded (root agent default)."}
+                    </p>
+                  )}
+                </Field>
+              </div>
+            )}
+
+            {/* Model + Thinking Effort side by side */}
+            <div className="grid grid-cols-2 gap-3">
               <ModelDropdown
                 models={models}
                 value={currentModelId}
@@ -524,187 +692,119 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 open={thinkingEffortOpen}
                 onOpenChange={setThinkingEffortOpen}
               />
-              <Field label="Initial setup prompt" hint={help.bootstrapPrompt}>
+            </div>
+
+            {/* Adapter-specific fields (edit mode) */}
+            {!isCreate && <uiAdapter.ConfigFields {...adapterFieldProps} />}
+
+            {/* Prompt template */}
+            {isCreate ? (
+              <Field label="Prompt template" hint={help.promptTemplate}>
                 <MarkdownEditor
-                  value={
-                    isCreate
-                      ? val!.bootstrapPrompt
-                      : eff(
-                          "adapterConfig",
-                          "bootstrapPromptTemplate",
-                          String(config.bootstrapPromptTemplate ?? ""),
-                        )
-                  }
-                  onChange={(v) =>
-                    isCreate
-                      ? set!({ bootstrapPrompt: v })
-                      : mark("adapterConfig", "bootstrapPromptTemplate", v || undefined)
-                  }
-                  placeholder="Optional prompt to run once when the agent starts for the first time"
-                  contentClassName="min-h-[44px] text-sm font-mono"
+                  value={val!.promptTemplate}
+                  onChange={(v) => set!({ promptTemplate: v })}
+                  placeholder="You are agent {{ agent.name }}. Your role is {{ agent.role }}..."
+                  contentClassName="min-h-[88px] text-sm"
                   imageUploadHandler={async (file) => {
-                    const namespace = isCreate
-                      ? "agents/drafts/bootstrap-prompt"
-                      : `agents/${props.agent.id}/bootstrap-prompt`;
+                    const namespace = "agents/drafts/prompt-template";
                     const asset = await uploadMarkdownImage.mutateAsync({ file, namespace });
                     return asset.contentPath;
                   }}
                 />
               </Field>
-              {/* Extra args — hidden, managed internally */}
-
-              {!isCreate && (
-                <Field label="Environment variables" hint={help.envVars}>
-                  <EnvVarEditor
-                    value={eff("adapterConfig", "env", (config.env ?? EMPTY_ENV) as Record<string, EnvBinding>)}
-                    secrets={availableSecrets}
-                    onCreateSecret={async (name, value) => {
-                      const created = await createSecret.mutateAsync({ name, value });
-                      return created;
+            ) : (
+              isLocal && (
+                <Field label="Prompt Template" hint={help.promptTemplate}>
+                  <MarkdownEditor
+                    value={eff(
+                      "adapterConfig",
+                      "promptTemplate",
+                      String(config.promptTemplate ?? ""),
+                    )}
+                    onChange={(v) => mark("adapterConfig", "promptTemplate", v || undefined)}
+                    placeholder="You are agent {{ agent.name }}. Your role is {{ agent.role }}..."
+                    contentClassName="min-h-[88px] text-sm font-mono"
+                    imageUploadHandler={async (file) => {
+                      const namespace = `agents/${props.agent.id}/prompt-template`;
+                      const asset = await uploadMarkdownImage.mutateAsync({ file, namespace });
+                      return asset.contentPath;
                     }}
-                    onChange={(env) => mark("adapterConfig", "env", env)}
                   />
                 </Field>
-              )}
+              )
+            )}
 
-              {/* Edit-only: timeout + grace period */}
-              {!isCreate && (
-                <>
-                  <Field label="Timeout (sec)" hint={help.timeoutSec}>
-                    <DraftNumberInput
-                      value={eff(
+            <Field label="Initial setup prompt" hint={help.bootstrapPrompt}>
+              <MarkdownEditor
+                value={
+                  isCreate
+                    ? val!.bootstrapPrompt
+                    : eff(
                         "adapterConfig",
-                        "timeoutSec",
-                        Number(config.timeoutSec ?? 0),
-                      )}
-                      onCommit={(v) => mark("adapterConfig", "timeoutSec", v)}
-                      immediate
-                      className={inputClass}
-                    />
-                  </Field>
-                  <Field label="Interrupt grace period (sec)" hint={help.graceSec}>
-                    <DraftNumberInput
-                      value={eff(
-                        "adapterConfig",
-                        "graceSec",
-                        Number(config.graceSec ?? 15),
-                      )}
-                      onCommit={(v) => mark("adapterConfig", "graceSec", v)}
-                      immediate
-                      className={inputClass}
-                    />
-                  </Field>
-                </>
-              )}
-          </div>
-        </div>
-      )}
-
-      {/* ---- Schedule ---- */}
-      {isCreate ? (
-        <div className={cn(!cards && "border-b border-border")}>
-          {cards
-            ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2 mb-3"><Heart className="h-3 w-3" /> Schedule</h3>
-            : <div className="px-4 py-2 text-sm font-medium text-muted-foreground flex items-center gap-2"><Heart className="h-3 w-3" /> Schedule</div>
-          }
-          <div className={cn(cards ? "border border-border rounded-xl bg-card p-5 space-y-3" : "px-4 pb-3 space-y-3")}>
-            <ToggleWithNumber
-              label="Run on a recurring schedule"
-              hint={help.heartbeatInterval}
-              checked={val!.heartbeatEnabled}
-              onCheckedChange={(v) => set!({ heartbeatEnabled: v })}
-              number={val!.intervalSec}
-              onNumberChange={(v) => set!({ intervalSec: v })}
-              numberLabel="sec"
-              numberPrefix="Run every"
-              numberHint={help.intervalSec}
-              showNumber={val!.heartbeatEnabled}
-            />
-          </div>
-        </div>
-      ) : (
-        <div className={cn(!cards && "border-b border-border")}>
-          {cards
-            ? <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2 mb-3"><Heart className="h-3 w-3" /> Schedule</h3>
-            : <div className="px-4 py-2 text-sm font-medium text-muted-foreground flex items-center gap-2"><Heart className="h-3 w-3" /> Schedule</div>
-          }
-          <div className={cn(cards ? "border border-border rounded-xl bg-card overflow-hidden" : "")}>
-            <div className={cn(cards ? "p-5 space-y-3" : "px-4 pb-3 space-y-3")}>
-              <ToggleWithNumber
-                label="Run on a recurring schedule"
-                hint={help.heartbeatInterval}
-                checked={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
-                onCheckedChange={(v) => mark("heartbeat", "enabled", v)}
-                number={eff("heartbeat", "intervalSec", Number(heartbeat.intervalSec ?? 300))}
-                onNumberChange={(v) => mark("heartbeat", "intervalSec", v)}
-                numberLabel="sec"
-                numberPrefix="Run every"
-                numberHint={help.intervalSec}
-                showNumber={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
-              />
-            </div>
-            <CollapsibleSection
-              title="Advanced"
-              bordered={cards}
-              open={runPolicyAdvancedOpen}
-              onToggle={() => setRunPolicyAdvancedOpen(!runPolicyAdvancedOpen)}
-            >
-            <div className="space-y-3">
-              <ToggleField
-                label="Trigger on demand"
-                hint={help.wakeOnDemand}
-                checked={eff(
-                  "heartbeat",
-                  "wakeOnDemand",
-                  heartbeat.wakeOnDemand !== false,
-                )}
-                onChange={(v) => mark("heartbeat", "wakeOnDemand", v)}
-              />
-              <Field label="Cooldown (sec)" hint={help.cooldownSec}>
-                <DraftNumberInput
-                  value={eff(
-                    "heartbeat",
-                    "cooldownSec",
-                    Number(heartbeat.cooldownSec ?? 10),
-                  )}
-                  onCommit={(v) => mark("heartbeat", "cooldownSec", v)}
-                  immediate
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Max concurrent sessions" hint={help.maxConcurrentRuns}>
-                <DraftNumberInput
-                  value={eff(
-                    "heartbeat",
-                    "maxConcurrentRuns",
-                    Number(heartbeat.maxConcurrentRuns ?? 1),
-                  )}
-                  onCommit={(v) => mark("heartbeat", "maxConcurrentRuns", v)}
-                  immediate
-                  className={inputClass}
-                />
-              </Field>
-            </div>
-          </CollapsibleSection>
-          <CollapsibleSection
-            title="Working Hours"
-            bordered={cards}
-            open={workingHoursOpen}
-            onToggle={() => setWorkingHoursOpen(!workingHoursOpen)}
-          >
-            <WorkingHoursEditor
-              value={eff("workingHours", "_full", agentWorkingHours) as WorkingHoursConfig | null}
-              onChange={(wh) => {
-                // Store the full config as a single overlay entry
-                if (wh) {
-                  mark("workingHours", "_full", wh);
-                } else {
-                  mark("workingHours", "_full", null);
+                        "bootstrapPromptTemplate",
+                        String(config.bootstrapPromptTemplate ?? ""),
+                      )
                 }
-              }}
-              overrideMode
-            />
-          </CollapsibleSection>
+                onChange={(v) =>
+                  isCreate
+                    ? set!({ bootstrapPrompt: v })
+                    : mark("adapterConfig", "bootstrapPromptTemplate", v || undefined)
+                }
+                placeholder="Optional prompt to run once when the agent starts for the first time"
+                contentClassName="min-h-[44px] text-sm font-mono"
+                imageUploadHandler={async (file) => {
+                  const namespace = isCreate
+                    ? "agents/drafts/bootstrap-prompt"
+                    : `agents/${props.agent.id}/bootstrap-prompt`;
+                  const asset = await uploadMarkdownImage.mutateAsync({ file, namespace });
+                  return asset.contentPath;
+                }}
+              />
+            </Field>
+
+            {!isCreate && (
+              <Field label="Environment variables" hint={help.envVars}>
+                <EnvVarEditor
+                  value={eff("adapterConfig", "env", (config.env ?? EMPTY_ENV) as Record<string, EnvBinding>)}
+                  secrets={availableSecrets}
+                  onCreateSecret={async (name, value) => {
+                    const created = await createSecret.mutateAsync({ name, value });
+                    return created;
+                  }}
+                  onChange={(env) => mark("adapterConfig", "env", env)}
+                />
+              </Field>
+            )}
+
+            {/* Timeout + Grace Period side by side */}
+            {!isCreate && (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Timeout (sec)" hint={help.timeoutSec}>
+                  <DraftNumberInput
+                    value={eff(
+                      "adapterConfig",
+                      "timeoutSec",
+                      Number(config.timeoutSec ?? 0),
+                    )}
+                    onCommit={(v) => mark("adapterConfig", "timeoutSec", v)}
+                    immediate
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label="Interrupt grace period (sec)" hint={help.graceSec}>
+                  <DraftNumberInput
+                    value={eff(
+                      "adapterConfig",
+                      "graceSec",
+                      Number(config.graceSec ?? 15),
+                    )}
+                    onCommit={(v) => mark("adapterConfig", "graceSec", v)}
+                    immediate
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -19,7 +19,9 @@ import {
   Building2,
   Check,
   RefreshCw,
+  Wallet,
 } from "lucide-react";
+import { BudgetEditor } from "../components/BudgetEditor";
 
 export function CompanySettings() {
   const { selectedCompany, selectedCompanyId } = useCompany();
@@ -194,6 +196,27 @@ export function CompanySettings() {
             <MutationFeedback mutation={generalMutation} successMessage="Saved" />
           </div>
         )}
+      </SettingsSection>
+
+      {/* ── Budget ── */}
+      <SettingsSection icon={Wallet} title="Budget" description="Set monthly and total spending limits for this company.">
+        <BudgetEditor
+          variant="settings"
+          budgetMonthlyCents={selectedCompany.budgetMonthlyCents}
+          platformSpentMonthlyCents={selectedCompany.platformSpentMonthlyCents}
+          budgetTotalCents={selectedCompany.budgetTotalCents}
+          platformSpentTotalCents={selectedCompany.platformSpentTotalCents}
+          onUpdateMonthly={(cents) => {
+            companiesApi.update(selectedCompanyId!, { budgetMonthlyCents: cents }).then(() => {
+              queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+            });
+          }}
+          onUpdateTotal={(cents) => {
+            companiesApi.update(selectedCompanyId!, { budgetTotalCents: cents }).then(() => {
+              queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+            });
+          }}
+        />
       </SettingsSection>
 
       {/* ── Approvals ── */}

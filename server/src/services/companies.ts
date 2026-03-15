@@ -71,7 +71,7 @@ export function companyService(db: Db) {
 
   function normalizeCompanyRow(row: typeof companies.$inferSelect) {
     // Strip raw LLM cost from API responses — only platform cost is exposed
-    const { spentMonthlyCents: _rawCost, ...rest } = row;
+    const { spentMonthlyCents: _rawCost, spentTotalCents: _rawTotal, ...rest } = row;
     return rest;
   }
 
