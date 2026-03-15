@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Plug, Check, Loader2, Search, ChevronDown, ChevronUp, ExternalLink, Unplug } from "lucide-react";
+import { Plug, Check, Loader2, Search, ChevronDown, ChevronUp, ExternalLink, Unplug, ShieldAlert, AlertTriangle, CreditCard } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { integrationsApi } from "../api/integrations";
@@ -10,11 +10,19 @@ import { PageSkeleton } from "../components/PageSkeleton";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import type { ComposioToolkit } from "@substaff/shared";
 import { agentsApi } from "../api/agents";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const INITIAL_PER_CATEGORY = 6;
+const INTEGRATION_CONSENT_KEY = "substaff-integration-consent-acknowledged";
 
 export function Integrations() {
   const { selectedCompanyId } = useCompany();
@@ -26,6 +34,8 @@ export function Integrations() {
   const [disconnectTarget, setDisconnectTarget] = useState<{ id: string; name: string } | null>(null);
   const [connectingApp, setConnectingApp] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [pendingToolkit, setPendingToolkit] = useState<ComposioToolkit | null>(null);
 
   // Handle OAuth redirect results
   useEffect(() => {
@@ -77,7 +87,7 @@ export function Integrations() {
     },
   });
 
-  const handleConnect = useCallback(
+  const performConnect = useCallback(
     async (toolkit: ComposioToolkit) => {
       if (!selectedCompanyId) return;
       setConnectingApp(toolkit.slug);
@@ -102,6 +112,38 @@ export function Integrations() {
     },
     [selectedCompanyId, queryClient],
   );
+
+  const handleConnect = useCallback(
+    (toolkit: ComposioToolkit) => {
+      // Show consent dialog for first-ever connection if not previously acknowledged
+      const hasConnections = (connections ?? []).length > 0;
+      let consentAcknowledged = false;
+      try { consentAcknowledged = localStorage.getItem(INTEGRATION_CONSENT_KEY) === "true"; } catch { /* */ }
+
+      if (!hasConnections && !consentAcknowledged) {
+        setPendingToolkit(toolkit);
+        setConsentOpen(true);
+        return;
+      }
+
+      performConnect(toolkit);
+    },
+    [connections, performConnect],
+  );
+
+  const handleConsentAccept = useCallback(() => {
+    try { localStorage.setItem(INTEGRATION_CONSENT_KEY, "true"); } catch { /* */ }
+    setConsentOpen(false);
+    if (pendingToolkit) {
+      performConnect(pendingToolkit);
+      setPendingToolkit(null);
+    }
+  }, [pendingToolkit, performConnect]);
+
+  const handleConsentCancel = useCallback(() => {
+    setConsentOpen(false);
+    setPendingToolkit(null);
+  }, []);
 
   const toggleCategory = useCallback((cat: string) => {
     setExpandedCategories((prev) => {
@@ -494,6 +536,70 @@ export function Integrations() {
         </div>
       )}
 
+      {/* ── First-connection consent dialog ── */}
+      <Dialog open={consentOpen}>
+        <DialogContent showCloseButton={false} className="sm:max-w-[420px] p-0 gap-0 overflow-hidden">
+          {/* Hero section */}
+          <div className="relative px-8 pt-10 pb-6 text-center">
+            {/* Warning gradient accent */}
+            <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-amber-500/[0.08] to-transparent pointer-events-none" />
+
+            <div className="relative">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/20">
+                <ShieldAlert className="h-7 w-7 text-amber-500" />
+              </div>
+              <DialogHeader className="space-y-2">
+                <DialogTitle className="text-center text-lg">
+                  Before you connect
+                </DialogTitle>
+                <DialogDescription className="text-center text-sm leading-relaxed max-w-[320px] mx-auto">
+                  Connecting an integration grants your AI agents access to that service on your behalf. Please review the following before proceeding.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+          </div>
+
+          {/* Warning items */}
+          <div className="px-6 pb-2">
+            <div className="space-y-1">
+              <ConsentWarningRow
+                icon={<ShieldAlert className="h-4 w-4" />}
+                iconBg="bg-amber-500/10 text-amber-500"
+                title="Full account access"
+                description="Agents may gain broad permissions to read, write, and modify data in the connected service."
+              />
+              <ConsentWarningRow
+                icon={<AlertTriangle className="h-4 w-4" />}
+                iconBg="bg-red-500/10 text-red-500"
+                title="Unintended actions"
+                description="Autonomous agents can take actions you didn't anticipate, including destructive or irreversible changes."
+              />
+              <ConsentWarningRow
+                icon={<CreditCard className="h-4 w-4" />}
+                iconBg="bg-orange-500/10 text-orange-500"
+                title="Financial risk"
+                description="If the connected service can trigger purchases, subscriptions, or payments, agents could incur real costs."
+              />
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="px-8 pb-8 pt-4 flex flex-col gap-2.5">
+            <Button size="lg" className="w-full" onClick={handleConsentAccept}>
+              I understand, continue
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground"
+              onClick={handleConsentCancel}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog
         open={!!disconnectTarget}
         onOpenChange={(open) => { if (!open) setDisconnectTarget(null); }}
@@ -506,6 +612,30 @@ export function Integrations() {
           setDisconnectTarget(null);
         }}
       />
+    </div>
+  );
+}
+
+function ConsentWarningRow({
+  icon,
+  iconBg,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-lg p-3 transition-colors hover:bg-accent/50">
+      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+        {icon}
+      </div>
+      <div className="min-w-0 pt-0.5">
+        <p className="text-sm font-medium leading-none">{title}</p>
+        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{description}</p>
+      </div>
     </div>
   );
 }
