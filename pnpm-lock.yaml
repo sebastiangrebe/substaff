@@ -261,8 +261,8 @@ importers:
         specifier: ^3.888.0
         version: 3.994.0
       '@composio/core':
-        specifier: ^0.6.4
-        version: 0.6.4(ws@8.19.0)(zod@3.25.76)
+        specifier: ^0.6.5
+        version: 0.6.5(ws@8.19.0)(zod@3.25.76)
       '@qdrant/js-client-rest':
         specifier: ^1.17.0
         version: 1.17.0(typescript@5.9.3)
@@ -1100,11 +1100,11 @@ packages:
       react: ^16.8.0 || ^17 || ^18 || ^19
       react-dom: ^16.8.0 || ^17 || ^18 || ^19
 
-  '@composio/client@0.1.0-alpha.60':
-    resolution: {integrity: sha512-i1/S+GX7ATzdQK0UzoaPdWqP4lmn/sCWF4ojGdq26k+cyEiq3aWN4HZFKYBp1jmwD1Sxn02RX9iTL09YAPn3Rg==}
+  '@composio/client@0.1.0-alpha.61':
+    resolution: {integrity: sha512-VSU20mTtMe0TIPHkBBRdCU4IYSy3886U9O69PURU8+ItLXCD2MjIN0S8VTDL8wpA4zFXamUFnvtwQyow11O2KA==}
 
-  '@composio/core@0.6.4':
-    resolution: {integrity: sha512-WwC2fegW7T76IoJze5hNCXO0IwU4L8jruLmLfULaexwnUxK2M52whM69wVps1MWOuHUaE3D4YxrycyPzIbzVoQ==}
+  '@composio/core@0.6.5':
+    resolution: {integrity: sha512-BHaw60KFkza5PDJDGG2ATaYlwaH5D4VhQinRYo5wLmqjiI/mdnzzXRYatsn24WTaakdqNrf3jY5sQ2WIyex6Ow==}
     peerDependencies:
       zod: ^3.25 || ^4
 
@@ -8574,11 +8574,11 @@ snapshots:
       react-dom: 19.2.4(react@19.2.4)
       react-is: 17.0.2
 
-  '@composio/client@0.1.0-alpha.60': {}
+  '@composio/client@0.1.0-alpha.61': {}
 
-  '@composio/core@0.6.4(ws@8.19.0)(zod@3.25.76)':
+  '@composio/core@0.6.5(ws@8.19.0)(zod@3.25.76)':
     dependencies:
-      '@composio/client': 0.1.0-alpha.60
+      '@composio/client': 0.1.0-alpha.61
       '@composio/json-schema-to-zod': 0.1.20(zod@3.25.76)
       '@types/json-schema': 7.0.15
       chalk: 4.1.2
