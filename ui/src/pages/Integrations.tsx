@@ -241,8 +241,8 @@ export function Integrations() {
         key={toolkit.slug}
         className="group relative rounded-lg border border-emerald-500/30 bg-card p-4 transition-all hover:border-emerald-500/50 hover:shadow-sm"
       >
-        {/* Green accent line */}
-        <div className="absolute inset-x-0 top-0 h-[2px] rounded-t-lg bg-emerald-500/60" />
+        {/* Green accent line – inset to avoid overlapping the card border */}
+        <div className="absolute inset-x-[1px] top-[1px] h-[2px] rounded-t-lg bg-emerald-500/60" />
 
         <div className="flex items-start gap-3">
           {/* Logo */}
