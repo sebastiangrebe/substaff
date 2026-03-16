@@ -90,6 +90,7 @@ export function integrationService(db: Db) {
       process.env.SUBSTAFF_API_URL ??
       `http://localhost:${process.env.SUBSTAFF_LISTEN_PORT ?? "3100"}`;
     const callbackUrl = `${baseUrl}/api/integrations/composio/callback?companyId=${encodeURIComponent(companyId)}`;
+    console.log("[composio] SUBSTAFF_API_URL =", JSON.stringify(process.env.SUBSTAFF_API_URL), "| callbackUrl =", callbackUrl);
 
     // Find an existing auth config for this toolkit, or create a managed one
     let authConfigId: string;
