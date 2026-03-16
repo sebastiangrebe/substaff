@@ -215,7 +215,7 @@ const runtimeApiHost =
     : runtimeListenHost;
 process.env.SUBSTAFF_LISTEN_HOST = runtimeListenHost;
 process.env.SUBSTAFF_LISTEN_PORT = String(listenPort);
-process.env.SUBSTAFF_API_URL = `http://${runtimeApiHost}:${listenPort}`;
+process.env.SUBSTAFF_API_URL ??= `http://${runtimeApiHost}:${listenPort}`;
 
 setupLiveEventsWebSocketServer(server, db as any, {
   deploymentMode: config.deploymentMode,
