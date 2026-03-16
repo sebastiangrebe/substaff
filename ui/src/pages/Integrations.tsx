@@ -408,7 +408,7 @@ export function Integrations() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-xs gap-1.5 transition-colors hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                className="h-7 text-xs gap-1.5 transition-colors hover:bg-primary hover:text-primary-foreground dark:hover:text-white hover:border-primary"
                 disabled={connectingApp === toolkit.slug}
                 onClick={() => handleConnect(toolkit)}
               >
