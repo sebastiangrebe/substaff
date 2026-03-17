@@ -42,3 +42,6 @@ export { integrationConnections } from "./integration_connections.js";
 export { indexedArtifacts } from "./indexed_artifacts.js";
 export { creditTransactions } from "./credit_transactions.js";
 export { companyRoles } from "./company_roles.js";
+export { objectives } from "./objectives.js";
+export { keyResults } from "./key_results.js";
+export { kpiEntries } from "./kpi_entries.js";

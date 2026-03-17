@@ -212,7 +212,7 @@ export function AgentDetail() {
     tab?: string;
     runId?: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { companies, selectedCompanyId } = useCompany();
   const { closePanel } = usePanel();
   const { openNewIssue } = useDialog();
   const { setBreadcrumbs } = useBreadcrumbs();
@@ -296,8 +296,8 @@ export function AgentDetail() {
 
   useEffect(() => {
     if (!agent?.companyId || agent.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(agent.companyId, { source: "route_sync" });
-  }, [agent?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    navigate("/agents", { replace: true });
+  }, [agent?.companyId, selectedCompanyId, navigate]);
 
   const agentAction = useMutation({
     mutationFn: async (action: "invoke" | "pause" | "resume" | "terminate") => {
@@ -1645,13 +1645,16 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
             {logMode === "human" ? (
               /* ---- Human-readable mode ---- */
               displayEntries.map((entry, idx) => {
+                // Use the original (non-reversed) index as key so existing entries keep
+                // stable DOM nodes when new entries are prepended to the top of the list.
+                const stableIdx = dedupedTranscript.length - 1 - idx;
                 const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
                 const tsEl = <span className="text-sm text-neutral-400 dark:text-neutral-600 select-none shrink-0">{time}</span>;
                 const cardBase = "rounded-lg border p-4 [animation:log-entry-in_0.35s_ease-out_both]";
 
                 if (entry.kind === "assistant") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-green-200 dark:border-green-900/40 bg-green-50/50 dark:bg-green-950/20")}>
+                    <div key={`h-${stableIdx}`} className={cn(cardBase, "border-green-200 dark:border-green-900/40 bg-green-50/50 dark:bg-green-950/20")}>
                       <div className="flex items-center gap-2 mb-2">
                         {tsEl}
                         <span className="text-sm font-semibold uppercase tracking-wider text-green-700 dark:text-green-300">Agent</span>
@@ -1663,7 +1666,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "thinking") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-green-100 dark:border-green-900/20 bg-green-50/30 dark:bg-green-950/10 opacity-60")}>
+                    <div key={`h-${stableIdx}`} className={cn(cardBase, "border-green-100 dark:border-green-900/20 bg-green-50/30 dark:bg-green-950/10 opacity-60")}>
                       <div className="flex items-center gap-2 mb-1.5">
                         {tsEl}
                         <span className="text-sm italic font-medium text-green-600/70 dark:text-green-300/60">Thinking</span>
@@ -1679,7 +1682,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                 if (entry.kind === "tool_result") {
                   if (entry.isError) {
                     return (
-                      <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20")}>
+                      <div key={`h-${stableIdx}`} className={cn(cardBase, "border-red-200 dark:border-red-900/30 bg-red-50/50 dark:bg-red-950/20")}>
                         <div className="flex items-center gap-2 mb-2">
                           {tsEl}
                           <span className="text-sm font-semibold uppercase tracking-wider text-red-600 dark:text-red-300">Tool error</span>
@@ -1696,7 +1699,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "init") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-blue-200 dark:border-blue-900/30 bg-blue-50/40 dark:bg-blue-950/15")}>
+                    <div key={`h-${stableIdx}`} className={cn(cardBase, "border-blue-200 dark:border-blue-900/30 bg-blue-50/40 dark:bg-blue-950/15")}>
                       <div className="flex items-center gap-2">
                         {tsEl}
                         <span className="text-sm font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">Agent started</span>
@@ -1710,7 +1713,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "user") {
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50")}>
+                    <div key={`h-${stableIdx}`} className={cn(cardBase, "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50")}>
                       <div className="flex items-center gap-2 mb-2">
                         {tsEl}
                         <span className="text-sm font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Prompt</span>
@@ -1721,7 +1724,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                 }
 
                 if (entry.kind === "stderr") {
-                  return <StderrCard key={`${entry.ts}-h-${idx}`} entry={entry} tsEl={tsEl} cardBase={cardBase} />;
+                  return <StderrCard key={`h-${stableIdx}`} entry={entry} tsEl={tsEl} cardBase={cardBase} />;
                 }
 
                 // system — skip in human mode
@@ -1733,7 +1736,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                   const humanText = humanizeStdoutLine(rawText);
                   if (!humanText) return null;
                   return (
-                    <div key={`${entry.ts}-h-${idx}`} className={cn(cardBase, "border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950")}>
+                    <div key={`h-${stableIdx}`} className={cn(cardBase, "border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950")}>
                       <div className="flex items-center gap-2 mb-1.5">
                         {tsEl}
                       </div>
@@ -1746,6 +1749,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
               /* ---- Raw mode (original) ---- */
               <div className="bg-neutral-100 dark:bg-neutral-950 rounded-lg p-3 space-y-0.5">
               {displayEntries.map((entry, idx) => {
+                const stableIdx = dedupedTranscript.length - 1 - idx;
                 const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false });
                 const grid = "grid grid-cols-[auto_auto_1fr] gap-x-2 sm:gap-x-3 items-baseline";
                 const tsCell = "text-neutral-400 dark:text-neutral-600 select-none w-14 sm:w-18 text-xs sm:text-sm";
@@ -1755,7 +1759,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "assistant") {
                   return (
-                    <div key={`${entry.ts}-assistant-${idx}`} className={cn(grid, "py-0.5")}>
+                    <div key={`r-assistant-${stableIdx}`} className={cn(grid, "py-0.5")}>
                       <span className={tsCell}>{time}</span>
                       <span className={cn(lblCell, "text-green-700 dark:text-green-300")}>assistant</span>
                       <span className={cn(contentCell, "text-green-900 dark:text-green-100")}>{entry.text}</span>
@@ -1765,7 +1769,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "thinking") {
                   return (
-                    <div key={`${entry.ts}-thinking-${idx}`} className={cn(grid, "py-0.5")}>
+                    <div key={`r-thinking-${stableIdx}`} className={cn(grid, "py-0.5")}>
                       <span className={tsCell}>{time}</span>
                       <span className={cn(lblCell, "text-green-600/60 dark:text-green-300/60")}>thinking</span>
                       <span className={cn(contentCell, "text-green-800/60 dark:text-green-100/60 italic")}>{entry.text}</span>
@@ -1775,7 +1779,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "user") {
                   return (
-                    <div key={`${entry.ts}-user-${idx}`} className={cn(grid, "py-0.5")}>
+                    <div key={`r-user-${stableIdx}`} className={cn(grid, "py-0.5")}>
                       <span className={tsCell}>{time}</span>
                       <span className={cn(lblCell, "text-neutral-500 dark:text-neutral-400")}>user</span>
                       <span className={cn(contentCell, "text-neutral-700 dark:text-neutral-300")}>{entry.text}</span>
@@ -1785,7 +1789,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "tool_call") {
                   return (
-                    <div key={`${entry.ts}-tool-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
+                    <div key={`r-tool-${stableIdx}`} className={cn(grid, "gap-y-1 py-0.5")}>
                       <span className={tsCell}>{time}</span>
                       <span className={cn(lblCell, "text-yellow-700 dark:text-yellow-300")}>tool_call</span>
                       <span className="text-yellow-900 dark:text-yellow-100 min-w-0">{entry.name}</span>
@@ -1798,7 +1802,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "tool_result") {
                   return (
-                    <div key={`${entry.ts}-toolres-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
+                    <div key={`r-toolres-${stableIdx}`} className={cn(grid, "gap-y-1 py-0.5")}>
                       <span className={tsCell}>{time}</span>
                       <span className={cn(lblCell, entry.isError ? "text-red-600 dark:text-red-300" : "text-purple-600 dark:text-purple-300")}>tool_result</span>
                       {entry.isError ? <span className="text-red-600 dark:text-red-400 min-w-0">error</span> : <span />}
@@ -1811,7 +1815,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "init") {
                   return (
-                    <div key={`${entry.ts}-init-${idx}`} className={grid}>
+                    <div key={`r-init-${stableIdx}`} className={grid}>
                       <span className={tsCell}>{time}</span>
                       <span className={cn(lblCell, "text-blue-700 dark:text-blue-300")}>init</span>
                       <span className={cn(contentCell, "text-blue-900 dark:text-blue-100")}>model: {entry.model}{entry.sessionId ? `, session: ${entry.sessionId}` : ""}</span>
@@ -1821,7 +1825,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
 
                 if (entry.kind === "result") {
                   return (
-                    <div key={`${entry.ts}-result-${idx}`} className={cn(grid, "gap-y-1 py-0.5")}>
+                    <div key={`r-result-${stableIdx}`} className={cn(grid, "gap-y-1 py-0.5")}>
                       <span className={tsCell}>{time}</span>
                       <span className={cn(lblCell, "text-cyan-700 dark:text-cyan-300")}>result</span>
                       <span className={cn(contentCell, "text-cyan-900 dark:text-cyan-100")}>
@@ -1850,7 +1854,7 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
                   entry.kind === "system" ? "text-blue-600 dark:text-blue-300" :
                   "text-neutral-500";
                 return (
-                  <div key={`${entry.ts}-raw-${idx}`} className={grid}>
+                  <div key={`r-raw-${stableIdx}`} className={grid}>
                     <span className={tsCell}>{time}</span>
                     <span className={cn(lblCell, color)}>{label}</span>
                     <span className={cn(contentCell, color)}>{rawText}</span>

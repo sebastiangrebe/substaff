@@ -118,4 +118,11 @@ export const queryKeys = {
     available: (companyId: string) => ["integrations", "available", companyId] as const,
     list: (companyId: string) => ["integrations", companyId] as const,
   },
+  strategy: {
+    objectives: (companyId: string) => ["strategy", "objectives", companyId] as const,
+    summary: (companyId: string) => ["strategy", "summary", companyId] as const,
+    detail: (id: string) => ["strategy", "detail", id] as const,
+    keyResults: (objectiveId: string) => ["strategy", "key-results", objectiveId] as const,
+    kpiEntries: (keyResultId: string) => ["strategy", "kpi-entries", keyResultId] as const,
+  },
 };

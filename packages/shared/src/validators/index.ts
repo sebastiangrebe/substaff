@@ -86,6 +86,19 @@ export {
 } from "./goal.js";
 
 export {
+  createObjectiveSchema,
+  updateObjectiveSchema,
+  createKeyResultSchema,
+  updateKeyResultSchema,
+  createKpiEntrySchema,
+  type CreateObjective,
+  type UpdateObjective,
+  type CreateKeyResult,
+  type UpdateKeyResult,
+  type CreateKpiEntry,
+} from "./strategy.js";
+
+export {
   createApprovalSchema,
   resolveApprovalSchema,
   requestApprovalRevisionSchema,

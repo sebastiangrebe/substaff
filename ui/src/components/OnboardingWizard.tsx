@@ -6,7 +6,6 @@ import { useCompany } from "../context/CompanyContext";
 import { companiesApi } from "../api/companies";
 import { goalsApi } from "../api/goals";
 import { agentsApi } from "../api/agents";
-import { issuesApi } from "../api/issues";
 import { templatesApi, type OrgTemplateDetail, type ApplyTemplateResult } from "../api/templates";
 import { queryKeys } from "../lib/queryKeys";
 import { Dialog, DialogPortal } from "@/components/ui/dialog";
@@ -24,7 +23,7 @@ import {
   Building2,
   Bot,
   Clock,
-  ListTodo,
+  Target,
   Rocket,
   ArrowLeft,
   ArrowRight,
@@ -37,8 +36,6 @@ import {
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 const TOTAL_STEPS = 6;
-
-const DEFAULT_TASK_DESCRIPTION = `Introduce yourself, explore your workspace, and prepare a brief summary of what you can help with. Then suggest what the team should work on first.`;
 
 export function OnboardingWizard() {
   const { onboardingOpen, onboardingOptions, onboardingRequired, closeOnboarding, setOnboardingRequired } = useDialog();
@@ -55,7 +52,7 @@ export function OnboardingWizard() {
 
   // Step 1
   const [companyName, setCompanyName] = useState("");
-  const [companyGoal, setCompanyGoal] = useState("");
+  const [companyDescription, setCompanyDescription] = useState("");
 
   // Step 2 — Template selection
   const [selectedTemplate, setSelectedTemplate] = useState<OrgTemplateDetail | null>(null);
@@ -69,15 +66,15 @@ export function OnboardingWizard() {
   // Step 4 — Working hours
   const [workingHours, setWorkingHours] = useState<WorkingHoursConfig>(DEFAULT_WORKING_HOURS);
 
-  // Step 5 — Task
-  const [taskTitle, setTaskTitle] = useState("Introduce yourself and get set up");
-  const [taskDescription, setTaskDescription] = useState(DEFAULT_TASK_DESCRIPTION);
+  // Step 5 — Goal
+  const [goalTitle, setGoalTitle] = useState("");
+  const [goalDescription, setGoalDescription] = useState("");
 
   // Created entity IDs
   const [createdCompanyId, setCreatedCompanyId] = useState<string | null>(existingCompanyId ?? null);
   const [createdCompanyPrefix, setCreatedCompanyPrefix] = useState<string | null>(null);
   const [createdAgents, setCreatedAgents] = useState<ApplyTemplateResult["agents"]>([]);
-  const [createdIssueRef, setCreatedIssueRef] = useState<string | null>(null);
+  const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
 
   // Auto-grow textarea for task description
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -107,7 +104,7 @@ export function OnboardingWizard() {
   // Resize textarea on step 5
   useEffect(() => {
     if (step === 5) autoResizeTextarea();
-  }, [step, taskDescription, autoResizeTextarea]);
+  }, [step, goalDescription, autoResizeTextarea]);
 
   // Initialize team edits when template selected
   useEffect(() => {
@@ -120,10 +117,10 @@ export function OnboardingWizard() {
           removed: false,
         }))
       );
-      // Pre-fill bootstrap task if available
-      if (selectedTemplate.bootstrapTask) {
-        setTaskTitle(selectedTemplate.bootstrapTask.title);
-        setTaskDescription(selectedTemplate.bootstrapTask.description);
+      // Pre-fill bootstrap goal if available
+      if (selectedTemplate.bootstrapGoal) {
+        setGoalTitle(selectedTemplate.bootstrapGoal.title);
+        setGoalDescription(selectedTemplate.bootstrapGoal.description);
       }
     }
   }, [selectedTemplate]);
@@ -133,18 +130,18 @@ export function OnboardingWizard() {
     setLoading(false);
     setError(null);
     setCompanyName("");
-    setCompanyGoal("");
+    setCompanyDescription("");
     setSelectedTemplate(null);
     setSkippedTemplate(false);
     setAgentName("CEO");
     setTeamEdits([]);
     setWorkingHours(DEFAULT_WORKING_HOURS);
-    setTaskTitle("Introduce yourself and get set up");
-    setTaskDescription(DEFAULT_TASK_DESCRIPTION);
+    setGoalTitle("");
+    setGoalDescription("");
     setCreatedCompanyId(null);
     setCreatedCompanyPrefix(null);
     setCreatedAgents([]);
-    setCreatedIssueRef(null);
+    setCreatedGoalId(null);
   }
 
   function handleClose() {
@@ -179,22 +176,14 @@ export function OnboardingWizard() {
       return { id: createdCompanyId, issuePrefix: createdCompanyPrefix ?? "" };
     }
 
-    const company = await companiesApi.create({ name: companyName.trim() });
+    const company = await companiesApi.create({
+      name: companyName.trim(),
+      ...(companyDescription.trim() ? { description: companyDescription.trim() } : {}),
+    });
     setCreatedCompanyId(company.id);
     setCreatedCompanyPrefix(company.issuePrefix);
     setSelectedCompanyId(company.id);
     queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
-
-    if (companyGoal.trim()) {
-      await goalsApi.create(company.id, {
-        title: companyGoal.trim(),
-        level: "company",
-        status: "active"
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.goals.list(company.id)
-      });
-    }
 
     return { id: company.id, issuePrefix: company.issuePrefix };
   }
@@ -279,25 +268,23 @@ export function OnboardingWizard() {
   }
 
   async function handleStep5Next() {
-    if (!createdCompanyId || createdAgents.length === 0) return;
+    if (!createdCompanyId) return;
     setLoading(true);
     setError(null);
     try {
-      // Assign to the root agent (first agent with no reportsTo, or first agent)
-      const rootAgent = createdAgents.find((a) => !a.reportsTo) ?? createdAgents[0];
-      const issue = await issuesApi.create(createdCompanyId, {
-        title: taskTitle.trim(),
-        ...(taskDescription.trim() ? { description: taskDescription.trim() } : {}),
-        assigneeAgentId: rootAgent.id,
-        status: "todo"
+      const goal = await goalsApi.create(createdCompanyId, {
+        title: goalTitle.trim(),
+        ...(goalDescription.trim() ? { description: goalDescription.trim() } : {}),
+        level: "company",
+        status: "active",
       });
-      setCreatedIssueRef(issue.identifier ?? issue.id);
+      setCreatedGoalId(goal.id);
       queryClient.invalidateQueries({
-        queryKey: queryKeys.issues.list(createdCompanyId)
+        queryKey: queryKeys.goals.list(createdCompanyId)
       });
       setStep(6);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create task");
+      setError(err instanceof Error ? err.message : "Failed to create goal");
     } finally {
       setLoading(false);
     }
@@ -305,17 +292,20 @@ export function OnboardingWizard() {
 
   async function handleLaunch() {
     setLoading(false);
+    // Capture navigation targets before reset() clears them
+    const targetPrefix = createdCompanyPrefix;
+    const targetGoalId = createdGoalId;
     reset();
     // Signal that onboarding just completed so WelcomeTourDialog can pick it up
     // even if it wasn't mounted during onboarding (Layout mounts after navigation).
     try { sessionStorage.setItem("substaff-onboarding-just-finished", "true"); } catch { /* */ }
     closeOnboarding();
-    if (createdCompanyPrefix && createdIssueRef) {
-      navigate(`/${createdCompanyPrefix}/issues/${createdIssueRef}`);
+    if (targetPrefix && targetGoalId) {
+      navigate(`/${targetPrefix}/goals/${targetGoalId}`);
       return;
     }
-    if (createdCompanyPrefix) {
-      navigate(`/${createdCompanyPrefix}/dashboard`);
+    if (targetPrefix) {
+      navigate(`/${targetPrefix}/dashboard`);
       return;
     }
     navigate("/dashboard");
@@ -328,7 +318,7 @@ export function OnboardingWizard() {
       else if (step === 2 && selectedTemplate) handleStep2Next();
       else if (step === 3) handleStep3Next();
       else if (step === 4) handleStep4Next();
-      else if (step === 5 && taskTitle.trim()) handleStep5Next();
+      else if (step === 5 && goalTitle.trim()) handleStep5Next();
       else if (step === 6) handleLaunch();
     }
   }
@@ -410,13 +400,13 @@ export function OnboardingWizard() {
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                      Mission / goal (optional)
+                      Description (optional)
                     </label>
                     <textarea
                       className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground/50 transition-colors resize-none min-h-[60px]"
-                      placeholder="What is this company trying to achieve?"
-                      value={companyGoal}
-                      onChange={(e) => setCompanyGoal(e.target.value)}
+                      placeholder="What does this company do?"
+                      value={companyDescription}
+                      onChange={(e) => setCompanyDescription(e.target.value)}
                     />
                   </div>
                 </div>
@@ -489,29 +479,29 @@ export function OnboardingWizard() {
                 <WorkingHoursSetup value={workingHours} onChange={setWorkingHours} />
               )}
 
-              {/* Step 5: First task */}
+              {/* Step 5: First goal */}
               {step === 5 && (
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 mb-1">
                     <div className="h-10 w-10 rounded-xl bg-muted flex items-center justify-center">
-                      <ListTodo className="h-5 w-5 text-muted-foreground" />
+                      <Target className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-foreground">Give them something to do</h3>
+                      <h3 className="font-semibold text-foreground">Set your first goal</h3>
                       <p className="text-xs text-muted-foreground">
-                        This task will be assigned to your {createdAgents.length > 1 ? "lead agent" : "CEO"}.
+                        What should your company work toward?
                       </p>
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                      Task title
+                      Goal
                     </label>
                     <input
                       className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground/50 transition-colors"
-                      placeholder="e.g. Research competitor pricing"
-                      value={taskTitle}
-                      onChange={(e) => setTaskTitle(e.target.value)}
+                      placeholder="e.g. Launch MVP by end of Q2"
+                      value={goalTitle}
+                      onChange={(e) => setGoalTitle(e.target.value)}
                       autoFocus
                     />
                   </div>
@@ -522,9 +512,9 @@ export function OnboardingWizard() {
                     <textarea
                       ref={textareaRef}
                       className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring/30 placeholder:text-muted-foreground/50 transition-colors resize-none min-h-[120px] max-h-[300px] overflow-y-auto"
-                      placeholder="Add more detail about what the agent should do..."
-                      value={taskDescription}
-                      onChange={(e) => setTaskDescription(e.target.value)}
+                      placeholder="Add more detail about what this goal entails..."
+                      value={goalDescription}
+                      onChange={(e) => setGoalDescription(e.target.value)}
                     />
                   </div>
                 </div>
@@ -540,8 +530,8 @@ export function OnboardingWizard() {
                     <div>
                       <h3 className="font-semibold text-foreground">Ready to launch</h3>
                       <p className="text-xs text-muted-foreground">
-                        Everything is set up. Your assigned task already woke
-                        the agent, so you can jump straight to the issue.
+                        Everything is set up. Head to the dashboard to
+                        start creating tasks for your team.
                       </p>
                     </div>
                   </div>
@@ -584,12 +574,12 @@ export function OnboardingWizard() {
                       </div>
                     )}
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <ListTodo className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <Target className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">
-                          {taskTitle}
+                          {goalTitle}
                         </p>
-                        <p className="text-xs text-muted-foreground">Task</p>
+                        <p className="text-xs text-muted-foreground">Goal</p>
                       </div>
                       <Check className="h-4 w-4 text-green-400 shrink-0" />
                     </div>
@@ -702,7 +692,7 @@ export function OnboardingWizard() {
                   {step === 5 && (
                     <Button
                       size="sm"
-                      disabled={!taskTitle.trim() || loading}
+                      disabled={!goalTitle.trim() || loading}
                       onClick={handleStep5Next}
                     >
                       {loading ? (

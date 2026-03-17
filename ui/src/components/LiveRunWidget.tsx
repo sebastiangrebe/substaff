@@ -522,42 +522,32 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
     <div className="rounded-lg border border-cyan-500/30 bg-background/80 overflow-hidden shadow-[0_0_12px_rgba(6,182,212,0.08)]">
       {runs.length > 0 ? (
         runs.map((run) => (
-          <div key={run.id} className="px-3 py-2 border-b border-border/50">
-            <div className="flex items-center justify-between mb-2">
-              <Link to={`/agents/${run.agentId}`} className="hover:underline">
-                <Identity name={run.agentName} size="sm" />
-              </Link>
-              <span className="text-xs text-muted-foreground">
-                {formatDateTime(run.startedAt ?? run.createdAt)}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Run</span>
-              <Link
-                to={`/agents/${run.agentId}/runs/${run.id}`}
-                className="inline-flex items-center rounded-md border border-border bg-accent/40 px-2 py-1 font-mono text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors"
-              >
-                {run.id.slice(0, 8)}
-              </Link>
+          <div key={run.id} className="flex items-center gap-3 px-3.5 py-2.5 border-b border-border/50 min-w-0">
+            <Link to={`/agents/${run.agentId}`} className="hover:underline shrink-0">
+              <Identity name={run.agentName} size="sm" />
+            </Link>
+            <div className="flex items-center gap-2 text-xs min-w-0 flex-1">
+              <span className="text-[11px] font-medium text-muted-foreground">Run</span>
               <StatusBadge status={run.status} />
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  onClick={() => handleCancelRun(run.id)}
-                  disabled={cancellingRunIds.has(run.id)}
-                  className="inline-flex items-center gap-1 text-[10px] text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
-                >
-                  <Square className="h-2 w-2" fill="currentColor" />
-                  {cancellingRunIds.has(run.id) ? "Stopping…" : "Stop"}
-                </button>
-                <Link
-                  to={`/agents/${run.agentId}/runs/${run.id}`}
-                  className="inline-flex items-center gap-1 text-[10px] text-cyan-600 hover:text-cyan-500 dark:text-cyan-300 dark:hover:text-cyan-200"
-                >
-                  Open run
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </Link>
-              </div>
             </div>
+            <span className="text-[11px] text-muted-foreground/60 shrink-0 tabular-nums">
+              {formatDateTime(run.startedAt ?? run.createdAt)}
+            </span>
+            <button
+              onClick={() => handleCancelRun(run.id)}
+              disabled={cancellingRunIds.has(run.id)}
+              className="inline-flex items-center gap-1 text-[10px] text-red-600 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50 shrink-0"
+            >
+              <Square className="h-2 w-2" fill="currentColor" />
+              {cancellingRunIds.has(run.id) ? "Stopping…" : "Stop"}
+            </button>
+            <Link
+              to={`/agents/${run.agentId}/runs/${run.id}`}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20 transition-colors shrink-0"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Open run
+            </Link>
           </div>
         ))
       ) : (

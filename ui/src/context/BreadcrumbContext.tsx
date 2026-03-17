@@ -16,7 +16,15 @@ export function BreadcrumbProvider({ children }: { children: ReactNode }) {
   const [breadcrumbs, setBreadcrumbsState] = useState<Breadcrumb[]>([]);
 
   const setBreadcrumbs = useCallback((crumbs: Breadcrumb[]) => {
-    setBreadcrumbsState(crumbs);
+    setBreadcrumbsState((prev) => {
+      if (
+        prev.length === crumbs.length &&
+        prev.every((b, i) => b.label === crumbs[i].label && b.href === crumbs[i].href)
+      ) {
+        return prev;
+      }
+      return crumbs;
+    });
   }, []);
 
   useEffect(() => {

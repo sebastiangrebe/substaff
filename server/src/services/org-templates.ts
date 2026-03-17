@@ -39,7 +39,7 @@ export interface OrgTemplateDefinition {
   icon?: string;
   nodes: OrgTemplateNode[];
   edges: OrgTemplateEdge[];
-  bootstrapTask?: { title: string; description: string };
+  bootstrapGoal?: { title: string; description: string };
 }
 
 /** Map a role slug from the template YAML to the closest valid AgentRole. */
@@ -144,7 +144,7 @@ function templateToDefinition(template: CompanyTemplate): OrgTemplateDefinition 
     icon: template.icon,
     nodes,
     edges,
-    bootstrapTask: template.bootstrapTask,
+    bootstrapGoal: template.bootstrapGoal,
   };
 }
 

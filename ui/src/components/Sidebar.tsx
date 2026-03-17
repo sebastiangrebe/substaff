@@ -4,6 +4,7 @@ import {
   Briefcase,
   ChevronDown,
   CircleDot,
+  Crosshair,
   FolderKanban,
   Home,
   BarChart3,
@@ -305,6 +306,9 @@ export function AppSidebar({ onToggleTheme, themeIcon, themeLabel, onTakeTour }:
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarNavItem id={TOUR_IDS.TASKS} to="/issues" label="Tasks" icon={CircleDot} />
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarNavItem id={TOUR_IDS.STRATEGY} to="/strategy" label="Strategy" icon={Crosshair} />
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarNavItem id={TOUR_IDS.FILES} to="/files" label="Files" icon={FolderOpen} />

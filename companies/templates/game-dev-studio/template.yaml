@@ -34,6 +34,6 @@ agents:
     name: Technical Artist
     title: Technical Artist
     reportsTo: producer
-bootstrapTask:
-  title: "Define the game concept and plan the first prototype"
-  description: "The Producer should outline the game vision. The Game Designer creates the initial design document. Engineers and artists should assess technical requirements and propose a prototype plan."
+bootstrapGoal:
+  title: "Complete a playable prototype"
+  description: "Finalize the game concept, produce a design document, and deliver a playable prototype that demonstrates core gameplay mechanics."

@@ -439,6 +439,21 @@ export function issueRoutes(db: Db, storage: StorageService) {
     }
     if (!(await assertAgentRunCheckoutOwnership(req, res, existing))) return;
 
+    // Block status transitions to done/in_progress when plan approval is required but no approved plan exists
+    if (req.body.status && (req.body.status === "done" || req.body.status === "in_progress")) {
+      const company = await companySvc.getById(existing.companyId);
+      if (company?.requirePlanApproval) {
+        const hasApproved = await svc.hasApprovedPlan(id);
+        if (!hasApproved) {
+          res.status(422).json({
+            error: "Cannot update status: plan approval required",
+            message: "This company requires an approved plan before work can progress. Submit a plan via POST /api/companies/:companyId/issues/:issueId/plans",
+          });
+          return;
+        }
+      }
+    }
+
     const { comment: commentBody, hiddenAt: hiddenAtRaw, ...updateFields } = req.body;
     if (hiddenAtRaw !== undefined) {
       updateFields.hiddenAt = hiddenAtRaw ? new Date(hiddenAtRaw) : null;
@@ -647,7 +662,11 @@ export function issueRoutes(db: Db, storage: StorageService) {
       }
     })();
 
-    res.json({ ...issue, comment });
+    if (isCompact(req)) {
+      res.json({ ...compactIssue(issue), ...(comment ? { comment: compactComment(comment) } : {}) });
+    } else {
+      res.json({ ...issue, comment });
+    }
   });
 
   router.delete("/issues/:id", async (req, res) => {

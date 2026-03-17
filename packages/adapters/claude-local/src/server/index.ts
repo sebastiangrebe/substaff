@@ -7,7 +7,9 @@ export {
   detectClaudeLoginRequired,
   isClaudeMaxTurnsResult,
   isClaudeUnknownSessionError,
+  formatTurnCostAnalysis,
 } from "./parse.js";
+export type { TurnUsage } from "./parse.js";
 import type { AdapterSessionCodec } from "@substaff/adapter-utils";
 
 function readNonEmptyString(value: unknown): string | null {

@@ -25,7 +25,7 @@ export interface OrgTemplateDetail {
     type?: string;
     label?: string;
   }>;
-  bootstrapTask?: { title: string; description: string };
+  bootstrapGoal?: { title: string; description: string };
 }
 
 export interface ApplyTemplateResult {

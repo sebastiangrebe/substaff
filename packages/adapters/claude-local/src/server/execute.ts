@@ -27,6 +27,7 @@ import {
   detectClaudeLoginRequired,
   isClaudeMaxTurnsResult,
   isClaudeUnknownSessionError,
+  formatTurnCostAnalysis,
 } from "./parse.js";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -209,6 +210,9 @@ export async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Pro
   }
   if (linkedIssueIds.length > 0) {
     env.SUBSTAFF_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
+  }
+  if (context.strategyReview === true || context.strategyReview === "true") {
+    env.SUBSTAFF_STRATEGY_REVIEW = "true";
   }
   if (effectiveWorkspaceCwd) {
     env.SUBSTAFF_WORKSPACE_CWD = effectiveWorkspaceCwd;
@@ -554,9 +558,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
         `[substaff] Claude resume session "${sessionId}" is unavailable; retrying with a fresh session.\n`,
       );
       const retry = await runAttempt(null);
+      // Log per-turn cost analysis (opt-in via SUBSTAFF_DEBUG_COST=1)
+      if (process.env.SUBSTAFF_DEBUG_COST === "1") {
+        const costLines = formatTurnCostAnalysis(retry.parsedStream.turnUsages, "[claude-local]");
+        if (costLines.length > 0) await onLog("stdout", costLines.join("\n") + "\n");
+      }
       return toAdapterResult(retry, { fallbackSessionId: null, clearSessionOnMissingSession: true });
     }
 
+    // Log per-turn cost analysis (opt-in via SUBSTAFF_DEBUG_COST=1)
+    if (process.env.SUBSTAFF_DEBUG_COST === "1") {
+      const costLines = formatTurnCostAnalysis(initial.parsedStream.turnUsages, "[claude-local]");
+      if (costLines.length > 0) await onLog("stdout", costLines.join("\n") + "\n");
+    }
     return toAdapterResult(initial, { fallbackSessionId: runtimeSessionId || runtime.sessionId });
   } finally {
     fs.rm(skillsDir, { recursive: true, force: true }).catch(() => {});

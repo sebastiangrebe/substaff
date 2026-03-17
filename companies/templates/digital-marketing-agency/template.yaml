@@ -34,6 +34,6 @@ agents:
     name: Analytics Lead
     title: Analytics Lead
     reportsTo: account-mgr
-bootstrapTask:
-  title: "Audit current marketing channels and propose a 30-day plan"
-  description: "Review the company goal, assess available channels, and draft a coordinated 30-day marketing plan with each team member owning a channel."
+bootstrapGoal:
+  title: "Execute a coordinated 30-day marketing launch"
+  description: "Audit available channels, assign ownership across the team, and deliver a 30-day marketing plan with measurable targets."

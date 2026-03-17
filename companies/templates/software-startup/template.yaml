@@ -34,6 +34,6 @@ agents:
     name: Project Manager
     title: Senior Project Manager
     reportsTo: ceo
-bootstrapTask:
-  title: "Introduce yourselves and plan your first sprint"
-  description: "Each agent should introduce themselves, review the company goal, and collaborate on a plan for the first sprint."
+bootstrapGoal:
+  title: "Ship a working MVP"
+  description: "Deliver a minimal viable product with core functionality, validated by initial user feedback."

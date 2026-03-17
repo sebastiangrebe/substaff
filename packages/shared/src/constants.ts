@@ -48,6 +48,7 @@ export const AGENT_ROLES = [
   "analyst",
   "executive",
   "support",
+  "strategist",
 ] as const;
 export type AgentRole = (typeof AGENT_ROLES)[number];
 
@@ -280,7 +281,7 @@ export const ROLE_CLASSIFICATIONS = ["ic", "leadership"] as const;
 export type RoleClassification = (typeof ROLE_CLASSIFICATIONS)[number];
 
 /** Built-in roles classified as leadership (goal/project oversight, delegation, hiring). */
-export const LEADERSHIP_ROLES: readonly AgentRole[] = ["ceo", "cto", "cmo", "cfo", "pm", "manager", "executive"];
+export const LEADERSHIP_ROLES: readonly AgentRole[] = ["ceo", "cto", "cmo", "cfo", "pm", "manager", "executive", "strategist"];
 
 /** Built-in roles classified as IC (task execution, no oversight duties). */
 export const IC_ROLES: readonly AgentRole[] = ["engineer", "designer", "qa", "devops", "researcher", "general", "specialist", "creator", "analyst", "support"];
@@ -297,6 +298,7 @@ export const BUILTIN_ROLE_LABELS: Record<string, string> = {
   qa: "QA", devops: "DevOps", researcher: "Researcher", general: "General",
   manager: "Manager", specialist: "Specialist", creator: "Creator",
   analyst: "Analyst", executive: "Executive", support: "Support",
+  strategist: "Strategist",
 };
 
 /** Descriptions for built-in roles. */
@@ -318,4 +320,27 @@ export const BUILTIN_ROLE_DESCRIPTIONS: Record<string, string> = {
   analyst: "Analyst — analyzes data and produces insights",
   executive: "Executive — senior leadership with strategic oversight",
   support: "Support — handles support tasks and customer communication",
+  strategist: "Strategist — analyzes metrics, sets OKRs, and proposes new objectives",
 };
+
+// ---------------------------------------------------------------------------
+// Strategy / OKR constants
+// ---------------------------------------------------------------------------
+
+export const OBJECTIVE_STATUSES = ["draft", "active", "achieved", "cancelled", "stalled"] as const;
+export type ObjectiveStatus = (typeof OBJECTIVE_STATUSES)[number];
+
+export const OBJECTIVE_TIME_PERIODS = ["monthly", "quarterly", "annual", "custom"] as const;
+export type ObjectiveTimePeriod = (typeof OBJECTIVE_TIME_PERIODS)[number];
+
+export const KEY_RESULT_STATUSES = ["active", "achieved", "at_risk", "cancelled"] as const;
+export type KeyResultStatus = (typeof KEY_RESULT_STATUSES)[number];
+
+export const KEY_RESULT_UNITS = ["count", "percent", "currency_cents", "seconds", "custom"] as const;
+export type KeyResultUnit = (typeof KEY_RESULT_UNITS)[number];
+
+export const KEY_RESULT_DIRECTIONS = ["up", "down"] as const;
+export type KeyResultDirection = (typeof KEY_RESULT_DIRECTIONS)[number];
+
+export const KEY_RESULT_VIZ_TYPES = ["progress", "line", "gauge", "bar"] as const;
+export type KeyResultVizType = (typeof KEY_RESULT_VIZ_TYPES)[number];

@@ -62,11 +62,7 @@ export function useCompanyPageMemory() {
       selectedCompanyId !== prevCompanyId.current
     ) {
       if (selectionSource !== "route_sync" && selectedCompany) {
-        const paths = getCompanyPaths();
-        const savedPath = paths[selectedCompanyId];
-        const relativePath = savedPath ? toCompanyRelativePath(savedPath) : "/dashboard";
-        const targetPath = isRememberableCompanyPath(relativePath) ? relativePath : "/dashboard";
-        navigate(`/${selectedCompany.issuePrefix}${targetPath}`, { replace: true });
+        navigate(`/${selectedCompany.issuePrefix}/dashboard`, { replace: true });
       }
     }
     prevCompanyId.current = selectedCompanyId;

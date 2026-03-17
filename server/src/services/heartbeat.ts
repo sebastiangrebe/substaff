@@ -12,7 +12,9 @@ import {
   heartbeatRuns,
   costEvents,
   issues,
+  issueComments,
   projectWorkspaces,
+  taskPlans,
   vendors,
 } from "@substaff/db";
 import { ACTIVE_HEARTBEAT_RUN_STATUSES } from "@substaff/shared";
@@ -1318,6 +1320,60 @@ export function heartbeatService(db: Db) {
       if (!readNonEmptyString(context.issueStatus)) context.issueStatus = issueForRun.status;
       if (!readNonEmptyString(context.issuePriority) && issueForRun.priority) context.issuePriority = issueForRun.priority;
     }
+    // Pre-load context to save agent API calls (each call = 1 turn = $$)
+    const wakeReason = readNonEmptyString(context.wakeReason);
+    if (issueId) {
+      try {
+        // For plan_rejected: inject the rejected plan + reviewer comments so the agent
+        // doesn't need to fetch them (saves 2-3 turns / ~$0.03-0.05)
+        if (wakeReason === "plan_rejected") {
+          const rejectedPlan = await db
+            .select({
+              id: taskPlans.id,
+              planMarkdown: taskPlans.planMarkdown,
+              reviewerComments: taskPlans.reviewerComments,
+              status: taskPlans.status,
+            })
+            .from(taskPlans)
+            .where(and(eq(taskPlans.issueId, issueId), eq(taskPlans.agentId, agent.id)))
+            .orderBy(desc(taskPlans.updatedAt))
+            .limit(1)
+            .then((rows) => rows[0] ?? null);
+          if (rejectedPlan) {
+            context.rejectedPlan = {
+              id: rejectedPlan.id,
+              status: rejectedPlan.status,
+              planMarkdown: rejectedPlan.planMarkdown,
+              reviewerComments: rejectedPlan.reviewerComments,
+            };
+          }
+        }
+
+        // Pre-load recent comments so agent can skip the GET /comments call (saves 1 turn)
+        const recentComments = await db
+          .select({
+            id: issueComments.id,
+            authorAgentId: issueComments.authorAgentId,
+            authorUserId: issueComments.authorUserId,
+            body: issueComments.body,
+            createdAt: issueComments.createdAt,
+          })
+          .from(issueComments)
+          .where(eq(issueComments.issueId, issueId))
+          .orderBy(desc(issueComments.createdAt))
+          .limit(3);
+        if (recentComments.length > 0) {
+          context.recentComments = recentComments;
+        }
+      } catch (err) {
+        logger.warn({ err, runId, issueId }, "Failed to pre-load plan/comments context, agent will fetch via API");
+      }
+    }
+
+    // Inject strategy review flag for strategist agents with no assigned task
+    if (agent.role === "strategist" && !issueId) {
+      context.strategyReview = true;
+    }
     const issueAssigneeConfig = issueForRun;
     const issueAssigneeOverrides =
       issueAssigneeConfig && issueAssigneeConfig.assigneeAgentId === agent.id
@@ -2617,9 +2673,9 @@ export function heartbeatService(db: Db) {
           if (run) enqueued += 1;
           else skipped += 1;
         } catch (err: any) {
-          if (err?.status === 409 && err?.message?.includes("budget exhausted")) {
+          if (err?.status === 409) {
             skipped += 1;
-            logger.debug({ agentId: agent.id }, "skipping agent wakeup — vendor budget exhausted");
+            logger.debug({ agentId: agent.id, message: err.message }, "skipping agent wakeup — conflict");
           } else {
             throw err;
           }
@@ -2643,6 +2699,26 @@ export function heartbeatService(db: Db) {
             running.child.kill("SIGKILL");
           }
         }, graceMs);
+      }
+
+      // Kill external sandbox if applicable
+      if (run.externalRunId) {
+        try {
+          const [agent] = await db
+            .select({ adapterType: agents.adapterType })
+            .from(agents)
+            .where(eq(agents.id, run.agentId))
+            .limit(1);
+          if (agent) {
+            const adapter = getServerAdapter(agent.adapterType);
+            if (adapter.cancelRun) {
+              await adapter.cancelRun(run.externalRunId);
+              logger.info({ runId: run.id, externalRunId: run.externalRunId, adapterType: agent.adapterType }, "killed external sandbox on run cancel");
+            }
+          }
+        } catch (err) {
+          logger.warn({ runId: run.id, externalRunId: run.externalRunId, err }, "failed to kill external sandbox on run cancel");
+        }
       }
 
       const cancelled = await setRunStatus(run.id, "cancelled", {
@@ -2678,6 +2754,17 @@ export function heartbeatService(db: Db) {
         .from(heartbeatRuns)
         .where(and(eq(heartbeatRuns.agentId, agentId), inArray(heartbeatRuns.status, [...ACTIVE_HEARTBEAT_RUN_STATUSES])));
 
+      // Look up the agent's adapter type so we can kill external sandboxes
+      let adapterType: string | null = null;
+      if (runs.length > 0) {
+        const [agent] = await db
+          .select({ adapterType: agents.adapterType })
+          .from(agents)
+          .where(eq(agents.id, agentId))
+          .limit(1);
+        adapterType = agent?.adapterType ?? null;
+      }
+
       for (const run of runs) {
         await setRunStatus(run.id, "cancelled", {
           finishedAt: new Date(),
@@ -2695,6 +2782,20 @@ export function heartbeatService(db: Db) {
           running.child.kill("SIGTERM");
           runningProcesses.delete(run.id);
         }
+
+        // Kill external sandbox if the adapter supports it
+        if (run.externalRunId && adapterType) {
+          try {
+            const adapter = getServerAdapter(adapterType);
+            if (adapter.cancelRun) {
+              await adapter.cancelRun(run.externalRunId);
+              logger.info({ runId: run.id, externalRunId: run.externalRunId, adapterType }, "killed external sandbox on agent pause");
+            }
+          } catch (err) {
+            logger.warn({ runId: run.id, externalRunId: run.externalRunId, err }, "failed to kill external sandbox on agent pause");
+          }
+        }
+
         await releaseIssueExecutionAndPromote(run);
       }
 

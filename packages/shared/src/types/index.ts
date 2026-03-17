@@ -44,6 +44,13 @@ export type {
   IssueLabel,
 } from "./issue.js";
 export type { Goal } from "./goal.js";
+export type {
+  Objective,
+  KeyResult,
+  KpiEntry,
+  KeyResultWithEntries,
+  ObjectiveWithKeyResults,
+} from "./strategy.js";
 export type { Approval, ApprovalComment } from "./approval.js";
 export type {
   SecretProvider,

@@ -176,7 +176,7 @@ export function ProjectDetail() {
     projectId: string;
     filter?: string;
   }>();
-  const { companies, selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { companies, selectedCompanyId } = useCompany();
 
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
@@ -216,8 +216,8 @@ export function ProjectDetail() {
 
   useEffect(() => {
     if (!project?.companyId || project.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(project.companyId, { source: "route_sync" });
-  }, [project?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    navigate("/projects", { replace: true });
+  }, [project?.companyId, selectedCompanyId, navigate]);
 
   const invalidateProject = () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(routeProjectRef) });

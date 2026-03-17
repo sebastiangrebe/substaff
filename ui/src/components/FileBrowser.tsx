@@ -55,6 +55,7 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { MarkdownBody } from "./MarkdownBody";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -360,9 +361,15 @@ function FilePreviewPanel({
               </div>
             )}
             {isText && !isLoading && textContent !== undefined && (
-              <pre className="text-xs leading-relaxed font-mono whitespace-pre-wrap break-words text-foreground bg-muted/30 p-4 rounded-lg border border-border overflow-x-auto">
-                {textContent}
-              </pre>
+              ext === "md" ? (
+                <div className="bg-muted/30 p-4 rounded-lg border border-border overflow-x-auto">
+                  <MarkdownBody className="text-sm">{textContent}</MarkdownBody>
+                </div>
+              ) : (
+                <pre className="text-xs leading-relaxed font-mono whitespace-pre-wrap break-words text-foreground bg-muted/30 p-4 rounded-lg border border-border overflow-x-auto">
+                  {textContent}
+                </pre>
+              )
             )}
             {!isImage && !isText && (
               <div className="flex flex-col items-center justify-center py-12 text-center">

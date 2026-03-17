@@ -490,7 +490,7 @@ export function Projects() {
                   viewTransition
                   className={cn(
                     "flex items-center gap-3 px-4 h-11 text-sm cursor-pointer hover:bg-accent/40 transition-colors no-underline text-inherit",
-                    activePreviewId === project.id && "bg-accent/30",
+                    activePreviewId === project.id && "bg-primary/5",
                   )}
                   onMouseEnter={() => handleRowHover(project.id)}
                   onMouseLeave={() => handleRowHover(null)}

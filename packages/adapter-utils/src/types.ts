@@ -192,6 +192,11 @@ export interface ServerAdapterModule {
    * Returns null if the adapter does not support orphaned run recovery.
    */
   tryResumeOrphanedRun?: (ctx: OrphanedRunResumeContext) => Promise<OrphanedRunResumeResult>;
+  /**
+   * Kill/delete the external sandbox or process identified by `externalRunId`.
+   * Called when a run is cancelled (e.g. agent pause) to stop remote execution.
+   */
+  cancelRun?: (externalRunId: string) => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------

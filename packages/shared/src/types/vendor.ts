@@ -79,7 +79,7 @@ export interface CompanyTemplate {
     title: string;
     reportsTo: string | null;
   }>;
-  bootstrapTask?: { title: string; description: string };
+  bootstrapGoal?: { title: string; description: string };
 }
 
 export interface CompanyTemplatePreview extends CompanyTemplate {

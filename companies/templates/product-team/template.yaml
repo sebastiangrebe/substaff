@@ -34,6 +34,6 @@ agents:
     name: QA Engineer
     title: QA Engineer
     reportsTo: head-product
-bootstrapTask:
-  title: "Define the product vision and plan your first user research sprint"
-  description: "Head of Product should outline the product strategy. UX Researcher proposes initial research methods. The team should agree on a workflow for design-to-development handoff."
+bootstrapGoal:
+  title: "Establish a validated product vision"
+  description: "Define the product strategy, complete initial user research, and align the team on a design-to-development workflow."

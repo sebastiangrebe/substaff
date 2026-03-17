@@ -20,3 +20,4 @@ export { knowledgeRoutes } from "./knowledge.js";
 export { integrationRoutes } from "./integrations.js";
 export { companyRoleRoutes } from "./company-roles.js";
 export { chatRoutes } from "./chat.js";
+export { strategyRoutes } from "./strategy.js";

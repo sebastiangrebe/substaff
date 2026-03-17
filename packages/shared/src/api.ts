@@ -22,4 +22,7 @@ export const API = {
   templates: `${API_PREFIX}/templates`,
   integrations: `${API_PREFIX}/integrations`,
   admin: `${API_PREFIX}/admin`,
+  objectives: `${API_PREFIX}/objectives`,
+  keyResults: `${API_PREFIX}/key-results`,
+  kpiEntries: `${API_PREFIX}/kpi-entries`,
 } as const;

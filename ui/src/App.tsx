@@ -31,6 +31,8 @@ import { DesignGuide } from "./pages/DesignGuide";
 import { Integrations } from "./pages/Integrations";
 import { OrgChart } from "./pages/OrgChart";
 import { Analytics } from "./pages/Analytics";
+import { Strategy } from "./pages/Strategy";
+import { ObjectiveDetail } from "./pages/ObjectiveDetail";
 import { AuthPage } from "./pages/Auth";
 import { InviteLandingPage } from "./pages/InviteLanding";
 import { queryKeys } from "./lib/queryKeys";
@@ -126,6 +128,8 @@ const boardRoutes: RouteObject[] = [
   { path: "issues/:issueId", element: <IssueDetail /> },
   { path: "goals", element: <Goals /> },
   { path: "goals/:goalId", element: <GoalDetail /> },
+  { path: "strategy", element: <Strategy /> },
+  { path: "strategy/:objectiveId", element: <ObjectiveDetail /> },
   { path: "approvals", element: <Navigate to="/approvals/pending" replace /> },
   { path: "approvals/pending", element: <Approvals /> },
   { path: "approvals/all", element: <Approvals /> },
@@ -244,6 +248,8 @@ export const routes: RouteObject[] = [
           { path: "projects/:projectId/issues/:filter", element: <UnprefixedBoardRedirect /> },
           { path: "goals", element: <UnprefixedBoardRedirect /> },
           { path: "goals/:goalId", element: <UnprefixedBoardRedirect /> },
+          { path: "strategy", element: <UnprefixedBoardRedirect /> },
+          { path: "strategy/:objectiveId", element: <UnprefixedBoardRedirect /> },
           { path: "approvals", element: <UnprefixedBoardRedirect /> },
           { path: "approvals/:approvalId", element: <UnprefixedBoardRedirect /> },
           { path: "billing", element: <UnprefixedBoardRedirect /> },

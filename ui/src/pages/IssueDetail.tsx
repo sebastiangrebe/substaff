@@ -26,6 +26,7 @@ import { PageSkeleton } from "../components/PageSkeleton";
 import { StatusIcon } from "../components/StatusIcon";
 import { PriorityIcon } from "../components/PriorityIcon";
 import { StatusBadge } from "../components/StatusBadge";
+import { MarkdownBody } from "../components/MarkdownBody";
 import { Identity } from "../components/Identity";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -733,9 +734,9 @@ export function IssueDetail() {
                   <StatusBadge status={plan.status} />
                 </div>
 
-                <div className="prose prose-sm dark:prose-invert max-w-none text-sm whitespace-pre-wrap break-words">
+                <MarkdownBody className="text-sm">
                   {plan.planMarkdown}
-                </div>
+                </MarkdownBody>
 
                 {Array.isArray(plan.reviewerComments) && (plan.reviewerComments as Array<{ comment: string; at: string }>).length > 0 && (
                   <div className="rounded border border-border bg-accent/10 p-2 space-y-1">

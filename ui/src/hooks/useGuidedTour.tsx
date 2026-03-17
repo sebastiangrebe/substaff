@@ -9,6 +9,7 @@ export const TOUR_IDS = {
   GOALS: "tour-goals",
   PROJECTS: "tour-projects",
   TASKS: "tour-tasks",
+  STRATEGY: "tour-strategy",
   TEAM: "tour-team",
   BUDGET: "tour-budget",
   FILES: "tour-files",
@@ -84,6 +85,18 @@ const TOUR_STEPS: TourStep[] = [
         <p className="font-medium text-sm mb-1">All tasks</p>
         <p className="text-xs text-muted-foreground">
           The work that gets done. Tasks are assigned to team members — your CEO or the employees they hire.
+        </p>
+      </div>
+    ),
+  },
+  {
+    selectorId: TOUR_IDS.STRATEGY,
+    position: "right",
+    content: (
+      <div>
+        <p className="font-medium text-sm mb-1">Strategy</p>
+        <p className="text-xs text-muted-foreground">
+          Define OKRs with measurable key results and track KPIs over time. Strategist agents review these when idle and propose new objectives.
         </p>
       </div>
     ),

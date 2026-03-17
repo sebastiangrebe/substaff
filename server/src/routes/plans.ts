@@ -5,6 +5,7 @@ import {
   heartbeatService,
 } from "../services/index.js";
 import { companyRouter } from "./authz.js";
+import { logger } from "../middleware/logger.js";
 
 export function planRoutes(db: Db) {
   const router = companyRouter();
@@ -141,7 +142,7 @@ export function planRoutes(db: Db) {
           taskId: updated.issueId,
           wakeReason: "plan_approved",
         },
-      });
+      }).catch((err) => logger.warn({ err, agentId: issue.assigneeAgentId }, "failed to wake agent on plan approved"));
     }
 
     res.json({ plan: updated });
@@ -197,7 +198,7 @@ export function planRoutes(db: Db) {
           taskId: updated.issueId,
           wakeReason: "plan_rejected",
         },
-      });
+      }).catch((err) => logger.warn({ err, agentId: issue.assigneeAgentId }, "failed to wake agent on plan rejected"));
     }
 
     res.json({ plan: updated });

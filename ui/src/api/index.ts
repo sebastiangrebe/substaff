@@ -18,3 +18,4 @@ export { orgChartApi } from "./orgChart";
 export { templatesApi } from "./templates";
 export { filesApi } from "./files";
 export { integrationsApi } from "./integrations";
+export { strategyApi } from "./strategy";

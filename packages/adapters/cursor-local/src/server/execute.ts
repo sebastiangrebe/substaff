@@ -222,6 +222,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   if (approvalStatus) {
     env.SUBSTAFF_APPROVAL_STATUS = approvalStatus;
   }
+  if (context.strategyReview === true || context.strategyReview === "true") {
+    env.SUBSTAFF_STRATEGY_REVIEW = "true";
+  }
   if (linkedIssueIds.length > 0) {
     env.SUBSTAFF_LINKED_ISSUE_IDS = linkedIssueIds.join(",");
   }

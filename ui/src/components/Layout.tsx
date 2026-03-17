@@ -102,6 +102,20 @@ function LayoutInner() {
     retry: false,
   });
 
+  // Track when onboarding was just completed to avoid re-triggering
+  const onboardingJustCompleted = useRef(false);
+
+  // Detect when onboarding closes and suppress re-trigger briefly
+  useEffect(() => {
+    if (!onboardingOpen) {
+      // If onboarding was open and just closed, mark as just completed
+      if (onboardingTriggered.current) {
+        onboardingJustCompleted.current = true;
+        onboardingTriggered.current = false;
+      }
+    }
+  }, [onboardingOpen]);
+
   // Force onboarding if setup is incomplete (no company or no agents)
   useEffect(() => {
     if (companiesLoading || agentsLoading) return;
@@ -111,16 +125,21 @@ function LayoutInner() {
     const hasAgent = (agents ?? []).length > 0;
 
     if (!hasCompany) {
+      onboardingJustCompleted.current = false;
       onboardingTriggered.current = true;
       setOnboardingRequired(true);
       openOnboarding({ initialStep: 1 });
     } else if (!hasAgent) {
+      // Don't re-trigger if onboarding was just completed — the agents query
+      // may still be refetching after the company was created during onboarding.
+      if (onboardingJustCompleted.current) return;
       onboardingTriggered.current = true;
       setOnboardingRequired(true);
       openOnboarding({ initialStep: 2, companyId: selectedCompanyId ?? undefined });
     } else {
       setOnboardingRequired(false);
       onboardingTriggered.current = false;
+      onboardingJustCompleted.current = false;
     }
   }, [companies, companiesLoading, agents, agentsLoading, openOnboarding, onboardingOpen, selectedCompanyId, setOnboardingRequired]);
 

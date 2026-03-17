@@ -34,6 +34,6 @@ agents:
     name: BI Analyst
     title: BI Analyst
     reportsTo: data-sci
-bootstrapTask:
-  title: "Inventory data sources and propose an analytics roadmap"
-  description: "The Director should outline key business questions. Each specialist should assess their domain and propose initial projects for the analytics roadmap."
+bootstrapGoal:
+  title: "Deliver an actionable analytics roadmap"
+  description: "Inventory all data sources, identify key business questions, and produce a prioritized roadmap of analytics initiatives."

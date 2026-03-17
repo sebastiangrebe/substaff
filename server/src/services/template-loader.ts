@@ -19,7 +19,7 @@ export interface CompanyTemplateAgent {
   reportsTo: string | null;
 }
 
-export interface CompanyTemplateBootstrapTask {
+export interface CompanyTemplateBootstrapGoal {
   title: string;
   description: string;
 }
@@ -31,7 +31,7 @@ export interface CompanyTemplate {
   industry: string;
   icon?: string;
   agents: CompanyTemplateAgent[];
-  bootstrapTask?: CompanyTemplateBootstrapTask;
+  bootstrapGoal?: CompanyTemplateBootstrapGoal;
 }
 
 // Module-level cache
@@ -94,7 +94,7 @@ function loadTemplatesFromDisk(): CompanyTemplate[] {
         }
       }
 
-      const bootstrapTask = data.bootstrapTask as CompanyTemplateBootstrapTask | undefined;
+      const bootstrapGoal = data.bootstrapGoal as CompanyTemplateBootstrapGoal | undefined;
 
       templates.push({
         slug: (data.slug as string) ?? entry.name,
@@ -103,7 +103,7 @@ function loadTemplatesFromDisk(): CompanyTemplate[] {
         industry: (data.industry as string) ?? "",
         icon: data.icon as string | undefined,
         agents,
-        bootstrapTask,
+        bootstrapGoal,
       });
     } catch (err) {
       console.error(`[template-loader] Failed to load template ${entry.name}:`, err);

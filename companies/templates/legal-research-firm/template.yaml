@@ -34,6 +34,6 @@ agents:
     name: Document Reviewer
     title: Document Reviewer
     reportsTo: analyst
-bootstrapTask:
-  title: "Set up case management workflow and introduce the team"
-  description: "Each team member should introduce themselves, establish their areas of expertise, and the Managing Partner should outline the firm's workflow and case intake process."
+bootstrapGoal:
+  title: "Establish a streamlined case management workflow"
+  description: "Define the case intake process, assign areas of expertise across the team, and set up a repeatable workflow from intake to resolution."

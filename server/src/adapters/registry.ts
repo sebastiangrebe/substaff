@@ -4,6 +4,7 @@ import {
   testEnvironment as blaxelTestEnvironment,
   sessionCodec as blaxelSessionCodec,
   tryResumeOrphanedRun as blaxelTryResumeOrphanedRun,
+  cancelRun as blaxelCancelRun,
 } from "@substaff/adapter-blaxel-sandbox/server";
 import { agentConfigurationDoc as blaxelAgentConfigurationDoc, models as blaxelModels } from "@substaff/adapter-blaxel-sandbox";
 import {
@@ -11,6 +12,7 @@ import {
   testEnvironment as e2bTestEnvironment,
   sessionCodec as e2bSessionCodec,
   tryResumeOrphanedRun as e2bTryResumeOrphanedRun,
+  cancelRun as e2bCancelRun,
 } from "@substaff/adapter-e2b-sandbox/server";
 import { agentConfigurationDoc as e2bAgentConfigurationDoc, models as e2bModels } from "@substaff/adapter-e2b-sandbox";
 import {
@@ -31,6 +33,7 @@ const blaxelSandboxAdapter: ServerAdapterModule = {
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: blaxelAgentConfigurationDoc,
   tryResumeOrphanedRun: blaxelTryResumeOrphanedRun,
+  cancelRun: blaxelCancelRun,
 };
 
 const e2bSandboxAdapter: ServerAdapterModule = {
@@ -42,6 +45,7 @@ const e2bSandboxAdapter: ServerAdapterModule = {
   supportsLocalAgentJwt: true,
   agentConfigurationDoc: e2bAgentConfigurationDoc,
   tryResumeOrphanedRun: e2bTryResumeOrphanedRun,
+  cancelRun: e2bCancelRun,
 };
 
 const claudeLocalAdapter: ServerAdapterModule = {

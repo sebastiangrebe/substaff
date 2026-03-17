@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { useParams, Link } from "@/lib/router";
+import { useParams, Link, useNavigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Agent, Goal, GoalProgress } from "@substaff/shared";
 import { goalsApi } from "../api/goals";
@@ -49,9 +49,10 @@ function ActorIdentity({ evt, agentMap }: { evt: ActivityEvent; agentMap: Map<st
 
 export function GoalDetail() {
   const { goalId } = useParams<{ goalId: string }>();
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [activityOpen, setActivityOpen] = useState(false);
 
   const {
@@ -73,8 +74,10 @@ export function GoalDetail() {
 
   useEffect(() => {
     if (!goal?.companyId || goal.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(goal.companyId, { source: "route_sync" });
-  }, [goal?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    // Goal belongs to a different company — redirect to goals list
+    // instead of syncing company back (which causes a loop on company switch).
+    navigate("/goals", { replace: true });
+  }, [goal?.companyId, selectedCompanyId, navigate]);
 
   const updateGoal = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
@@ -132,12 +135,16 @@ export function GoalDetail() {
     enabled: !!resolvedCompanyId,
   });
 
-  const linkedProjects = (allProjects ?? []).filter((p) => {
-    if (!goalId) return false;
-    if (p.goalIds.includes(goalId)) return true;
-    if (p.goals.some((goalRef) => goalRef.id === goalId)) return true;
-    return p.goalId === goalId;
-  });
+  const linkedProjects = useMemo(
+    () =>
+      (allProjects ?? []).filter((p) => {
+        if (!goalId) return false;
+        if (p.goalIds.includes(goalId)) return true;
+        if (p.goals.some((goalRef) => goalRef.id === goalId)) return true;
+        return p.goalId === goalId;
+      }),
+    [allProjects, goalId],
+  );
 
   const linkedProjectIds = useMemo(
     () => new Set(linkedProjects.map((p) => p.id)),
@@ -179,12 +186,13 @@ export function GoalDetail() {
     return map;
   }, [session]);
 
+  const goalTitle = goal?.title;
   useEffect(() => {
     setBreadcrumbs([
       { label: "Goals", href: "/goals" },
-      { label: goal?.title ?? goalId ?? "Goal" }
+      { label: goalTitle ?? goalId ?? "Goal" }
     ]);
-  }, [setBreadcrumbs, goal, goalId]);
+  }, [setBreadcrumbs, goalTitle, goalId]);
 
   if (isLoading) return <PageSkeleton variant="detail" />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;

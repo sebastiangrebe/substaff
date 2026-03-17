@@ -472,7 +472,15 @@ export function agentRoutes(db: Db) {
       svc.getChainOfCommand(agent.id),
       roleSvc.classifyRole(agent.companyId, agent.role),
     ]);
-    res.json({ ...agent, chainOfCommand, roleClassification });
+    if (isCompact(req)) {
+      res.json({
+        ...compactAgent(agent),
+        chainOfCommand: chainOfCommand.map((a) => ({ id: a.id, name: a.name, role: a.role, title: a.title })),
+        roleClassification,
+      });
+    } else {
+      res.json({ ...agent, chainOfCommand, roleClassification });
+    }
   });
 
   router.get("/agents/:id", async (req, res) => {
@@ -1052,7 +1060,7 @@ export function agentRoutes(db: Db) {
       details: summarizeAgentUpdateDetails(patchData),
     });
 
-    res.json(agent);
+    res.json(isCompact(req) ? compactAgent(agent) : agent);
   });
 
   router.post("/agents/:id/pause", async (req, res) => {

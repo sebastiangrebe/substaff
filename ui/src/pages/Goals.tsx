@@ -491,7 +491,7 @@ export function Goals() {
                   viewTransition
                   className={cn(
                     "flex items-center gap-3 px-4 h-11 text-sm cursor-pointer hover:bg-accent/40 transition-colors no-underline text-inherit",
-                    activePreviewId === goal.id && "bg-accent/30",
+                    activePreviewId === goal.id && "bg-primary/5",
                   )}
                   onMouseEnter={() => handleRowHover(goal.id)}
                   onMouseLeave={() => handleRowHover(null)}

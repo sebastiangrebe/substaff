@@ -159,24 +159,39 @@ export function fileRoutes(storage: StorageService, db: Db) {
       throw badRequest("Invalid file path");
     }
 
-    const chunks: Buffer[] = [];
-    let totalSize = 0;
+    // Resolve body — express.json() may have already parsed JSON requests,
+    // consuming the stream. Check req.body first, then fall back to streaming.
+    let body: Buffer;
+    let contentType = (req.headers["content-type"] as string) || "application/octet-stream";
 
-    for await (const chunk of req) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      totalSize += buf.length;
-      if (totalSize > MAX_AGENT_UPLOAD_BYTES) {
-        throw badRequest(`File too large (max ${MAX_AGENT_UPLOAD_BYTES / (1024 * 1024)} MB)`);
+    if (req.body && typeof req.body === "object" && req.body.content) {
+      const encoding = req.body.encoding === "base64" ? "base64" : "utf-8";
+      body = Buffer.from(req.body.content, encoding);
+      const ext = filePath.split(".").pop()?.toLowerCase();
+      const mimeMap: Record<string, string> = {
+        md: "text/markdown", txt: "text/plain", json: "application/json",
+        js: "text/javascript", ts: "text/typescript", py: "text/x-python",
+        cs: "text/x-csharp", yaml: "text/yaml", yml: "text/yaml",
+        html: "text/html", css: "text/css", xml: "application/xml",
+      };
+      contentType = (ext && mimeMap[ext]) || "application/octet-stream";
+    } else {
+      const chunks: Buffer[] = [];
+      let totalSize = 0;
+      for await (const chunk of req) {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        totalSize += buf.length;
+        if (totalSize > MAX_AGENT_UPLOAD_BYTES) {
+          throw badRequest(`File too large (max ${MAX_AGENT_UPLOAD_BYTES / (1024 * 1024)} MB)`);
+        }
+        chunks.push(buf);
       }
-      chunks.push(buf);
+      body = Buffer.concat(chunks);
     }
 
-    const body = Buffer.concat(chunks);
     if (body.length === 0) {
       throw badRequest("Empty file body");
     }
-
-    const contentType = (req.headers["content-type"] as string) || "application/octet-stream";
 
     // Determine namespace from the file path (first segment, e.g. "workspace")
     const pathParts = filePath.split("/");
@@ -300,6 +315,10 @@ export function fileRoutes(storage: StorageService, db: Db) {
   // Write a file to the agent's workspace
   // Supports optional ?linkTo=issue:<id> or ?linkTo=project:<id> or ?linkTo=goal:<id>
   // to create an asset record and link it to an entity.
+  //
+  // Accepts two formats:
+  //   1. Raw binary body (any Content-Type) — stored as-is
+  //   2. JSON body: { "content": "<base64>", "encoding": "base64" }
   router.put("/agent/files/content/*filePath", async (req, res) => {
     const { companyId, agentId, prefix } = agentNamespace(req);
 
@@ -309,25 +328,42 @@ export function fileRoutes(storage: StorageService, db: Db) {
       throw badRequest("Invalid file path");
     }
 
-    // Collect the request body as a buffer
-    const chunks: Buffer[] = [];
-    let totalSize = 0;
+    // Resolve body — express.json() may have already parsed JSON requests,
+    // consuming the stream. Check req.body first, then fall back to streaming.
+    let body: Buffer;
+    let contentType = (req.headers["content-type"] as string) || "application/octet-stream";
 
-    for await (const chunk of req) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      totalSize += buf.length;
-      if (totalSize > MAX_AGENT_UPLOAD_BYTES) {
-        throw badRequest(`File too large (max ${MAX_AGENT_UPLOAD_BYTES / (1024 * 1024)} MB)`);
+    if (req.body && typeof req.body === "object" && req.body.content) {
+      // JSON body with base64 content: { "content": "...", "encoding": "base64" }
+      const encoding = req.body.encoding === "base64" ? "base64" : "utf-8";
+      body = Buffer.from(req.body.content, encoding);
+      // Store as the inferred type, not application/json
+      const ext = filePath.split(".").pop()?.toLowerCase();
+      const mimeMap: Record<string, string> = {
+        md: "text/markdown", txt: "text/plain", json: "application/json",
+        js: "text/javascript", ts: "text/typescript", py: "text/x-python",
+        cs: "text/x-csharp", yaml: "text/yaml", yml: "text/yaml",
+        html: "text/html", css: "text/css", xml: "application/xml",
+      };
+      contentType = (ext && mimeMap[ext]) || "application/octet-stream";
+    } else {
+      // Raw body — read from stream (works when express.json() didn't match)
+      const chunks: Buffer[] = [];
+      let totalSize = 0;
+      for await (const chunk of req) {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        totalSize += buf.length;
+        if (totalSize > MAX_AGENT_UPLOAD_BYTES) {
+          throw badRequest(`File too large (max ${MAX_AGENT_UPLOAD_BYTES / (1024 * 1024)} MB)`);
+        }
+        chunks.push(buf);
       }
-      chunks.push(buf);
+      body = Buffer.concat(chunks);
     }
 
-    const body = Buffer.concat(chunks);
     if (body.length === 0) {
       throw badRequest("Empty file body");
     }
-
-    const contentType = (req.headers["content-type"] as string) || "application/octet-stream";
 
     const result = await storage.putFileExact({
       companyId,

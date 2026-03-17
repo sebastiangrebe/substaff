@@ -648,7 +648,7 @@ export function IssuesList({
                   viewTransition
                   className={cn(
                     "flex items-center gap-3 px-4 h-11 text-sm cursor-pointer hover:bg-accent/40 transition-colors no-underline text-inherit",
-                    activePreviewId === issue.id && "bg-accent/30",
+                    activePreviewId === issue.id && "bg-primary/5",
                   )}
                   onMouseEnter={() => handleRowHover(issue.id)}
                   onMouseLeave={() => handleRowHover(null)}
@@ -711,7 +711,6 @@ export function IssuesList({
                           <button
                             className="flex w-[180px] shrink-0 items-center rounded-md px-2 py-1 hover:bg-accent/40 transition-colors"
                             onClick={(e) => {
-                              e.preventDefault();
                               e.stopPropagation();
                             }}
                           >

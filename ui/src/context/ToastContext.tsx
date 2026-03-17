@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from "react";
 import { toast } from "sonner";
+import { useCompany } from "./CompanyContext";
+import { applyCompanyPrefix } from "../lib/company-routes";
 
 export type ToastTone = "info" | "success" | "warn" | "error";
 
@@ -43,7 +45,10 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-export function ToastProvider({ children }: { children: ReactNode }) {
+export function ToastProvider({ children, navigate }: { children: ReactNode; navigate: (path: string) => void }) {
+  const { selectedCompany } = useCompany();
+  const companyPrefixRef = useRef<string | null>(null);
+  companyPrefixRef.current = selectedCompany?.issuePrefix ?? null;
   const dedupeRef = useRef(new Map<string, number>());
 
   const pushToast = useCallback((input: ToastInput) => {
@@ -83,7 +88,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         ? {
             label: input.action.label,
             onClick: () => {
-              window.location.href = input.action!.href;
+              const href = applyCompanyPrefix(input.action!.href, companyPrefixRef.current);
+              navigate(href);
             },
           }
         : undefined,

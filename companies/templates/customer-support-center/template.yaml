@@ -34,6 +34,6 @@ agents:
     name: Escalation Handler
     title: Escalation Handler
     reportsTo: support-mgr
-bootstrapTask:
-  title: "Define support tiers and create initial knowledge base structure"
-  description: "The Support Manager should define the escalation workflow, assign tier responsibilities, and the KB Editor should create an initial knowledge base outline."
+bootstrapGoal:
+  title: "Launch a tiered support system with a knowledge base"
+  description: "Establish escalation workflows, define tier responsibilities, and publish an initial knowledge base covering the most common support topics."

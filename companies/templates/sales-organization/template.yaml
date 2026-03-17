@@ -34,6 +34,6 @@ agents:
     name: Pipeline Analyst
     title: Pipeline Analyst
     reportsTo: vp-sales
-bootstrapTask:
-  title: "Build your sales playbook and define pipeline stages"
-  description: "VP Sales should define the ideal customer profile and sales stages. Each team member should outline their role in the sales process and propose initial outreach strategies."
+bootstrapGoal:
+  title: "Build a repeatable sales pipeline"
+  description: "Define the ideal customer profile, establish pipeline stages, and create initial outreach playbooks for each team member."

@@ -29,6 +29,7 @@ import {
   describeClaudeFailure,
   detectClaudeLoginRequired,
   isClaudeMaxTurnsResult,
+  formatTurnCostAnalysis,
 } from "@substaff/adapter-claude-local/server";
 
 const __moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -151,6 +152,8 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       if (wakeCommentId) sandboxEnv.SUBSTAFF_WAKE_COMMENT_ID = wakeCommentId;
       if (approvalId) sandboxEnv.SUBSTAFF_APPROVAL_ID = approvalId;
       if (approvalStatus) sandboxEnv.SUBSTAFF_APPROVAL_STATUS = approvalStatus;
+      const strategyReview = readNonEmptyString(ctx.context.strategyReview as string | undefined);
+      if (strategyReview || ctx.context.strategyReview === true) sandboxEnv.SUBSTAFF_STRATEGY_REVIEW = "true";
       // Apply any env vars from adapter config
       const envConfig = parseObject(config.env);
       for (const [key, value] of Object.entries(envConfig)) {
@@ -537,6 +540,14 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
 
     await ctx.onLog("stdout", `[e2b] Execution complete. Exit code: ${execution.exitCode}\n`);
 
+    // Log per-turn cost analysis (opt-in via SUBSTAFF_DEBUG_COST=1)
+    if (process.env.SUBSTAFF_DEBUG_COST === "1") {
+      const costLines = formatTurnCostAnalysis(parsed.turnUsages, "[e2b]");
+      if (costLines.length > 0) {
+        await ctx.onLog("stdout", costLines.join("\n") + "\n");
+      }
+    }
+
     return {
       exitCode: execution.exitCode,
       signal: null,
@@ -743,6 +754,33 @@ function buildDefaultPrompt(
     parts.push("\n--- END PROJECT STATE ---");
   }
 
+  // Inject pre-loaded rejected plan so agent can revise without API calls
+  const rejectedPlan = context.rejectedPlan as { planMarkdown?: string; reviewerComments?: unknown } | undefined;
+  if (rejectedPlan?.planMarkdown) {
+    parts.push("\n\n--- REJECTED PLAN (revise based on reviewer feedback) ---");
+    const comments = Array.isArray(rejectedPlan.reviewerComments) ? rejectedPlan.reviewerComments : [];
+    if (comments.length > 0) {
+      parts.push("\nReviewer feedback:");
+      for (const c of comments) {
+        const comment = typeof c === "object" && c !== null ? (c as Record<string, unknown>).comment : c;
+        if (comment) parts.push(`- ${comment}`);
+      }
+    }
+    parts.push(`\nPrevious plan:\n${rejectedPlan.planMarkdown.trim()}`);
+    parts.push("\n--- END REJECTED PLAN ---");
+  }
+
+  // Inject pre-loaded comments so agent can skip GET /comments (saves 1 turn)
+  const recentComments = Array.isArray(context.recentComments) ? context.recentComments : [];
+  if (recentComments.length > 0) {
+    parts.push("\n\n--- RECENT COMMENTS (pre-loaded, skip GET /comments) ---");
+    for (const c of recentComments as Array<Record<string, unknown>>) {
+      const author = c.authorAgentId ? `agent:${c.authorAgentId}` : c.authorUserId ? `user:${c.authorUserId}` : "unknown";
+      parts.push(`\n[${author} @ ${c.createdAt}] ${c.body}`);
+    }
+    parts.push("\n--- END RECENT COMMENTS ---");
+  }
+
   parts.push("\n\nYou are running inside an E2B sandbox. Your workspace is /home/user/workspace.");
   parts.push("Agent persona files have been pre-loaded into agents/<role>/ in your workspace. Do NOT try to download them from GitHub.");
 
@@ -763,9 +801,7 @@ function buildDefaultPrompt(
       }
     }
     parts.push("\n\n--- END AGENT PERSONA ---");
-    parts.push("\n\n**CRITICAL — DO NOT INVOKE /substaff. The /substaff skill content is ALREADY in your system prompt above. Invoking it again wastes tokens and delays your work. There is NO /substaff command available.**");
-    parts.push("\n\nIMPORTANT: You already have your persona and heartbeat instructions above. Start your heartbeat procedure immediately. Do NOT re-read persona files from disk, search for files, or read memory before checking assignments.");
-    parts.push("\n\n**REMINDER: /substaff is NOT available as a command. Do NOT attempt to invoke it. All heartbeat instructions are already loaded above.**");
+    parts.push("\n\nAll heartbeat instructions and persona are pre-loaded above. Start your heartbeat procedure immediately. Do NOT invoke /substaff (not available), re-read persona files, or search for files before checking assignments.");
   }
 
   return parts.join("");

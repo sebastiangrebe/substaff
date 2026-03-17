@@ -20,3 +20,4 @@ export { llmKeyManagerService } from "./llm-key-manager.js";
 export { createStorageServiceFromConfig, getStorageService } from "../storage/index.js";
 export { integrationService } from "./integrations.js";
 export { companyRoleService } from "./company-roles.js";
+export { strategyService } from "./strategy.js";

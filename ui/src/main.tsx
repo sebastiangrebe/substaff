@@ -52,7 +52,7 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <CompanyProvider>
-          <ToastProvider>
+          <ToastProvider navigate={(path) => router.navigate(path)}>
             <BudgetExhaustedListener />
             <LiveUpdatesProvider>
               <TooltipProvider>

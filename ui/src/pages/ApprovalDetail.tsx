@@ -19,7 +19,7 @@ import { MarkdownBody } from "../components/MarkdownBody";
 
 export function ApprovalDetail() {
   const { approvalId } = useParams<{ approvalId: string }>();
-  const { selectedCompanyId, setSelectedCompanyId } = useCompany();
+  const { selectedCompanyId } = useCompany();
   const { setBreadcrumbs } = useBreadcrumbs();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -56,8 +56,8 @@ export function ApprovalDetail() {
 
   useEffect(() => {
     if (!approval?.companyId || approval.companyId === selectedCompanyId) return;
-    setSelectedCompanyId(approval.companyId, { source: "route_sync" });
-  }, [approval?.companyId, selectedCompanyId, setSelectedCompanyId]);
+    navigate("/approvals", { replace: true });
+  }, [approval?.companyId, selectedCompanyId, navigate]);
 
   const agentNameById = useMemo(() => {
     const map = new Map<string, string>();
