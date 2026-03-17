@@ -435,10 +435,10 @@ function EditKeyResultDialog({
   const [title, setTitle] = useState(kr.title);
   const [description, setDescription] = useState(kr.description ?? "");
   const [targetValue, setTargetValue] = useState(String(kr.targetValue));
-  const [unit, setUnit] = useState(kr.unit);
-  const [direction, setDirection] = useState(kr.direction);
-  const [vizType, setVizType] = useState(kr.visualizationType);
-  const [status, setStatus] = useState(kr.status);
+  const [unit, setUnit] = useState<string>(kr.unit);
+  const [direction, setDirection] = useState<string>(kr.direction);
+  const [vizType, setVizType] = useState<string>(kr.visualizationType);
+  const [status, setStatus] = useState<string>(kr.status);
 
   // Sync form state when kr changes (e.g. after refetch)
   useEffect(() => {
