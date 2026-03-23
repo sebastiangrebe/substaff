@@ -322,7 +322,10 @@ export function AgentDetail() {
         }
       }
       if (action === "terminate") {
-        navigate("/org-chart");
+        if (resolvedCompanyId) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.org(resolvedCompanyId) });
+        }
+        navigate("/org");
       } else if (action === "invoke" && data && typeof data === "object" && "id" in data) {
         navigate(`/agents/${canonicalAgentRef}/runs/${(data as HeartbeatRun).id}`);
       }
