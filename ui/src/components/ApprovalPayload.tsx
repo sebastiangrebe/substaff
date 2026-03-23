@@ -85,11 +85,11 @@ export function CeoStrategyPayload({ payload }: { payload: Record<string, unknow
 
   return (
     <div className="mt-3 space-y-2.5 text-sm">
-      {payload.title && <PayloadField label="Title" value={payload.title} />}
-      {summary && (
+      {!!payload.title && <PayloadField label="Title" value={payload.title} />}
+      {!!summary && (
         <p className="text-sm text-muted-foreground">{String(summary)}</p>
       )}
-      {payload.rationale && (
+      {!!payload.rationale && (
         <p className="text-xs text-muted-foreground italic">{String(payload.rationale)}</p>
       )}
       {objectives && <StrategyObjectives objectives={objectives} />}
