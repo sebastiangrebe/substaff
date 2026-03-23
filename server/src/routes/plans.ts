@@ -82,6 +82,17 @@ export function planRoutes(db: Db) {
       return;
     }
 
+    // Reject if a pending_review plan already exists for this issue
+    const [existingPending] = await db
+      .select({ id: taskPlans.id })
+      .from(taskPlans)
+      .where(and(eq(taskPlans.issueId, issueId!), eq(taskPlans.status, "pending_review")))
+      .limit(1);
+    if (existingPending) {
+      res.status(409).json({ error: "A plan is already pending review for this task", existingPlanId: existingPending.id });
+      return;
+    }
+
     const [plan] = await db
       .insert(taskPlans)
       .values({
