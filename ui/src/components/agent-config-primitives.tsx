@@ -176,7 +176,7 @@ export function ToggleWithNumber({
           {numberPrefix && <span>{numberPrefix}</span>}
           <input
             type="number"
-            className="w-16 rounded-md border border-border px-2 py-1 bg-transparent outline-none text-sm font-mono text-center tabular-nums"
+            className="w-20 rounded-md border border-border px-2 py-1 bg-transparent outline-none text-sm font-mono text-center tabular-nums"
             value={number}
             onChange={(e) => onNumberChange(Number(e.target.value))}
           />
