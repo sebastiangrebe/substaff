@@ -149,6 +149,8 @@ interface IssuesListProps {
   onUpdateIssue: (id: string, data: Record<string, unknown>) => void;
   /** Rendered above the list but inside the preview-layout wrapper so it respects the preview margin. */
   header?: React.ReactNode;
+  /** Extra content rendered inside the layout wrapper (after the list) so it respects the preview panel margin. */
+  children?: React.ReactNode;
 }
 
 export function IssuesList({
@@ -162,6 +164,7 @@ export function IssuesList({
   initialAssignees,
   onUpdateIssue,
   header,
+  children,
 }: IssuesListProps) {
   const { selectedCompanyId } = useCompany();
   const { openNewIssue } = useDialog();
@@ -793,6 +796,7 @@ export function IssuesList({
         ))
       )}
     </div>
+    {children}
     </ListPreviewLayout>
   );
 }

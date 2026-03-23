@@ -56,17 +56,16 @@ export function Issues() {
   }
 
   return (
-    <div>
-      <IssuesList
-        issues={issues ?? []}
-        isLoading={isLoading}
-        error={error as Error | null}
-        agents={agents}
-        liveIssueIds={liveIssueIds}
-        viewStateKey="substaff:issues-view"
-        initialAssignees={searchParams.get("assignee") ? [searchParams.get("assignee")!] : undefined}
-        onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
-      />
+    <IssuesList
+      issues={issues ?? []}
+      isLoading={isLoading}
+      error={error as Error | null}
+      agents={agents}
+      liveIssueIds={liveIssueIds}
+      viewStateKey="substaff:issues-view"
+      initialAssignees={searchParams.get("assignee") ? [searchParams.get("assignee")!] : undefined}
+      onUpdateIssue={(id, data) => updateIssue.mutate({ id, data })}
+    >
       {!isLoading && (issues ?? []).length < 5 && (
         <FeatureInfoSection
           title="How tasks work"
@@ -93,6 +92,6 @@ export function Issues() {
           ]}
         />
       )}
-    </div>
+    </IssuesList>
   );
 }
