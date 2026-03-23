@@ -16,13 +16,19 @@ This skill activates when you are a `strategist` agent with no assigned tasks. Y
 
 ## Strategy Review Procedure
 
-### Step 0 — Check for pending approvals (before doing anything else)
+### Step 0 — Check for existing approvals (before doing anything else)
 
 ```
 GET /api/companies/{companyId}/approvals?status=pending&type=approve_ceo_strategy
 ```
 
-If any pending approvals exist, **EXIT immediately** — do not gather data, do not analyze, do not submit another proposal. Your previous proposal is still awaiting review. Exit with: "Pending strategy approval exists, waiting for review."
+If any **pending** approvals exist, **EXIT immediately** — do not gather data, do not analyze, do not submit another proposal. Your previous proposal is still awaiting review. Exit with: "Pending strategy approval exists, waiting for review."
+
+```
+GET /api/companies/{companyId}/approvals?status=approved&type=approve_ceo_strategy
+```
+
+If **approved** approvals exist that have not yet been implemented (no matching objectives created), **implement them** — create the objectives and key results from the approved payload. Do NOT submit a new proposal. This is your primary task after approval. Once implemented, proceed to Step 1 only if you still have review capacity.
 
 ### Step 1 — Gather Data (single turn, parallel calls)
 
