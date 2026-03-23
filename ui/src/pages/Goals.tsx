@@ -507,12 +507,6 @@ export function Goals() {
                         <Identity name={agentName(goal.ownerAgentId)!} size="sm" />
                       </div>
                     )}
-                    <span className="text-xs text-muted-foreground hidden lg:inline whitespace-nowrap">
-                      {formatDate(goal.createdAt)}
-                    </span>
-                    <span className="text-xs text-muted-foreground hidden lg:inline whitespace-nowrap">
-                      {formatDate(goal.updatedAt)}
-                    </span>
                     <span style={{ viewTransitionName: `entity-status-${goal.id}` } as React.CSSProperties}>
                       <StatusBadge status={goal.status} />
                     </span>

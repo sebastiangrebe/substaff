@@ -514,17 +514,6 @@ export function Projects() {
                         <Identity name={agentName(project.leadAgentId)!} size="sm" />
                       </div>
                     )}
-                    {project.targetDate && (
-                      <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">
-                        {formatDate(project.targetDate)}
-                      </span>
-                    )}
-                    <span className="text-xs text-muted-foreground hidden lg:inline whitespace-nowrap">
-                      {formatDate(project.createdAt)}
-                    </span>
-                    <span className="text-xs text-muted-foreground hidden lg:inline whitespace-nowrap">
-                      {formatDate(project.updatedAt)}
-                    </span>
                     <span style={{ viewTransitionName: `entity-status-${project.id}` } as React.CSSProperties}>
                       <StatusBadge status={project.status} />
                     </span>

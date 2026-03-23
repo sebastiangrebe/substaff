@@ -779,12 +779,6 @@ export function IssuesList({
                         </PopoverContent>
                       </Popover>
                     </div>
-                    <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">
-                      {formatDate(issue.createdAt)}
-                    </span>
-                    <span className="text-xs text-muted-foreground hidden lg:inline whitespace-nowrap">
-                      {formatDate(issue.updatedAt)}
-                    </span>
                   </div>
                 </Link>
               ))}
