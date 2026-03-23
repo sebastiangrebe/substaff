@@ -2033,13 +2033,18 @@ export function heartbeatService(db: Db) {
       throw conflict("Agent is not invokable in its current state", { status: agent.status });
     }
 
-    // Pre-flight vendor budget check
-    const [companyForBudget] = await db
-      .select({ vendorId: companies.vendorId })
+    // Pre-flight company status check — paused/archived companies cannot spawn runs
+    const [companyForChecks] = await db
+      .select({ vendorId: companies.vendorId, status: companies.status })
       .from(companies)
       .where(eq(companies.id, agent.companyId));
-    if (companyForBudget?.vendorId) {
-      const budget = await stripeService(db).checkBudget(companyForBudget.vendorId);
+    if (companyForChecks?.status === "paused" || companyForChecks?.status === "archived") {
+      throw conflict("Company is paused — agent runs are suspended", { companyStatus: companyForChecks.status });
+    }
+
+    // Pre-flight vendor budget check
+    if (companyForChecks?.vendorId) {
+      const budget = await stripeService(db).checkBudget(companyForChecks.vendorId);
       if (!budget.allowed) {
         throw conflict("Vendor budget exhausted", {
           usedTokens: budget.usedTokens,
@@ -2628,7 +2633,7 @@ export function heartbeatService(db: Db) {
       await setRlsAllTenantsContext(db);
       // Join companies to get working hours for pre-filtering
       const allRows = await db
-        .select({ agent: agents, companyWorkingHours: companies.workingHours })
+        .select({ agent: agents, companyWorkingHours: companies.workingHours, companyStatus: companies.status })
         .from(agents)
         .innerJoin(companies, eq(agents.companyId, companies.id));
       let checked = 0;
@@ -2638,6 +2643,7 @@ export function heartbeatService(db: Db) {
       for (const row of allRows) {
         const agent = row.agent;
         if (agent.status === "paused" || agent.status === "terminated" || agent.status === "pending_approval") continue;
+        if (row.companyStatus === "paused" || row.companyStatus === "archived") continue;
         const policy = parseHeartbeatPolicy(agent);
         if (!policy.enabled || policy.intervalSec <= 0) continue;
 

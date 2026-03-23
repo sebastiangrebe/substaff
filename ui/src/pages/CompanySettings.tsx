@@ -20,6 +20,8 @@ import {
   Check,
   RefreshCw,
   Wallet,
+  Pause,
+  Play,
 } from "lucide-react";
 import { BudgetEditor } from "../components/BudgetEditor";
 
@@ -99,6 +101,20 @@ export function CompanySettings() {
     [workingHoursMutation],
   );
 
+  const pauseMutation = useMutation({
+    mutationFn: () => companiesApi.pause(selectedCompanyId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    },
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: () => companiesApi.resume(selectedCompanyId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
+    },
+  });
+
   const reindexMutation = useMutation({
     mutationFn: () =>
       api.post(`/companies/${selectedCompanyId}/knowledge/reindex-all`, {}),
@@ -133,6 +149,25 @@ export function CompanySettings() {
           Manage your company profile, approvals, and preferences.
         </p>
       </div>
+
+      {/* ── Pause Banner ── */}
+      {selectedCompany.status === "paused" && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Pause className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <span className="font-medium text-amber-700 dark:text-amber-300">Company is paused</span>
+            <span className="text-muted-foreground">— all agent runs and heartbeats are suspended.</span>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => resumeMutation.mutate()}
+            disabled={resumeMutation.isPending}
+          >
+            <Play className="h-3.5 w-3.5 mr-1.5" />
+            {resumeMutation.isPending ? "Resuming..." : "Resume"}
+          </Button>
+        </div>
+      )}
 
       {/* ── General ── */}
       <SettingsSection icon={Building2} title="General" description="Company profile and branding.">
@@ -234,6 +269,43 @@ export function CompanySettings() {
             checked={!!selectedCompany.requirePlanApproval}
             onChange={(v) => planApprovalMutation.mutate(v)}
           />
+        </div>
+      </SettingsSection>
+
+      {/* ── Company Status ── */}
+      <SettingsSection icon={Settings2} title="Company Status" description="Pause or resume all agent activity for this company.">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">
+              {selectedCompany.status === "paused" ? "Company is paused" : "Company is active"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {selectedCompany.status === "paused"
+                ? "All agent runs and heartbeats are suspended. No new tasks will be picked up."
+                : "Agents are running normally according to their schedules."}
+            </p>
+          </div>
+          {selectedCompany.status === "paused" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => resumeMutation.mutate()}
+              disabled={resumeMutation.isPending}
+            >
+              <Play className="h-3.5 w-3.5 mr-1.5" />
+              {resumeMutation.isPending ? "Resuming..." : "Resume"}
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => pauseMutation.mutate()}
+              disabled={pauseMutation.isPending}
+            >
+              <Pause className="h-3.5 w-3.5 mr-1.5" />
+              {pauseMutation.isPending ? "Pausing..." : "Pause Company"}
+            </Button>
+          )}
         </div>
       </SettingsSection>
 

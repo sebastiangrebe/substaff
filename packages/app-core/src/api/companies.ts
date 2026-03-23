@@ -1,0 +1,40 @@
+import type {
+  Company,
+  CompanyPortabilityExportResult,
+  CompanyPortabilityImportRequest,
+  CompanyPortabilityImportResult,
+  CompanyPortabilityPreviewRequest,
+  CompanyPortabilityPreviewResult,
+} from "@substaff/shared";
+import { type ApiClient } from "./client";
+
+export type CompanyStats = Record<string, { agentCount: number; issueCount: number }>;
+
+export function createCompaniesApi(api: ApiClient) {
+  return {
+    list: () => api.get<Company[]>("/companies"),
+    get: (companyId: string) => api.get<Company>(`/companies/${companyId}`),
+    stats: () => api.get<CompanyStats>("/companies/stats"),
+    create: (data: { name: string; description?: string | null; budgetMonthlyCents?: number }) =>
+      api.post<Company>("/companies", data),
+    update: (
+      companyId: string,
+      data: Partial<
+        Pick<
+          Company,
+          "name" | "description" | "status" | "budgetMonthlyCents" | "budgetTotalCents" | "requirePlanApproval" | "requireHireApproval" | "brandColor" | "workingHours"
+        >
+      >,
+    ) => api.patch<Company>(`/companies/${companyId}`, data),
+    pause: (companyId: string) => api.post<Company>(`/companies/${companyId}/pause`, {}),
+    resume: (companyId: string) => api.post<Company>(`/companies/${companyId}/resume`, {}),
+    archive: (companyId: string) => api.post<Company>(`/companies/${companyId}/archive`, {}),
+    remove: (companyId: string) => api.delete<{ ok: true }>(`/companies/${companyId}`),
+    exportBundle: (companyId: string, data: { include?: { company?: boolean; agents?: boolean } }) =>
+      api.post<CompanyPortabilityExportResult>(`/companies/${companyId}/export`, data),
+    importPreview: (data: CompanyPortabilityPreviewRequest) =>
+      api.post<CompanyPortabilityPreviewResult>("/companies/import/preview", data),
+    importBundle: (data: CompanyPortabilityImportRequest) =>
+      api.post<CompanyPortabilityImportResult>("/companies/import", data),
+  };
+}
