@@ -1,6 +1,4 @@
-import { eq, and } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { approvals as approvalsTable } from "@substaff/db";
 import {
   addApprovalCommentSchema,
   createApprovalSchema,
@@ -71,28 +69,7 @@ export function approvalRoutes(db: Db) {
           )
         : approvalInput.payload;
 
-    // Reject if a pending approval of the same type already exists for this company and agent
     const actor = getActorInfo(req);
-    const requestingAgentId = approvalInput.requestedByAgentId ?? (actor.actorType === "agent" ? actor.actorId : null);
-    if (requestingAgentId) {
-      const [existingPending] = await db
-        .select({ id: approvalsTable.id })
-        .from(approvalsTable)
-        .where(
-          and(
-            eq(approvalsTable.companyId, companyId),
-            eq(approvalsTable.type, approvalInput.type),
-            eq(approvalsTable.requestedByAgentId, requestingAgentId),
-            eq(approvalsTable.status, "pending"),
-          ),
-        )
-        .limit(1);
-      if (existingPending) {
-        res.status(409).json({ error: "A pending approval of this type already exists", existingApprovalId: existingPending.id });
-        return;
-      }
-    }
-
     const approval = await svc.create(companyId, {
       ...approvalInput,
       payload: normalizedPayload,
