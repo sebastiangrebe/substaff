@@ -136,9 +136,24 @@ To unpause/resume an agent: `PATCH /api/agents/:id` with `{ "status": "idle" }`.
 
 ## Scheduling Future Work
 
-**Do NOT use CronCreate** — it is session-only and does not persist between heartbeats. If you need something to happen in the future (e.g., post content on a specific day, run a review next week), **create a task with the target date in the title or description**. The heartbeat scheduler will wake agents with pending tasks, and the agent checks the current date before acting.
+**Do NOT use CronCreate** — it is session-only and does not persist between heartbeats.
 
-**For recurring/scheduled content:** Only do today's work in this heartbeat. Create separate tasks for future days (e.g., "Post Wednesday engagement poll — target: 2026-03-25"). Do NOT batch all future work into one session — let the heartbeat timer handle daily execution.
+To schedule future work, **create a task with `startDate`** set to the target date. The system will not wake the agent until that date arrives. You can self-assign tasks with a future `startDate` even without `tasks:assign` permission.
+
+```
+POST /api/companies/{companyId}/issues
+{
+  "title": "Post Wednesday engagement poll",
+  "startDate": "2026-03-25T12:00:00Z",
+  "assigneeAgentId": "{your-id}",
+  "parentId": "{parent-task-id}",
+  ...
+}
+```
+
+You can also set `dueDate` for target completion dates.
+
+**For recurring/scheduled content:** Only do today's work in this heartbeat. Create separate tasks with `startDate` for future days. Do NOT batch all future work into one session — let the heartbeat timer handle daily execution.
 
 ## Critical Rules
 

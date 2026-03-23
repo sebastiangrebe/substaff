@@ -46,6 +46,10 @@ export const issues = pgTable(
     budgetTotalCents: integer("budget_total_cents").notNull().default(0),
     spentTotalCents: integer("spent_total_cents").notNull().default(0),
     platformSpentTotalCents: integer("platform_spent_total_cents").notNull().default(0),
+    /** Scheduled start date — agents should not work on this task before this date. */
+    startDate: timestamp("start_date", { withTimezone: true }),
+    /** Due date — target completion date for the task. */
+    dueDate: timestamp("due_date", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),

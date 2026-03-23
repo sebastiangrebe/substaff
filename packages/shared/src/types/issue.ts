@@ -77,6 +77,8 @@ export interface Issue {
   platformSpentMonthlyCents: number;
   budgetTotalCents: number;
   platformSpentTotalCents: number;
+  startDate: Date | null;
+  dueDate: Date | null;
   startedAt: Date | null;
   completedAt: Date | null;
   cancelledAt: Date | null;

@@ -360,13 +360,23 @@ export function issueRoutes(db: Db, storage: StorageService) {
   router.post("/companies/:companyId/issues", validate(createIssueSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
     if (req.body.assigneeAgentId || req.body.assigneeUserId) {
-      await assertCanAssignTasks(req, companyId);
+      // Allow agents to self-assign tasks with a future start date (scheduling pattern)
+      const isSelfAssignWithFutureStart =
+        req.actor.type === "agent" &&
+        req.body.assigneeAgentId === req.actor.agentId &&
+        req.body.startDate &&
+        new Date(req.body.startDate) > new Date();
+      if (!isSelfAssignWithFutureStart) {
+        await assertCanAssignTasks(req, companyId);
+      }
     }
 
     const actor = getActorInfo(req);
-    const { dependsOnIssueIds, ...createBody } = req.body;
+    const { dependsOnIssueIds, startDate: startDateRaw, dueDate: dueDateRaw, ...createBody } = req.body;
     const issue = await svc.create(companyId, {
       ...createBody,
+      ...(startDateRaw !== undefined ? { startDate: startDateRaw ? new Date(startDateRaw) : null } : {}),
+      ...(dueDateRaw !== undefined ? { dueDate: dueDateRaw ? new Date(dueDateRaw) : null } : {}),
       createdByAgentId: actor.agentId,
       createdByUserId: actor.actorType === "user" ? actor.actorId : null,
     });
@@ -391,9 +401,11 @@ export function issueRoutes(db: Db, storage: StorageService) {
     });
 
     if (issue.assigneeAgentId) {
+      // Don't wake the assignee if the task has a future start date
+      const hasFutureStart = issue.startDate && new Date(issue.startDate) > new Date();
       // Only wake the assignee if the issue has no unresolved dependencies
       const unresolvedDeps = await svc.getUnresolvedDependencies(issue.id);
-      if (unresolvedDeps.length === 0) {
+      if (unresolvedDeps.length === 0 && !hasFutureStart) {
         void heartbeat
           .wakeup(issue.assigneeAgentId, {
             source: "assignment",
@@ -455,9 +467,15 @@ export function issueRoutes(db: Db, storage: StorageService) {
       }
     }
 
-    const { comment: commentBody, hiddenAt: hiddenAtRaw, ...updateFields } = req.body;
+    const { comment: commentBody, hiddenAt: hiddenAtRaw, startDate: startDateRaw, dueDate: dueDateRaw, ...updateFields } = req.body;
     if (hiddenAtRaw !== undefined) {
       updateFields.hiddenAt = hiddenAtRaw ? new Date(hiddenAtRaw) : null;
+    }
+    if (startDateRaw !== undefined) {
+      updateFields.startDate = startDateRaw ? new Date(startDateRaw) : null;
+    }
+    if (dueDateRaw !== undefined) {
+      updateFields.dueDate = dueDateRaw ? new Date(dueDateRaw) : null;
     }
     let issue;
     try {
