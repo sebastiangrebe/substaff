@@ -184,7 +184,7 @@ export function Dashboard() {
   const recentIssues = useMemo(() => issues ? getRecentIssues(issues) : [], [issues]);
   const completedIssues = useMemo(() => issues ? getRecentlyCompleted(issues) : [], [issues]);
   const currentWork = useMemo(
-    () => dedupeRunsByTask(liveRuns ?? []).filter((r) => r.issueId),
+    () => dedupeRunsByTask(liveRuns ?? []),
     [liveRuns],
   );
 
