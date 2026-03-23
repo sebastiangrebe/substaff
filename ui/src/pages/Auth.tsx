@@ -77,13 +77,13 @@ export function AuthPage() {
   if (isSessionLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
-        <div className="h-4 w-4 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
+        <div className="h-4 w-4 rounded-full border-2 border-foreground/20 border-t-foreground/70 animate-spin" />
       </div>
     );
   }
 
   const inputClasses =
-    "w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 py-2.5 text-sm text-white outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-white/20 transition-colors";
+    "w-full rounded-lg border border-foreground/[0.08] bg-foreground/[0.04] px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder:text-foreground/20 transition-colors";
 
   return (
     <div className="fixed inset-0 overflow-auto">
@@ -96,15 +96,15 @@ export function AuthPage() {
           {/* Logo */}
           <div className="flex items-center gap-2.5 mb-8">
             <img src="/logo.svg" alt="Substaff" className="h-7 w-7" />
-            <span className="text-base font-semibold text-white/90 tracking-tight">Substaff</span>
+            <span className="text-base font-semibold text-foreground/90 tracking-tight">Substaff</span>
           </div>
 
           {/* Glass card */}
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl shadow-2xl shadow-black/40 p-8">
-            <h1 className="text-2xl font-semibold text-white tracking-tight">
+          <div className="rounded-2xl border border-foreground/[0.08] bg-card/80 backdrop-blur-xl shadow-2xl shadow-black/10 dark:shadow-black/40 p-8">
+            <h1 className="text-2xl font-semibold text-foreground tracking-tight">
               {mode === "sign_in" ? "Sign in to Substaff" : "Create your account"}
             </h1>
-            <p className="mt-1.5 text-sm text-white/40">
+            <p className="mt-1.5 text-sm text-muted-foreground">
               {mode === "sign_in"
                 ? "Use your email and password to continue."
                 : "Create an account to get started."}
@@ -119,7 +119,7 @@ export function AuthPage() {
             >
               {mode === "sign_up" && (
                 <div>
-                  <label className="text-xs font-medium text-white/40 mb-1.5 block">Name</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Name</label>
                   <input
                     className={inputClasses}
                     value={name}
@@ -130,7 +130,7 @@ export function AuthPage() {
                 </div>
               )}
               <div>
-                <label className="text-xs font-medium text-white/40 mb-1.5 block">Email</label>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Email</label>
                 <input
                   className={inputClasses}
                   type="email"
@@ -141,7 +141,7 @@ export function AuthPage() {
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-white/40 mb-1.5 block">Password</label>
+                <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Password</label>
                 <input
                   className={inputClasses}
                   type="password"
@@ -160,11 +160,11 @@ export function AuthPage() {
               </Button>
             </form>
 
-            <div className="mt-5 text-sm text-white/40">
+            <div className="mt-5 text-sm text-muted-foreground">
               {mode === "sign_in" ? "Need an account?" : "Already have an account?"}{" "}
               <button
                 type="button"
-                className="font-medium text-white/70 hover:text-white underline underline-offset-2 transition-colors"
+                className="font-medium text-foreground/70 hover:text-foreground underline underline-offset-2 transition-colors"
                 onClick={() => {
                   setError(null);
                   setMode(mode === "sign_in" ? "sign_up" : "sign_in");
@@ -176,7 +176,7 @@ export function AuthPage() {
           </div>
 
           {/* Footer */}
-          <p className="mt-6 text-center text-xs text-white/30">
+          <p className="mt-6 text-center text-xs text-muted-foreground/60">
             Autonomous workforce management
           </p>
         </div>
