@@ -8,6 +8,7 @@ import { getUIAdapter } from "../adapters";
 import type { TranscriptEntry } from "../adapters";
 import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { cn, relativeTime } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { ExternalLink } from "lucide-react";
 import { Identity } from "./Identity";
 
@@ -390,7 +391,7 @@ function AgentRunCard({
     <div className={cn(
       "flex flex-col rounded-lg border overflow-hidden min-h-[200px]",
       isActive
-        ? "border-blue-500/30 bg-background/80 shadow-[0_0_12px_rgba(59,130,246,0.08)]"
+        ? `${live.border} bg-background/80 ${live.shadow}`
         : "border-border bg-background/50",
     )}>
       {/* Header */}
@@ -398,8 +399,8 @@ function AgentRunCard({
         <div className="flex items-center gap-2 min-w-0">
           {isActive ? (
             <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+              <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
+              <span className={cn("relative inline-flex rounded-full h-2 w-2", live.dot)} />
             </span>
           ) : (
             <span className="flex h-2 w-2 shrink-0">
@@ -408,7 +409,7 @@ function AgentRunCard({
           )}
           <Identity name={run.agentName} size="sm" />
           {isActive && (
-            <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400">Live</span>
+            <span className={cn("text-[11px] font-medium", live.text)}>Live</span>
           )}
         </div>
         <Link
@@ -426,7 +427,7 @@ function AgentRunCard({
             to={`/issues/${issue?.identifier ?? run.issueId}`}
             className={cn(
               "hover:underline min-w-0 truncate",
-              isActive ? "text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300" : "text-muted-foreground hover:text-foreground",
+              isActive ? `${live.text} ${live.textHover}` : "text-muted-foreground hover:text-foreground",
             )}
             title={issue?.title ? `${issue?.identifier ?? run.issueId.slice(0, 8)} - ${issue.title}` : issue?.identifier ?? run.issueId.slice(0, 8)}
           >

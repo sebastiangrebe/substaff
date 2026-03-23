@@ -3,6 +3,7 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { cn } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { CompanyPatternIcon } from "./CompanyPatternIcon";
 import {
   DropdownMenu,
@@ -98,8 +99,8 @@ export function CompanySwitcher() {
               {liveCount > 0 && (
                 <span className="flex items-center gap-1 shrink-0">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+                    <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
+                    <span className={cn("relative inline-flex rounded-full h-2 w-2", live.dot)} />
                   </span>
                 </span>
               )}

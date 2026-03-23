@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from "@/lib/router";
 import { cn } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { useSidebar, SidebarMenuButton } from "@/components/ui/sidebar";
 import { useCompany } from "@/context/CompanyContext";
 import { applyCompanyPrefix, normalizeCompanyPrefix } from "@/lib/company-routes";
@@ -59,10 +60,10 @@ export function SidebarNavItem({
         {liveCount != null && liveCount > 0 && (
           <span className="ml-auto flex items-center gap-1.5">
             <span className="relative flex h-4 w-4 items-center justify-center">
-              <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-blue-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+              <span className={cn("animate-ping absolute inline-flex h-2 w-2 rounded-full opacity-75", live.ping)} />
+              <span className={cn("relative inline-flex rounded-full h-2 w-2", live.dot)} />
             </span>
-            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">{liveCount} live</span>
+            <span className={cn("text-xs font-medium", live.text)}>{liveCount} live</span>
           </span>
         )}
         {badge != null && badge > 0 && (

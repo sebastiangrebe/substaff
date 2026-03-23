@@ -1,10 +1,10 @@
 import { cn } from "../lib/utils";
-import { statusBadge, statusBadgeDefault } from "../lib/status-colors";
+import { statusBadge, statusBadgeDefault, live } from "../lib/status-colors";
 import { statusLabel } from "../lib/labels";
 
 const dotColor: Record<string, string> = {
   active: "bg-emerald-500",
-  running: "bg-indigo-500 animate-pulse",
+  running: `${live.dot} animate-pulse`,
   idle: "bg-amber-500",
   paused: "bg-orange-500",
   error: "bg-rose-500",

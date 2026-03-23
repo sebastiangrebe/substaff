@@ -7,6 +7,7 @@ import { getUIAdapter } from "../adapters";
 import type { TranscriptEntry } from "../adapters";
 import { queryKeys } from "../lib/queryKeys";
 import { cn, relativeTime, formatDateTime } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { ExternalLink, Square } from "lucide-react";
 import { Identity } from "./Identity";
 import { StatusBadge } from "./StatusBadge";
@@ -519,7 +520,7 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
   const recent = feed.slice(-25);
 
   return (
-    <div className="rounded-lg border border-cyan-500/30 bg-background/80 overflow-hidden shadow-[0_0_12px_rgba(6,182,212,0.08)]">
+    <div className={cn("rounded-lg border bg-background/80 overflow-hidden", live.border, live.shadow)}>
       {runs.length > 0 ? (
         runs.map((run) => (
           <div key={run.id} className="flex items-center gap-3 px-3.5 py-2.5 border-b border-border/50 min-w-0">
@@ -574,10 +575,10 @@ export function LiveRunWidget({ issueId, companyId }: LiveRunWidgetProps) {
               item.tone === "error" && "text-red-600 dark:text-red-300",
               item.tone === "warn" && "text-amber-600 dark:text-amber-300",
               item.tone === "assistant" && "text-emerald-700 dark:text-emerald-200",
-              item.tone === "tool" && "text-cyan-600 dark:text-cyan-300",
+              item.tone === "tool" && live.text,
               item.tone === "info" && "text-foreground/80",
             )}>
-              <Identity name={item.agentName} size="sm" className="text-cyan-600 dark:text-cyan-400" />
+              <Identity name={item.agentName} size="sm" className={live.text} />
               <span className="text-muted-foreground"> [{item.runId.slice(0, 8)}] </span>
               <span className="break-words">{item.text}</span>
             </div>

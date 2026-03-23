@@ -19,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useCompany } from "../context/CompanyContext";
 import { useDialog } from "../context/DialogContext";
 import { cn } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { sharedQueries } from "../lib/queryKeys";
 import {
   Tooltip,
@@ -130,8 +131,8 @@ function SortableCompanyItem({
               {hasLiveAgents && (
                 <span className="pointer-events-none absolute -right-0.5 -top-0.5 z-10">
                   <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-80" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-500 ring-2 ring-background" />
+                    <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-80", live.ping)} />
+                    <span className={cn("relative inline-flex h-2.5 w-2.5 rounded-full ring-2 ring-background", live.dot)} />
                   </span>
                 </span>
               )}

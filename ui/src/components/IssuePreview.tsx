@@ -5,7 +5,8 @@ import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
 import { Identity } from "./Identity";
 import { Calendar, MessageSquare } from "lucide-react";
-import { relativeTime } from "../lib/utils";
+import { relativeTime, cn } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { issuesApi } from "../api/issues";
 import { queryKeys } from "../lib/queryKeys";
 
@@ -36,10 +37,10 @@ export function IssuePreview({ issue, agentName, isLive }: IssuePreviewProps) {
             {issue.identifier ?? issue.id.slice(0, 8)}
           </span>
           {isLive && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[10px] font-medium text-cyan-600 dark:text-cyan-400">
+            <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-medium", live.bg, live.border, live.text)}>
               <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-400" />
+                <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
+                <span className={cn("relative inline-flex rounded-full h-1.5 w-1.5", live.dot)} />
               </span>
               Running
             </span>

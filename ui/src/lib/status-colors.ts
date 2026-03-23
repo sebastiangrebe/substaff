@@ -42,7 +42,7 @@ export const issueStatusTextDefault = "text-muted-foreground";
 export const statusBadge: Record<string, string> = {
   // Agent statuses
   active: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300",
-  running: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300",
+  running: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
   paused: "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300",
   idle: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300",
   archived: "bg-muted text-muted-foreground",
@@ -83,7 +83,7 @@ export const statusBadgeDefault = "bg-muted text-muted-foreground";
 // ---------------------------------------------------------------------------
 
 export const agentStatusDot: Record<string, string> = {
-  running: "bg-indigo-400 animate-pulse",
+  running: "bg-emerald-400 animate-pulse",
   active: "bg-green-400",
   paused: "bg-yellow-400",
   idle: "bg-yellow-400",
@@ -106,3 +106,26 @@ export const priorityColor: Record<string, string> = {
 };
 
 export const priorityColorDefault = "text-yellow-600 dark:text-yellow-400";
+
+// ---------------------------------------------------------------------------
+// Live / running indicator tokens — used everywhere a "live" state is shown
+// (sidebar badges, agent dots, activity panels, kanban cards, etc.)
+// Import these instead of hardcoding blue/cyan/indigo colors.
+// ---------------------------------------------------------------------------
+
+export const live = {
+  /** Pulsing ping ring (animate-ping element) */
+  ping: "bg-emerald-400",
+  /** Solid indicator dot */
+  dot: "bg-emerald-500",
+  /** Text label ("Live", "N live", run count) */
+  text: "text-emerald-600 dark:text-emerald-400",
+  /** Hover text for links */
+  textHover: "hover:text-emerald-500 dark:hover:text-emerald-300",
+  /** Card border when active */
+  border: "border-emerald-500/30",
+  /** Card glow shadow when active */
+  shadow: "shadow-[0_0_12px_rgba(16,185,129,0.08)]",
+  /** Light background tint */
+  bg: "bg-emerald-500/10",
+} as const;

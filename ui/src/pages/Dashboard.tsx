@@ -15,6 +15,7 @@ import { PriorityIcon } from "../components/PriorityIcon";
 import { Identity } from "../components/Identity";
 import { timeAgo } from "../lib/timeAgo";
 import { cn } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Target, FolderKanban, AlertTriangle, CheckCircle2, Plus, ShieldCheck, CircleDot, Zap, ArrowRight, Bot, ListTodo, DollarSign, Users } from "lucide-react";
 import { PageSkeleton } from "../components/PageSkeleton";
@@ -564,7 +565,7 @@ export function Dashboard() {
             ) : (
               visibleAgents.slice(0, 8).map((agent: Agent) => {
                 const runCount = liveCountByAgent.get(agent.id) ?? 0;
-                const statusColor = runCount > 0 ? "bg-blue-500" : agent.status === "active" ? "bg-emerald-500" : agent.status === "paused" ? "bg-amber-500" : agent.status === "error" ? "bg-red-500" : "bg-muted-foreground/30";
+                const statusColor = runCount > 0 ? live.dot : agent.status === "active" ? "bg-emerald-500" : agent.status === "paused" ? "bg-amber-500" : agent.status === "error" ? "bg-red-500" : "bg-muted-foreground/30";
                 return (
                   <Link
                     key={agent.id}
@@ -577,10 +578,10 @@ export function Dashboard() {
                       {runCount > 0 ? (
                         <>
                           <span className="relative flex h-1.5 w-1.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                            <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
                             <span className={cn("relative inline-flex rounded-full h-1.5 w-1.5", statusColor)} />
                           </span>
-                          <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">{runCount}</span>
+                          <span className={cn("text-[10px] font-medium", live.text)}>{runCount}</span>
                         </>
                       ) : (
                         <span className={cn("inline-flex rounded-full h-1.5 w-1.5", statusColor)} />

@@ -23,6 +23,7 @@ import { EntityRow } from "../components/EntityRow";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { formatCents, formatDate, relativeTime, formatTokens } from "../lib/utils";
 import { cn } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -59,7 +60,7 @@ import { agentRouteRef } from "../lib/utils";
 const runStatusIcons: Record<string, { icon: typeof CheckCircle2; color: string }> = {
   succeeded: { icon: CheckCircle2, color: "text-green-600 dark:text-green-400" },
   failed: { icon: XCircle, color: "text-red-600 dark:text-red-400" },
-  running: { icon: Loader2, color: "text-cyan-600 dark:text-cyan-400" },
+  running: { icon: Loader2, color: live.text },
   queued: { icon: Clock, color: "text-yellow-600 dark:text-yellow-400" },
   timed_out: { icon: Timer, color: "text-orange-600 dark:text-orange-400" },
   cancelled: { icon: Slash, color: "text-neutral-500 dark:text-neutral-400" },
@@ -414,7 +415,7 @@ export function AgentDetail() {
               <span className={cn(
                 "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background",
                 agent.status === "active" ? "bg-emerald-500" :
-                agent.status === "running" ? "bg-indigo-500 animate-pulse" :
+                agent.status === "running" ? `${live.dot} animate-pulse` :
                 agent.status === "paused" ? "bg-orange-400" :
                 agent.status === "error" ? "bg-red-500" :
                 "bg-neutral-400"
@@ -434,13 +435,13 @@ export function AgentDetail() {
           {mobileLiveRun && (
             <Link
               to={`/agents/${canonicalAgentRef}/runs/${mobileLiveRun.id}`}
-              className="sm:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors no-underline"
+              className={cn("sm:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full hover:bg-emerald-500/20 transition-colors no-underline", live.bg)}
             >
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+                <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
+                <span className={cn("relative inline-flex rounded-full h-2 w-2", live.dot)} />
               </span>
-              <span className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400">Live</span>
+              <span className={cn("text-[11px] font-medium", live.text)}>Live</span>
             </Link>
           )}
         </div>
@@ -599,8 +600,8 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
         <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
           {isLive && (
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400" />
+              <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
+              <span className={cn("relative inline-flex rounded-full h-2 w-2", live.dot)} />
             </span>
           )}
           {isLive ? "Live Run" : "Latest Run"}
@@ -618,7 +619,7 @@ function LatestRunCard({ runs, agentId }: { runs: HeartbeatRun[]; agentId: strin
         className={cn(
           "block border rounded-xl p-4 w-full no-underline transition-all hover:border-border/80 cursor-pointer group",
           isLive
-            ? "border-cyan-500/30 bg-cyan-500/[0.03] shadow-[0_0_16px_rgba(6,182,212,0.06)]"
+            ? `${live.border} bg-emerald-500/[0.03] ${live.shadow}`
             : "border-border bg-card hover:bg-accent/30"
         )}
       >
@@ -1631,10 +1632,10 @@ function LogViewer({ run, adapterType, logMode, onLogModeChange }: { run: Heartb
             </button>
           </div>
           {isLive && (
-            <span className="flex items-center gap-1 text-xs text-cyan-400">
+            <span className={cn("flex items-center gap-1 text-xs", live.text)}>
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400" />
+                <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
+                <span className={cn("relative inline-flex rounded-full h-2 w-2", live.dot)} />
               </span>
               Live
             </span>

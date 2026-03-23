@@ -16,6 +16,7 @@ import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 import { useProjectOrder } from "../hooks/useProjectOrder";
 import { relativeTime, cn, formatTokens } from "../lib/utils";
+import { live } from "../lib/status-colors";
 import { InlineEditor } from "../components/InlineEditor";
 import { EntityAttachments } from "../components/EntityAttachments";
 import { CommentThread } from "../components/CommentThread";
@@ -616,10 +617,10 @@ export function IssueDetail() {
             </div>
 
             {hasLiveRuns && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-0.5 text-[10px] font-semibold text-cyan-600 dark:text-cyan-400 shrink-0 mt-1">
+              <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold shrink-0 mt-1", live.bg, live.border, live.text)}>
                 <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-cyan-400" />
+                  <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
+                  <span className={cn("relative inline-flex rounded-full h-1.5 w-1.5", live.dot)} />
                 </span>
                 Running
               </span>

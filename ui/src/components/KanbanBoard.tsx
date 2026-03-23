@@ -21,6 +21,7 @@ import { StatusIcon } from "./StatusIcon";
 import { PriorityIcon } from "./PriorityIcon";
 import { Identity } from "./Identity";
 import type { Issue } from "@substaff/shared";
+import { live } from "../lib/status-colors";
 
 const boardStatuses = [
   "backlog",
@@ -156,8 +157,8 @@ function KanbanCard({
           </span>
           {isLive && (
             <span className="relative flex h-2 w-2 shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${live.ping}`} />
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${live.dot}`} />
             </span>
           )}
         </div>

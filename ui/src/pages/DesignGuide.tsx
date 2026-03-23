@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { live } from "../lib/status-colors";
 import {
   BookOpen,
   Bot,
@@ -1061,10 +1062,10 @@ export function DesignGuide() {
           <div className="text-foreground">[12:00:17] INFO  Reconnected successfully</div>
           <div className="flex items-center gap-1.5">
             <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-cyan-400 animate-ping" />
-              <span className="inline-flex h-full w-full rounded-full bg-cyan-400" />
+              <span className={`absolute inline-flex h-full w-full rounded-full animate-ping ${live.ping}`} />
+              <span className={`inline-flex h-full w-full rounded-full ${live.dot}`} />
             </span>
-            <span className="text-cyan-400">Live</span>
+            <span className={live.text}>Live</span>
           </div>
         </div>
       </Section>

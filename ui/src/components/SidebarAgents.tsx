@@ -8,6 +8,7 @@ import { agentsApi } from "../api/agents";
 import { queryKeys, sharedQueries } from "../lib/queryKeys";
 import { cn, agentRouteRef, agentUrl } from "../lib/utils";
 import { AgentIcon } from "./AgentIconPicker";
+import { live } from "../lib/status-colors";
 import {
   Collapsible,
   CollapsibleContent,
@@ -38,7 +39,7 @@ function sortByHierarchy(agents: Agent[]): Agent[] {
 
 const statusDotColor: Record<string, string> = {
   active: "bg-emerald-500",
-  running: "bg-cyan-400",
+  running: live.dot,
   paused: "bg-amber-400",
   error: "bg-red-500",
   idle: "bg-muted-foreground/30",
@@ -116,7 +117,7 @@ export function SidebarAgents() {
                     const runCount = liveCountByAgent.get(agent.id) ?? 0;
                     const isWorking = runCount > 0;
                     const dotColor = isWorking
-                      ? "bg-cyan-400"
+                      ? live.dot
                       : statusDotColor[agent.status] ?? statusDotColor.idle;
 
                     return (
@@ -138,7 +139,7 @@ export function SidebarAgents() {
                             </span>
                             <span className="truncate">{agent.name}</span>
                             {isWorking && (
-                              <span className="ml-auto text-[10px] font-medium text-cyan-600 dark:text-cyan-400 tabular-nums shrink-0">
+                              <span className={cn("ml-auto text-[10px] font-medium tabular-nums shrink-0", live.text)}>
                                 {runCount}
                               </span>
                             )}
