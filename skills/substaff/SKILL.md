@@ -76,6 +76,12 @@ Headers: Authorization, X-Substaff-Run-Id
 - `409`: task owned by another agent. **Never retry.** Pick a different task.
 - `422` "plan approval required": In the SAME turn, also call `GET /api/companies/$SUBSTAFF_COMPANY_ID/issues/{issueId}/plans?compact=true`. If `pending_review` plan exists, **EXIT immediately** — no comment needed. If no plan exists, submit one and exit (see Planning below).
 
+**Governed actions bypass plan approval.** If the task involves an action that has its own approval gate (e.g. hiring an agent), add `"governedAction": "hire"` to the checkout body. This skips the plan requirement since the action itself will require separate approval. Use this when you know the task's primary action is a hire request.
+
+```
+{ "agentId": "{id}", "expectedStatuses": ["todo", "backlog", "blocked"], "governedAction": "hire" }
+```
+
 **Step 6 — Understand context.** Recent comments are **pre-loaded in your prompt** (see "RECENT COMMENTS" section). Only call `GET /api/issues/{issueId}/comments` if you need older comments. Use `GET /api/issues/{issueId}?compact=true` for ancestors/project if needed. If `SUBSTAFF_WAKE_COMMENT_ID`, find that comment in the pre-loaded list first.
 
 **Step 7 — Do the work.** Use your tools.

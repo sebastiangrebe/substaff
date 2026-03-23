@@ -736,9 +736,11 @@ export function issueRoutes(db: Db, storage: StorageService) {
       return;
     }
 
-    // Block checkout if plan approval is required but no approved plan exists
+    // Block checkout if plan approval is required but no approved plan exists.
+    // Skip this gate when the agent declares a governed action (e.g. "hire") that
+    // has its own separate approval flow, avoiding redundant double-approval.
     const company = await companySvc.getById(issue.companyId);
-    if (company?.requirePlanApproval) {
+    if (company?.requirePlanApproval && !req.body.governedAction) {
       const hasApproved = await svc.hasApprovedPlan(id);
       if (!hasApproved) {
         res.status(422).json({

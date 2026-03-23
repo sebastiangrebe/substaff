@@ -43,9 +43,14 @@ export const updateIssueSchema = createIssueSchema.partial().extend({
 
 export type UpdateIssue = z.infer<typeof updateIssueSchema>;
 
+/** Action types that have their own approval gates, bypassing the plan requirement. */
+const GOVERNED_ACTIONS = ["hire"] as const;
+
 export const checkoutIssueSchema = z.object({
   agentId: z.string().uuid(),
   expectedStatuses: z.array(z.enum(ISSUE_STATUSES)).nonempty(),
+  /** When set to a governed action (e.g. "hire"), the plan approval requirement is skipped because the action itself has its own approval gate. */
+  governedAction: z.enum(GOVERNED_ACTIONS).optional(),
 });
 
 export type CheckoutIssue = z.infer<typeof checkoutIssueSchema>;
