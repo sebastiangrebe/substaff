@@ -467,7 +467,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                     hint={help.heartbeatInterval}
                     checked={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
                     onCheckedChange={(v) => mark("heartbeat", "enabled", v)}
-                    number={eff("heartbeat", "intervalSec", Number(heartbeat.intervalSec ?? 300))}
+                    number={eff("heartbeat", "intervalSec", Number(heartbeat.intervalSec ?? 3600))}
                     onNumberChange={(v) => mark("heartbeat", "intervalSec", v)}
                     numberLabel="sec"
                     numberPrefix="Run every"
@@ -584,7 +584,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 hint={help.heartbeatInterval}
                 checked={eff("heartbeat", "enabled", heartbeat.enabled !== false)}
                 onCheckedChange={(v) => mark("heartbeat", "enabled", v)}
-                number={eff("heartbeat", "intervalSec", Number(heartbeat.intervalSec ?? 300))}
+                number={eff("heartbeat", "intervalSec", Number(heartbeat.intervalSec ?? 3600))}
                 onNumberChange={(v) => mark("heartbeat", "intervalSec", v)}
                 numberLabel="sec"
                 numberPrefix="Run every"

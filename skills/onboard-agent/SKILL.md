@@ -99,7 +99,7 @@ curl -sS -X PATCH "$SUBSTAFF_API_URL/api/agents/{newAgentId}" \
   -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
   -H "Content-Type: application/json" \
   -H "X-Substaff-Run-Id: $SUBSTAFF_RUN_ID" \
-  -d '{"runtimeConfig": {"heartbeat": {"enabled": false, "intervalSec": 300, "wakeOnDemand": true, "maxConcurrentRuns": 1}}}'
+  -d '{"runtimeConfig": {"heartbeat": {"enabled": false, "intervalSec": 3600, "wakeOnDemand": true, "maxConcurrentRuns": 1}}}'
 
 # For leadership agents (CEO, CTO — periodic oversight heartbeat):
 curl -sS -X PATCH "$SUBSTAFF_API_URL/api/agents/{newAgentId}" \

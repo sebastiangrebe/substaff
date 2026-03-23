@@ -43,7 +43,7 @@ Request body matches agent create shape:
   "runtimeConfig": {
     "heartbeat": {
       "enabled": false,
-      "intervalSec": 300,
+      "intervalSec": 3600,
       "wakeOnDemand": true
     }
   },

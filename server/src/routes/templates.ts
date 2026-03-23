@@ -109,7 +109,7 @@ export function templateRoutes(db: Db) {
           runtimeConfig: {
             heartbeat: {
               enabled: classification === "leadership",
-              intervalSec: classification === "leadership" ? 3600 : 300,
+              intervalSec: 3600,
               wakeOnDemand: true,
               cooldownSec: 10,
               maxConcurrentRuns: 1,

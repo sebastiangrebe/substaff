@@ -67,7 +67,7 @@ curl -sS -X POST "$SUBSTAFF_API_URL/api/companies/$SUBSTAFF_COMPANY_ID/agent-hir
     "capabilities": "Owns technical roadmap, architecture, staffing, execution",
     "adapterType": "e2b_sandbox",
     "adapterConfig": {"template": "substaff-claude", "model": "claude-sonnet-4-6", "timeoutSec": 600},
-    "runtimeConfig": {"heartbeat": {"enabled": false, "intervalSec": 300, "wakeOnDemand": true, "maxConcurrentRuns": 1}},
+    "runtimeConfig": {"heartbeat": {"enabled": false, "intervalSec": 3600, "wakeOnDemand": true, "maxConcurrentRuns": 1}},
     "integrations": ["meta", "google-drive"],
     "sourceIssueId": "<issue-id>"
   }'
