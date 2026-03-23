@@ -38,7 +38,7 @@ import {
   ChevronDown,
   ChevronRight,
   Coins,
-  EyeOff,
+  Trash2,
   FileText,
   Hexagon,
   Link2,
@@ -551,6 +551,14 @@ export function IssueDetail() {
     },
   });
 
+  const deleteIssue = useMutation({
+    mutationFn: () => issuesApi.remove(issueId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.issues.list(issue?.companyId ?? "") });
+      navigate("/issues");
+    },
+  });
+
   if (isLoading) return <PageSkeleton variant="detail" />;
   if (error) return <p className="text-sm text-destructive">{error.message}</p>;
   if (!issue) return null;
@@ -580,12 +588,6 @@ export function IssueDetail() {
         </nav>
       )}
 
-      {issue.hiddenAt && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-sm text-destructive mb-4">
-          <EyeOff className="h-4 w-4 shrink-0" />
-          This task is hidden
-        </div>
-      )}
 
       {/* ── Two-column layout: details left, comments right ── */}
       <div className="flex flex-col lg:flex-row gap-6">
@@ -637,15 +639,14 @@ export function IssueDetail() {
                   <button
                     className="flex items-center gap-2 w-full px-2 py-1.5 text-xs rounded hover:bg-accent/40 text-destructive"
                     onClick={() => {
-                      updateIssue.mutate(
-                        { hiddenAt: new Date().toISOString() },
-                        { onSuccess: () => navigate("/issues/all") },
-                      );
+                      if (window.confirm("Are you sure you want to delete this task?")) {
+                        deleteIssue.mutate();
+                      }
                       setMoreOpen(false);
                     }}
                   >
-                    <EyeOff className="h-3 w-3" />
-                    Hide this task
+                    <Trash2 className="h-3 w-3" />
+                    Delete task
                   </button>
                 </PopoverContent>
               </Popover>

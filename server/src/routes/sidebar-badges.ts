@@ -1,5 +1,5 @@
 import type { Db } from "@substaff/db";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { issues, joinRequests } from "@substaff/db";
 import { OPEN_ISSUE_STATUSES } from "@substaff/shared";
 import { sidebarBadgeService } from "../services/sidebar-badges.js";
@@ -39,7 +39,6 @@ export function sidebarBadgeRoutes(db: Db) {
               eq(issues.companyId, companyId),
               eq(issues.assigneeUserId, req.actor.userId),
               inArray(issues.status, [...OPEN_ISSUE_STATUSES]),
-              isNull(issues.hiddenAt),
             ),
           )
           .then((rows) => Number(rows[0]?.count ?? 0))

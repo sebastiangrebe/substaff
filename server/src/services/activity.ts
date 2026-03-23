@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { activityLog, heartbeatRuns, issues } from "@substaff/db";
 
@@ -38,10 +38,6 @@ export function activityService(db: Db) {
         .where(
           and(
             ...conditions,
-            or(
-              sql`${activityLog.entityType} != 'issue'`,
-              isNull(issues.hiddenAt),
-            ),
           ),
         )
         .orderBy(desc(activityLog.createdAt))
@@ -125,7 +121,6 @@ export function activityService(db: Db) {
             eq(activityLog.companyId, run.companyId),
             eq(activityLog.runId, runId),
             eq(activityLog.entityType, "issue"),
-            isNull(issues.hiddenAt),
           ),
         )
         .orderBy(issueIdAsText);
@@ -151,7 +146,6 @@ export function activityService(db: Db) {
           and(
             eq(issues.companyId, run.companyId),
             eq(issues.id, contextIssueId),
-            isNull(issues.hiddenAt),
           ),
         )
         .then((rows) => rows[0] ?? null);

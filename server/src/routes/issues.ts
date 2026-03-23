@@ -467,10 +467,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       }
     }
 
-    const { comment: commentBody, hiddenAt: hiddenAtRaw, startDate: startDateRaw, dueDate: dueDateRaw, ...updateFields } = req.body;
-    if (hiddenAtRaw !== undefined) {
-      updateFields.hiddenAt = hiddenAtRaw ? new Date(hiddenAtRaw) : null;
-    }
+    const { comment: commentBody, startDate: startDateRaw, dueDate: dueDateRaw, ...updateFields } = req.body;
     if (startDateRaw !== undefined) {
       updateFields.startDate = startDateRaw ? new Date(startDateRaw) : null;
     }

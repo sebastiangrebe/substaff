@@ -332,7 +332,6 @@ export function issueService(db: Db) {
           )!,
         );
       }
-      conditions.push(isNull(issues.hiddenAt));
 
       const priorityCaseSql = sql.raw(ISSUE_PRIORITIES.map((p, i) => `WHEN '${p}' THEN ${i}`).join(" "));
       const priorityOrder = sql`CASE ${issues.priority} ${priorityCaseSql} ELSE ${ISSUE_PRIORITIES.length} END`;
@@ -1242,7 +1241,6 @@ export function issueService(db: Db) {
           and(
             eq(issues.companyId, companyId),
             eq(issues.status, "in_progress"),
-            isNull(issues.hiddenAt),
             sql`${issues.startedAt} < ${cutoff.toISOString()}`,
           ),
         )
