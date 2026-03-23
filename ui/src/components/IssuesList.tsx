@@ -703,7 +703,7 @@ export function IssuesList({
                         <span className={cn("text-[11px] font-medium hidden sm:inline", live.text)}>Live</span>
                       </span>
                     )}
-                    <div className="hidden sm:block" onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                    <div className="hidden sm:block" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                       <Popover
                         open={assigneePickerIssueId === issue.id}
                         onOpenChange={(open) => {
