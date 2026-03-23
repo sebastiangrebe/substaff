@@ -91,14 +91,22 @@ Confirm all four files are listed.
 
 ### Step 4 — Activate the agent's heartbeat
 
-Enable the heartbeat so the agent starts receiving wakeups:
+Enable wakeOnDemand so the agent receives task-triggered wakeups. Only enable the recurring heartbeat timer (`enabled: true`) for **leadership agents** (CEO, CTO) who need to run periodic oversight. Non-leadership agents (IC roles) should keep `enabled: false` and rely on `wakeOnDemand` — they'll be woken when tasks are assigned or comments are posted.
 
 ```sh
+# For IC agents (default — no recurring timer, wake on demand only):
 curl -sS -X PATCH "$SUBSTAFF_API_URL/api/agents/{newAgentId}" \
   -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
   -H "Content-Type: application/json" \
   -H "X-Substaff-Run-Id: $SUBSTAFF_RUN_ID" \
-  -d '{"runtimeConfig": {"heartbeat": {"enabled": true, "intervalSec": 300, "wakeOnDemand": true, "maxConcurrentRuns": 1}}}'
+  -d '{"runtimeConfig": {"heartbeat": {"enabled": false, "intervalSec": 300, "wakeOnDemand": true, "maxConcurrentRuns": 1}}}'
+
+# For leadership agents (CEO, CTO — periodic oversight heartbeat):
+curl -sS -X PATCH "$SUBSTAFF_API_URL/api/agents/{newAgentId}" \
+  -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Substaff-Run-Id: $SUBSTAFF_RUN_ID" \
+  -d '{"runtimeConfig": {"heartbeat": {"enabled": true, "intervalSec": 3600, "wakeOnDemand": true, "maxConcurrentRuns": 1}}}'
 ```
 
 ### Step 5 — Assign initial work
