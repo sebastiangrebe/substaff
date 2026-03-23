@@ -439,8 +439,9 @@ export function issueRoutes(db: Db, storage: StorageService) {
     }
     if (!(await assertAgentRunCheckoutOwnership(req, res, existing))) return;
 
-    // Block status transitions to done/in_progress when plan approval is required but no approved plan exists
-    if (req.body.status && (req.body.status === "done" || req.body.status === "in_progress")) {
+    // Block status transitions to done/in_progress when plan approval is required but no approved plan exists.
+    // Skip when the agent declares a governed action that has its own approval gate.
+    if (req.body.status && (req.body.status === "done" || req.body.status === "in_progress") && !req.body.governedAction) {
       const company = await companySvc.getById(existing.companyId);
       if (company?.requirePlanApproval) {
         const hasApproved = await svc.hasApprovedPlan(id);

@@ -331,8 +331,8 @@ export function Dashboard() {
                 >
                   {isActive ? (
                     <span className="relative flex h-2 w-2 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
+                      <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", live.ping)} />
+                      <span className={cn("relative inline-flex rounded-full h-2 w-2", live.dot)} />
                     </span>
                   ) : (
                     <span className="flex h-2 w-2 shrink-0">

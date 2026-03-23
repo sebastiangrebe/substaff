@@ -36,15 +36,16 @@ export const createIssueLabelSchema = z.object({
 
 export type CreateIssueLabel = z.infer<typeof createIssueLabelSchema>;
 
+/** Action types that have their own approval gates, bypassing the plan requirement. */
+const GOVERNED_ACTIONS = ["hire"] as const;
+
 export const updateIssueSchema = createIssueSchema.partial().extend({
   comment: z.string().min(1).optional(),
   hiddenAt: z.string().datetime().nullable().optional(),
+  governedAction: z.enum(GOVERNED_ACTIONS).optional(),
 });
 
 export type UpdateIssue = z.infer<typeof updateIssueSchema>;
-
-/** Action types that have their own approval gates, bypassing the plan requirement. */
-const GOVERNED_ACTIONS = ["hire"] as const;
 
 export const checkoutIssueSchema = z.object({
   agentId: z.string().uuid(),
