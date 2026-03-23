@@ -96,6 +96,7 @@ export function integrationService(db: Db) {
     let authConfigId: string;
     const existing = await composio.authConfigs.list({ toolkit: input.appName });
     const existingItems = existing?.items ?? [];
+    console.log("[composio] authConfigs.list for", input.appName, "→", existingItems.length, "items", existingItems.map((i: any) => ({ id: i.id, type: i.type, authScheme: i.authScheme })));
     if (existingItems.length > 0) {
       authConfigId = existingItems[0].id;
     } else {
@@ -104,10 +105,12 @@ export function integrationService(db: Db) {
         type: "use_composio_managed_auth",
       });
       authConfigId = created.id;
+      console.log("[composio] created auth config", authConfigId, "type=use_composio_managed_auth");
     }
 
     // Fetch full auth config details to know the auth scheme
     const authConfig: any = await composio.authConfigs.get(authConfigId);
+    console.log("[composio] authConfig details:", { id: authConfigId, authScheme: authConfig.authScheme, expectedInputFields: authConfig.expectedInputFields, type: authConfig.type });
 
     // Build typed config using AuthScheme helpers when connection params are provided
     const initiateOptions: any = {
@@ -144,6 +147,7 @@ export function integrationService(db: Db) {
     // required fields (e.g. Shopify store subdomain), use the auth config's
     // expectedInputFields to build a form for the user — Composio tells us
     // exactly what's needed, no hardcoded field lists.
+    console.log("[composio] initiateOptions:", JSON.stringify(initiateOptions, null, 2));
     let connectionRequest;
     try {
       connectionRequest = await composio.connectedAccounts.initiate(
@@ -151,10 +155,12 @@ export function integrationService(db: Db) {
         authConfigId,
         initiateOptions,
       );
+      console.log("[composio] initiate success:", { id: connectionRequest.id, status: connectionRequest.status, redirectUrl: connectionRequest.redirectUrl });
     } catch (err: any) {
       const body = err?.body ?? err?.response?.data ?? err;
       const errMsg: string = body?.error?.message ?? body?.message ?? err?.message ?? "";
       const slug: string = body?.error?.slug ?? "";
+      console.log("[composio] initiate error:", { slug, errMsg, bodyKeys: Object.keys(body ?? {}), fullBody: JSON.stringify(body).slice(0, 500) });
 
       if (slug === "ConnectedAccount_MissingRequiredFields" || errMsg.includes("Missing required fields")) {
         // Use expectedInputFields from the auth config which has proper field names/keys
@@ -301,9 +307,32 @@ export function integrationService(db: Db) {
       ? providerFilter
       : activeConnections.map((c) => c.provider);
 
+    console.log("[composio] getMcpConfig: creating session for companyId=", companyId, "toolkits=", toolkits, "activeConnections=", activeConnections.map((c) => ({ id: c.id, provider: c.provider, composioId: c.composioConnectedAccountId })));
+
+    // Check the actual status of each connected account on Composio's side
+    for (const conn of activeConnections) {
+      try {
+        const account = await composio.connectedAccounts.get(conn.composioConnectedAccountId!);
+        console.log("[composio] connectedAccount status for", conn.provider, ":", { id: conn.composioConnectedAccountId, status: (account as any).status, isActive: (account as any).isActive, authScheme: (account as any).authScheme, toolkit: (account as any).toolkit?.slug ?? (account as any).appName });
+      } catch (err: any) {
+        console.log("[composio] connectedAccount check FAILED for", conn.provider, ":", err?.message ?? err);
+      }
+    }
+
+    // Build a map of toolkit → connectedAccountId so Composio's session
+    // uses the exact connections we have stored, not its own lookup.
+    const connectedAccounts: Record<string, string> = {};
+    for (const conn of activeConnections) {
+      if (conn.composioConnectedAccountId) {
+        connectedAccounts[conn.provider] = conn.composioConnectedAccountId;
+      }
+    }
+
     const session = await composio.create(companyId, {
       toolkits,
+      connectedAccounts,
     });
+    console.log("[composio] session created:", { mcpUrl: session.mcp.url });
 
     const mcpServers: Record<string, { type: string; url: string; headers: Record<string, string> }> = {
       composio: {
