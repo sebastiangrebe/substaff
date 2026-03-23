@@ -703,7 +703,7 @@ export function IssuesList({
                         <span className={cn("text-[11px] font-medium hidden sm:inline", live.text)}>Live</span>
                       </span>
                     )}
-                    <div className="hidden sm:block">
+                    <div className="hidden sm:block" onClickCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}>
                       <Popover
                         open={assigneePickerIssueId === issue.id}
                         onOpenChange={(open) => {
@@ -714,10 +714,6 @@ export function IssuesList({
                         <PopoverTrigger asChild>
                           <button
                             className="flex w-[180px] shrink-0 items-center rounded-md px-2 py-1 hover:bg-accent/40 transition-colors"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
                           >
                             {issue.assigneeAgentId && agentName(issue.assigneeAgentId) ? (
                               <Identity name={agentName(issue.assigneeAgentId)!} size="sm" />
@@ -734,7 +730,7 @@ export function IssuesList({
                         <PopoverContent
                           className="w-56 p-1"
                           align="end"
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onClick={(e) => e.stopPropagation()}
                           onPointerDownOutside={() => setAssigneeSearch("")}
                         >
                           <input
