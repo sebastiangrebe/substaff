@@ -21,12 +21,15 @@ COPY packages/adapters/blaxel-sandbox/package.json packages/adapters/blaxel-sand
 COPY packages/adapters/openclaw/package.json packages/adapters/openclaw/
 COPY packages/adapters/opencode-local/package.json packages/adapters/opencode-local/
 COPY packages/storage/package.json packages/storage/
+COPY packages/app-core/package.json packages/app-core/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS build
 WORKDIR /app
 COPY --from=deps /app /app
 COPY . .
+RUN pnpm --filter @substaff/shared build
+RUN pnpm --filter @substaff/app-core build
 RUN pnpm --filter @substaff/ui build
 RUN pnpm --filter @substaff/server build
 
