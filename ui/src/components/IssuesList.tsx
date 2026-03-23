@@ -715,6 +715,7 @@ export function IssuesList({
                           <button
                             className="flex w-[180px] shrink-0 items-center rounded-md px-2 py-1 hover:bg-accent/40 transition-colors"
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                             }}
                           >
@@ -733,7 +734,7 @@ export function IssuesList({
                         <PopoverContent
                           className="w-56 p-1"
                           align="end"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                           onPointerDownOutside={() => setAssigneeSearch("")}
                         >
                           <input
