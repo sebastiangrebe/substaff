@@ -317,6 +317,12 @@ export function agentService(db: Db) {
       const existing = await getById(id);
       if (!existing) return null;
 
+      // Reassign direct reports to the terminated agent's own manager
+      await db
+        .update(agents)
+        .set({ reportsTo: existing.reportsTo ?? null, updatedAt: new Date() })
+        .where(eq(agents.reportsTo, id));
+
       await db
         .update(agents)
         .set({ status: "terminated", updatedAt: new Date() })

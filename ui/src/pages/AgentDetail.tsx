@@ -321,7 +321,9 @@ export function AgentDetail() {
           queryClient.invalidateQueries({ queryKey: queryKeys.heartbeats(resolvedCompanyId, agent.id) });
         }
       }
-      if (action === "invoke" && data && typeof data === "object" && "id" in data) {
+      if (action === "terminate") {
+        navigate("/org-chart");
+      } else if (action === "invoke" && data && typeof data === "object" && "id" in data) {
         navigate(`/agents/${canonicalAgentRef}/runs/${(data as HeartbeatRun).id}`);
       }
     },
