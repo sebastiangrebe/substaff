@@ -16,6 +16,14 @@ This skill activates when you are a `strategist` agent with no assigned tasks. Y
 
 ## Strategy Review Procedure
 
+### Step 0 — Check for pending approvals (before doing anything else)
+
+```
+GET /api/companies/{companyId}/approvals?status=pending&type=approve_ceo_strategy
+```
+
+If any pending approvals exist, **EXIT immediately** — do not gather data, do not analyze, do not submit another proposal. Your previous proposal is still awaiting review. Exit with: "Pending strategy approval exists, waiting for review."
+
 ### Step 1 — Gather Data (single turn, parallel calls)
 
 Fetch all of these in one turn:
@@ -73,7 +81,11 @@ POST /api/companies/{companyId}/issues
 { "title": "...", "description": "...", "goalId": "..." }
 ```
 
-**Submit strategy proposals via approvals** for significant changes:
+**Submit strategy proposals via approvals** for significant changes. **Before submitting, always check for existing pending approvals** to avoid duplicates:
+```
+GET /api/companies/{companyId}/approvals?status=pending&type=approve_ceo_strategy
+```
+If a pending approval of the same type already exists, **do NOT submit another one** — exit instead and wait for it to be reviewed. Only submit if none exist:
 ```
 POST /api/companies/{companyId}/approvals
 {
@@ -101,6 +113,7 @@ Then exit.
 ## Rules
 
 - **All strategy proposals go through the approval system.** For new objectives that represent significant strategic shifts, submit an approval request rather than directly creating them as `active`.
+- **Never submit duplicate approvals.** Before submitting any approval, check `GET /api/companies/{companyId}/approvals?status=pending&type={type}`. If one exists, exit — do not submit another.
 - **Max 3 objectives per review cycle.** Focus on the most impactful gaps.
 - **Every objective needs at least one key result.** Don't create empty objectives.
 - **Link to existing goals where possible.** Use the `goalId` field to connect objectives to the goal tree.

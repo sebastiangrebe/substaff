@@ -37,7 +37,8 @@ export function approvalRoutes(db: Db) {
   router.get("/companies/:companyId/approvals", async (req, res) => {
     const companyId = req.params.companyId as string;
     const status = req.query.status as string | undefined;
-    const result = await svc.list(companyId, status);
+    const type = req.query.type as string | undefined;
+    const result = await svc.list(companyId, status, type);
     res.json(result.map((approval) => redactApprovalPayload(approval)));
   });
 
