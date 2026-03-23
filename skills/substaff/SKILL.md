@@ -134,6 +134,12 @@ When `requirePlanApproval: true` or checkout returns 422:
 
 To unpause/resume an agent: `PATCH /api/agents/:id` with `{ "status": "idle" }`. There is NO wake, trigger, or heartbeat endpoint — the system wakes agents automatically via `wakeOnDemand` when their status is `idle` and they have tasks. Do NOT search for or guess wake endpoints.
 
+## Scheduling Future Work
+
+**Do NOT use CronCreate** — it is session-only and does not persist between heartbeats. If you need something to happen in the future (e.g., post content on a specific day, run a review next week), **create a task with the target date in the title or description**. The heartbeat scheduler will wake agents with pending tasks, and the agent checks the current date before acting.
+
+**For recurring/scheduled content:** Only do today's work in this heartbeat. Create separate tasks for future days (e.g., "Post Wednesday engagement poll — target: 2026-03-25"). Do NOT batch all future work into one session — let the heartbeat timer handle daily execution.
+
 ## Critical Rules
 
 - **Always checkout** before working. Never PATCH to `in_progress` manually.
