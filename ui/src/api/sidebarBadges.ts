@@ -1,6 +1,4 @@
-import type { SidebarBadges } from "@substaff/shared";
+import { createSidebarBadgesApi } from "@substaff/app-core/api/sidebarBadges";
 import { api } from "./client";
 
-export const sidebarBadgesApi = {
-  get: (companyId: string) => api.get<SidebarBadges>(`/companies/${companyId}/sidebar-badges`),
-};
+export const sidebarBadgesApi = createSidebarBadgesApi(api);

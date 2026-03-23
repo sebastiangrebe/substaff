@@ -168,6 +168,9 @@ let resolveSession:
 let resolveSessionFromHeaders:
   | ((headers: Headers) => Promise<BetterAuthSessionResult | null>)
   | undefined;
+let signInEmail:
+  | ((email: string, password: string) => Promise<{ user: { id: string; email: string } } | null>)
+  | undefined;
 {
   const {
     createBetterAuthHandler,
@@ -186,6 +189,19 @@ let resolveSessionFromHeaders:
   betterAuthHandler = createBetterAuthHandler(auth);
   resolveSession = (req) => resolveBetterAuthSession(auth, req);
   resolveSessionFromHeaders = (headers) => resolveBetterAuthSessionFromHeaders(auth, headers);
+  signInEmail = async (email: string, password: string) => {
+    try {
+      const api = (auth as unknown as { api?: { signInEmail?: (input: unknown) => Promise<unknown> } }).api;
+      if (!api?.signInEmail) return null;
+      const result = await api.signInEmail({ body: { email, password } });
+      if (!result || typeof result !== "object") return null;
+      const { user } = result as { user?: { id?: string; email?: string } };
+      if (!user?.id || !user?.email) return null;
+      return { user: { id: user.id, email: user.email } };
+    } catch {
+      return null;
+    }
+  };
   authReady = true;
 }
 
@@ -200,6 +216,7 @@ const app = await createApp(db as any, {
   maxSignupUsers: config.maxSignupUsers,
   betterAuthHandler,
   resolveSession,
+  signInEmail,
 });
 const server = createServer(app);
 const listenPort = await detectPort(config.port);

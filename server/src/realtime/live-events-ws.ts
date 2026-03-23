@@ -7,6 +7,7 @@ import { agentApiKeys, companies, companyMemberships, vendorMemberships } from "
 import type { DeploymentMode } from "@substaff/shared";
 import { WebSocket, WebSocketServer } from "ws";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
+import { verifyUserToken } from "../auth/user-token.js";
 import { logger } from "../middleware/logger.js";
 import { subscribeCompanyLiveEvents } from "../services/live-events.js";
 
@@ -130,6 +131,45 @@ async function authorizeUpgrade(
     .then((rows) => rows[0] ?? null);
 
   if (!key || key.companyId !== companyId) {
+    // Try as user bearer token (JWT with type: "user_token")
+    const userClaims = verifyUserToken(token);
+    if (userClaims) {
+      const userId = userClaims.sub;
+      const [vendorOwnerRow, memberships] = await Promise.all([
+        db
+          .select({ id: vendorMemberships.id })
+          .from(vendorMemberships)
+          .innerJoin(companies, eq(companies.vendorId, vendorMemberships.vendorId))
+          .where(
+            and(
+              eq(companies.id, companyId),
+              eq(vendorMemberships.userId, userId),
+              eq(vendorMemberships.role, "owner"),
+            ),
+          )
+          .then((rows) => rows[0] ?? null),
+        db
+          .select({ companyId: companyMemberships.companyId })
+          .from(companyMemberships)
+          .where(
+            and(
+              eq(companyMemberships.principalType, "user"),
+              eq(companyMemberships.principalId, userId),
+              eq(companyMemberships.status, "active"),
+            ),
+          ),
+      ]);
+
+      const hasCompanyMembership = memberships.some((row) => row.companyId === companyId);
+      if (!vendorOwnerRow && !hasCompanyMembership) return null;
+
+      return {
+        companyId,
+        actorType: "board",
+        actorId: userId,
+      };
+    }
+
     return null;
   }
 

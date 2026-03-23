@@ -41,6 +41,7 @@ import { chatRoutes } from "./routes/chat.js";
 import { strategyRoutes } from "./routes/strategy.js";
 import { avatarRoutes } from "./routes/avatar.js";
 import type { BetterAuthSessionResult } from "./auth/better-auth.js";
+import { createUserToken } from "./auth/user-token.js";
 
 type UiMode = "none" | "static" | "vite-dev";
 
@@ -55,6 +56,7 @@ export async function createApp(
     maxSignupUsers?: number;
     betterAuthHandler?: express.RequestHandler;
     resolveSession?: (req: ExpressRequest) => Promise<BetterAuthSessionResult | null>;
+    signInEmail?: (email: string, password: string) => Promise<{ user: { id: string; email: string } } | null>;
   },
 ) {
   const app = express();
@@ -121,6 +123,30 @@ export async function createApp(
       },
     });
   });
+  // Bearer token endpoint for mobile/API clients
+  app.post("/api/auth/token", async (req, res) => {
+    if (!opts.signInEmail) {
+      res.status(501).json({ error: "Token authentication not available" });
+      return;
+    }
+    const { email, password } = req.body ?? {};
+    if (!email || !password || typeof email !== "string" || typeof password !== "string") {
+      res.status(400).json({ error: "Email and password are required" });
+      return;
+    }
+    const result = await opts.signInEmail(email, password);
+    if (!result) {
+      res.status(401).json({ error: "Invalid email or password" });
+      return;
+    }
+    const token = createUserToken(result.user.id, result.user.email);
+    if (!token) {
+      res.status(500).json({ error: "Token generation failed — signing secret not configured" });
+      return;
+    }
+    res.json({ token, userId: result.user.id });
+  });
+
   app.use("/api", avatarRoutes(db, opts.storageService));
   if (opts.betterAuthHandler) {
     if (opts.maxSignupUsers != null) {

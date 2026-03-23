@@ -1,0 +1,71 @@
+{
+  "name": "@substaff/app-core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./platform": "./src/platform.ts",
+    "./api/client": "./src/api/client.ts",
+    "./api/access": "./src/api/access.ts",
+    "./api/activity": "./src/api/activity.ts",
+    "./api/agents": "./src/api/agents.ts",
+    "./api/approvals": "./src/api/approvals.ts",
+    "./api/assets": "./src/api/assets.ts",
+    "./api/attachments": "./src/api/attachments.ts",
+    "./api/billing": "./src/api/billing.ts",
+    "./api/companies": "./src/api/companies.ts",
+    "./api/companyRoles": "./src/api/companyRoles.ts",
+    "./api/costs": "./src/api/costs.ts",
+    "./api/dashboard": "./src/api/dashboard.ts",
+    "./api/files": "./src/api/files.ts",
+    "./api/goals": "./src/api/goals.ts",
+    "./api/heartbeats": "./src/api/heartbeats.ts",
+    "./api/integrations": "./src/api/integrations.ts",
+    "./api/issues": "./src/api/issues.ts",
+    "./api/orgChart": "./src/api/orgChart.ts",
+    "./api/plans": "./src/api/plans.ts",
+    "./api/projects": "./src/api/projects.ts",
+    "./api/secrets": "./src/api/secrets.ts",
+    "./api/sidebarBadges": "./src/api/sidebarBadges.ts",
+    "./api/strategy": "./src/api/strategy.ts",
+    "./api/templates": "./src/api/templates.ts",
+    "./queries": "./src/queries/index.ts",
+    "./queries/queryKeys": "./src/queries/queryKeys.ts",
+    "./queries/sharedQueries": "./src/queries/sharedQueries.ts",
+    "./utils/format": "./src/utils/format.ts",
+    "./utils/timeAgo": "./src/utils/timeAgo.ts",
+    "./utils/status-colors": "./src/utils/status-colors.ts",
+    "./utils/labels": "./src/utils/labels.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./*": {
+        "types": "./dist/*.d.ts",
+        "import": "./dist/*.js"
+      }
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@substaff/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

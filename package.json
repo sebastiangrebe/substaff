@@ -40,7 +40,8 @@
   "packageManager": "pnpm@9.15.4",
   "pnpm": {
     "overrides": {
-      "drizzle-orm": "0.38.4"
+      "drizzle-orm": "0.38.4",
+      "@types/react": ">=19"
     }
   },
   "dependencies": {

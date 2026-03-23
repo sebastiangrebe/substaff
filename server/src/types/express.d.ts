@@ -14,7 +14,7 @@ declare global {
         isVendorOwner?: boolean;
         keyId?: string;
         runId?: string;
-        source?: "session" | "agent_key" | "agent_jwt" | "none";
+        source?: "session" | "user_token" | "agent_key" | "agent_jwt" | "none";
       };
     }
   }

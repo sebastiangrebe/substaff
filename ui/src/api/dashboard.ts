@@ -1,6 +1,4 @@
-import type { DashboardSummary } from "@substaff/shared";
+import { createDashboardApi } from "@substaff/app-core/api/dashboard";
 import { api } from "./client";
 
-export const dashboardApi = {
-  summary: (companyId: string) => api.get<DashboardSummary>(`/companies/${companyId}/dashboard`),
-};
+export const dashboardApi = createDashboardApi(api);

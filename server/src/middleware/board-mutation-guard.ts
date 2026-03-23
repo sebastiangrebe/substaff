@@ -49,6 +49,12 @@ export function boardMutationGuard(): RequestHandler {
       return;
     }
 
+    // User token (bearer) auth is not browser-based — skip CSRF origin check
+    if (req.actor.source === "user_token") {
+      next();
+      return;
+    }
+
     if (!isTrustedBoardMutationRequest(req)) {
       res.status(403).json({ error: "Board mutation requires trusted browser origin" });
       return;

@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "@substaff/db";
 import { agentApiKeys, agents, companyMemberships, vendorMemberships, companies } from "@substaff/db";
 import { verifyLocalAgentJwt } from "../agent-auth-jwt.js";
+import { verifyUserToken } from "../auth/user-token.js";
 import type { BetterAuthSessionResult } from "../auth/better-auth.js";
 import { logger } from "./logger.js";
 
@@ -105,6 +106,60 @@ export function actorMiddleware(db: Db, opts: ActorMiddlewareOptions): RequestHa
       .then((rows) => rows[0] ?? null);
 
     if (!key) {
+      // Try as user bearer token first (has type: "user_token" claim)
+      const userClaims = verifyUserToken(token);
+      if (userClaims) {
+        const userId = userClaims.sub;
+        const [vendorMembershipRows, membershipRows] = await Promise.all([
+          db
+            .select({
+              vendorId: vendorMemberships.vendorId,
+              role: vendorMemberships.role,
+            })
+            .from(vendorMemberships)
+            .where(eq(vendorMemberships.userId, userId)),
+          db
+            .select({ companyId: companyMemberships.companyId })
+            .from(companyMemberships)
+            .where(
+              and(
+                eq(companyMemberships.principalType, "user"),
+                eq(companyMemberships.principalId, userId),
+                eq(companyMemberships.status, "active"),
+              ),
+            ),
+        ]);
+
+        const vendorIds = vendorMembershipRows.map((row) => row.vendorId);
+        const isVendorOwner = vendorMembershipRows.some((row) => row.role === "owner");
+
+        let companyIds = membershipRows.map((row) => row.companyId);
+        if (isVendorOwner && vendorIds.length > 0) {
+          const vendorCompanies = await db
+            .select({ id: companies.id })
+            .from(companies)
+            .where(inArray(companies.vendorId, vendorIds));
+          const allCompanyIds = new Set([
+            ...companyIds,
+            ...vendorCompanies.map((c) => c.id),
+          ]);
+          companyIds = [...allCompanyIds];
+        }
+
+        req.actor = {
+          type: "board",
+          userId,
+          vendorIds,
+          companyIds,
+          isVendorOwner,
+          runId: runIdHeader ?? undefined,
+          source: "user_token",
+        };
+        next();
+        return;
+      }
+
+      // Try as agent JWT
       const claims = verifyLocalAgentJwt(token);
       if (!claims) {
         next();
