@@ -21,7 +21,7 @@ import { ACTIVE_HEARTBEAT_RUN_STATUSES } from "@substaff/shared";
 import { conflict, notFound } from "../errors.js";
 import { logger } from "../middleware/logger.js";
 import { publishLiveEvent } from "./live-events.js";
-import { getRunLogStore, type RunLogHandle } from "./run-log-store.js";
+import { getRunLogStore, readRunLogFromObjectStore, type RunLogHandle, type RunLogStoreType } from "./run-log-store.js";
 import { getServerAdapter, runningProcesses } from "../adapters/index.js";
 import type { AdapterExecutionResult, AdapterInvocationMeta, AdapterSessionCodec } from "../adapters/index.js";
 import { createLocalAgentJwt } from "../agent-auth-jwt.js";
@@ -2592,13 +2592,19 @@ export function heartbeatService(db: Db) {
       if (!run) throw notFound("Heartbeat run not found");
       if (!run.logStore || !run.logRef) throw notFound("Run log not found");
 
-      const result = await runLogStore.read(
-        {
-          store: run.logStore as "local_file",
-          logRef: run.logRef,
-        },
-        opts,
-      );
+      let result;
+      if (run.logStore === "object_store") {
+        const storage = getStorageService();
+        result = await readRunLogFromObjectStore(storage, run.companyId, run.logRef, opts);
+      } else {
+        result = await runLogStore.read(
+          {
+            store: run.logStore as RunLogStoreType,
+            logRef: run.logRef,
+          },
+          opts,
+        );
+      }
 
       return {
         runId,
