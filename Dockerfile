@@ -22,6 +22,7 @@ COPY packages/adapters/openclaw/package.json packages/adapters/openclaw/
 COPY packages/adapters/opencode-local/package.json packages/adapters/opencode-local/
 COPY packages/storage/package.json packages/storage/
 COPY packages/app-core/package.json packages/app-core/
+COPY native/package.json native/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS build
