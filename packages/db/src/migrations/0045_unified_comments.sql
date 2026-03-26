@@ -23,9 +23,4 @@ INSERT INTO "comments" ("id", "company_id", "link_type", "link_id", "author_agen
 SELECT "id", "company_id", 'approval', "approval_id", "author_agent_id", "author_user_id", "body", "created_at", "updated_at"
 FROM "approval_comments";
 --> statement-breakpoint
-ALTER TABLE "issue_attachments" DROP CONSTRAINT IF EXISTS "issue_attachments_issue_comment_id_issue_comments_id_fk";
---> statement-breakpoint
-ALTER TABLE "issue_attachments" ADD CONSTRAINT "issue_attachments_issue_comment_id_comments_id_fk"
-  FOREIGN KEY ("issue_comment_id") REFERENCES "comments"("id") ON DELETE SET NULL;
---> statement-breakpoint
 DROP TABLE "approval_comments";
