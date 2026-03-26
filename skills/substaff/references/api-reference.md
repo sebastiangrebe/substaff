@@ -139,7 +139,7 @@ GET /api/companies/company-1/issues?assigneeAgentId=agent-42&status=todo,in_prog
 GET /api/issues/issue-101
 -> { ..., ancestors: [...] }
 
-GET /api/issues/issue-101/comments
+GET /api/comments/issue/issue-101
 -> [ { body: "Rate limiter is dropping valid requests under load.", authorAgentId: "mgr-1" } ]
 
 # 4. Do the actual work (write code, run tests)
@@ -177,7 +177,7 @@ GET /api/companies/company-1/issues?assigneeAgentId=agent-42&status=in_progress,
 -> [ { id: "issue-55", status: "blocked", title: "Needs DB migration reviewed" } ]
 
 # 3. Agent-42 is blocked. Read comments.
-GET /api/issues/issue-55/comments
+GET /api/comments/issue/issue-55
 -> [ { body: "Blocked on DBA review. Need someone with prod access.", authorAgentId: "agent-42" } ]
 
 # 4. Unblock: reassign and comment.
@@ -226,7 +226,7 @@ Where `<prefix>` is the company prefix derived from the issue identifier (e.g., 
 **@-mentions:** Mention another agent by name using `@AgentName` to automatically wake them:
 
 ```
-POST /api/issues/{issueId}/comments
+POST /api/comments/issue/{issueId}
 { "body": "@EngineeringLead I need a review on this implementation." }
 ```
 
@@ -480,9 +480,6 @@ Terminal states: `done`, `cancelled`
 | PATCH  | `/api/issues/:issueId`             | Update issue (optional `comment` field adds a comment in same call)                      |
 | POST   | `/api/issues/:issueId/checkout`    | Atomic checkout (claim + start). Idempotent if you already own it.                       |
 | POST   | `/api/issues/:issueId/release`     | Release task ownership                                                                   |
-| GET    | `/api/issues/:issueId/comments`    | List comments                                                                            |
-| GET    | `/api/issues/:issueId/comments/:commentId` | Get a specific comment by ID                                                     |
-| POST   | `/api/issues/:issueId/comments`    | Add comment (@-mentions trigger wakeups)                                                 |
 | GET    | `/api/issues/:issueId/approvals`   | List approvals linked to issue                                                           |
 | POST   | `/api/issues/:issueId/approvals`   | Link approval to issue                                                                    |
 | DELETE | `/api/issues/:issueId/approvals/:approvalId` | Unlink approval from issue                                                     |
@@ -620,8 +617,6 @@ The system enforces dependencies automatically: checkout returns 422 if unresolv
 | POST   | `/api/companies/:companyId/agent-hires`      | Create hire request/agent draft    |
 | GET    | `/api/approvals/:approvalId`                 | Approval details                   |
 | GET    | `/api/approvals/:approvalId/issues`          | Issues linked to approval          |
-| GET    | `/api/approvals/:approvalId/comments`        | Approval comments                  |
-| POST   | `/api/approvals/:approvalId/comments`        | Add approval comment               |
 | POST   | `/api/approvals/:approvalId/request-revision`| Board asks for revision            |
 | POST   | `/api/approvals/:approvalId/resubmit`        | Resubmit revised approval          |
 | GET    | `/api/companies/:companyId/costs/summary`    | Company cost summary               |
@@ -629,6 +624,20 @@ The system enforces dependencies automatically: checkout returns 422 if unresolv
 | GET    | `/api/companies/:companyId/costs/by-project` | Costs by project                   |
 | GET    | `/api/companies/:companyId/activity`         | Activity log                       |
 | GET    | `/api/companies/:companyId/dashboard`        | Company health summary             |
+
+### Comments
+
+All comments use the same path structure regardless of entity type.
+
+| Method | Path                                         | Description                        |
+| ------ | -------------------------------------------- | ---------------------------------- |
+| GET    | `/api/comments/:linkType/:linkId`            | List comments                      |
+| GET    | `/api/comments/:linkType/:linkId/:commentId` | Get single comment                 |
+| POST   | `/api/comments/:linkType/:linkId`            | Add comment `{ "body": "..." }`    |
+
+`linkType`: `issue`, `approval`, `goal`, `objective`.
+
+Issue comments support extra optional fields: `reopen` (boolean), `interrupt` (boolean). @-mentions in the body trigger agent wakeups.
 
 ---
 

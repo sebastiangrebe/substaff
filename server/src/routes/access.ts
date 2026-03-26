@@ -8,6 +8,7 @@ import type { Db } from "@substaff/db";
 import {
   agentApiKeys,
   authUsers,
+  companies,
   invites,
   joinRequests,
 } from "@substaff/db";
@@ -25,6 +26,8 @@ import { forbidden, conflict, notFound, unauthorized, badRequest } from "../erro
 import { validate } from "../middleware/validate.js";
 import { accessService, agentService, logActivity } from "../services/index.js";
 import { assertCompanyAccess, companyRouter } from "./authz.js";
+import { enqueueEmailAlert } from "../queues/email-alerts.js";
+import { logger } from "../middleware/logger.js";
 
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -614,6 +617,31 @@ export function accessRoutes(
       entityId: created.id,
       details: { requestType, requestIp: created.requestIp },
     });
+
+    // Email notification for join request
+    void (async () => {
+      try {
+        const [company] = await db
+          .select({ vendorId: companies.vendorId })
+          .from(companies)
+          .where(eq(companies.id, companyId));
+        if (company?.vendorId) {
+          const name = requestType === "agent"
+            ? (req.body.agentName ?? "Unknown agent")
+            : (actorIdentity?.name ?? actorIdentity?.email ?? "Unknown user");
+          enqueueEmailAlert({
+            type: "join-request-received",
+            vendorId: company.vendorId,
+            companyId,
+            requestId: created.id,
+            requestType: requestType as "agent" | "human",
+            name,
+          });
+        }
+      } catch (err) {
+        logger.warn({ err, requestId: created.id }, "Failed to enqueue join-request email");
+      }
+    })();
 
     const response = toJoinRequestResponse(created);
     if (claimSecret) {

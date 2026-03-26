@@ -1,11 +1,12 @@
 import { eq, and } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { taskPlans, issues } from "@substaff/db";
+import { taskPlans, issues, agents, companies } from "@substaff/db";
 import {
   heartbeatService,
 } from "../services/index.js";
 import { companyRouter } from "./authz.js";
 import { logger } from "../middleware/logger.js";
+import { enqueueEmailAlert } from "../queues/email-alerts.js";
 
 export function planRoutes(db: Db) {
   const router = companyRouter();
@@ -103,6 +104,38 @@ export function planRoutes(db: Db) {
         status: "pending_review",
       })
       .returning();
+
+    // Send email notification
+    void (async () => {
+      try {
+        const [issue] = await db
+          .select({ title: issues.title, identifier: issues.identifier })
+          .from(issues)
+          .where(eq(issues.id, issueId!));
+        const [agent] = await db
+          .select({ name: agents.name })
+          .from(agents)
+          .where(eq(agents.id, agentId));
+        const [company] = await db
+          .select({ vendorId: companies.vendorId })
+          .from(companies)
+          .where(eq(companies.id, companyId!));
+        if (company?.vendorId) {
+          enqueueEmailAlert({
+            type: "plan-submitted",
+            vendorId: company.vendorId,
+            companyId: companyId!,
+            planId: plan.id,
+            issueId: issueId!,
+            issueTitle: issue?.title ?? "Unknown",
+            issueIdentifier: issue?.identifier ?? null,
+            agentName: agent?.name ?? "An agent",
+          });
+        }
+      } catch (err) {
+        logger.warn({ err, planId: plan.id }, "Failed to enqueue plan-submitted email");
+      }
+    })();
 
     res.status(201).json({ plan });
   });

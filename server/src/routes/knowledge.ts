@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, and, count, sql } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { indexedArtifacts, issueComments, issues } from "@substaff/db";
+import { indexedArtifacts, comments, issues } from "@substaff/db";
 import { assertBoard, companyRouter } from "./authz.js";
 import { badRequest } from "../errors.js";
 import { getQdrantClient, isVectorSearchEnabled, createEmbeddingService, createRagService, indexComment } from "../vector/index.js";
@@ -180,28 +180,29 @@ export function knowledgeRoutes(db: Db) {
           });
 
           // 4. Re-index all agent comments — batch embeddings for speed
-          const comments = await db
+          const issueComments = await db
             .select({
-              id: issueComments.id,
-              body: issueComments.body,
-              issueId: issueComments.issueId,
-              authorAgentId: issueComments.authorAgentId,
+              id: comments.id,
+              body: comments.body,
+              issueId: comments.linkId,
+              authorAgentId: comments.authorAgentId,
               projectId: issues.projectId,
             })
-            .from(issueComments)
-            .innerJoin(issues, eq(issueComments.issueId, issues.id))
+            .from(comments)
+            .innerJoin(issues, eq(comments.linkId, issues.id))
             .where(
               and(
-                eq(issueComments.companyId, companyId),
-                sql`${issueComments.authorAgentId} IS NOT NULL`,
+                eq(comments.linkType, "issue"),
+                eq(comments.companyId, companyId),
+                sql`${comments.authorAgentId} IS NOT NULL`,
               ),
             );
 
-          if (comments.length > 0) {
+          if (issueComments.length > 0) {
             const embeddingService = createEmbeddingService({ apiKey: config.voyageApiKey });
 
             // Chunk all comments, then batch-embed all chunks at once
-            const commentChunks = comments.map((c) => ({
+            const commentChunks = issueComments.map((c) => ({
               comment: c,
               chunks: chunkContent(c.body, "comment.md"),
             }));
@@ -255,7 +256,7 @@ export function knowledgeRoutes(db: Db) {
               }
             }
 
-            logger.info({ companyId, comments: comments.length, chunks: allPoints.length }, "Reindex-all complete");
+            logger.info({ companyId, comments: issueComments.length, chunks: allPoints.length }, "Reindex-all complete");
           } else {
             logger.info({ companyId, comments: 0 }, "Reindex-all complete (no comments)");
           }

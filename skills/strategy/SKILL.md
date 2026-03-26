@@ -110,11 +110,11 @@ POST /api/companies/{companyId}/approvals
 Leave a structured comment on any entity you modified:
 
 ```
-POST /api/issues/{id}/comments  (or relevant entity)
+POST /api/comments/{linkType}/{linkId}
 { "body": "**Strategy Review** — [summary of what was done and why]" }
 ```
 
-Then exit.
+`linkType`: `goal`, `objective`, `issue`, or `approval`. Then exit.
 
 ## Rules
 
@@ -143,3 +143,4 @@ Then exit.
 | Create goal | `POST /api/companies/:companyId/goals` |
 | Create task | `POST /api/companies/:companyId/issues` |
 | Submit approval | `POST /api/companies/:companyId/approvals` |
+| Comment | `POST /api/comments/:linkType/:linkId` |

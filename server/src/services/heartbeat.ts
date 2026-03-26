@@ -12,7 +12,7 @@ import {
   heartbeatRuns,
   costEvents,
   issues,
-  issueComments,
+  comments,
   projectWorkspaces,
   taskPlans,
   vendors,
@@ -1352,15 +1352,15 @@ export function heartbeatService(db: Db) {
         // Pre-load recent comments so agent can skip the GET /comments call (saves 1 turn)
         const recentComments = await db
           .select({
-            id: issueComments.id,
-            authorAgentId: issueComments.authorAgentId,
-            authorUserId: issueComments.authorUserId,
-            body: issueComments.body,
-            createdAt: issueComments.createdAt,
+            id: comments.id,
+            authorAgentId: comments.authorAgentId,
+            authorUserId: comments.authorUserId,
+            body: comments.body,
+            createdAt: comments.createdAt,
           })
-          .from(issueComments)
-          .where(eq(issueComments.issueId, issueId))
-          .orderBy(desc(issueComments.createdAt))
+          .from(comments)
+          .where(and(eq(comments.linkType, "issue"), eq(comments.linkId, issueId)))
+          .orderBy(desc(comments.createdAt))
           .limit(3);
         if (recentComments.length > 0) {
           context.recentComments = recentComments;

@@ -95,6 +95,9 @@ export function issueRoutes(db: Db, storage: StorageService) {
     return Boolean((agent.permissions as Record<string, unknown>).canCreateAgents);
   }
 
+  /** Roles that can assign tasks without an explicit permission grant. */
+  const TASK_ASSIGN_ROLES = new Set(["ceo", "cto", "cmo", "cfo", "pm", "analyst"]);
+
   async function assertCanAssignTasks(req: Request, companyId: string) {
     assertCompanyAccess(req, companyId);
     if (req.actor.type === "board") {
@@ -108,6 +111,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
       if (allowedByGrant) return;
       const actorAgent = await agentsSvc.getById(req.actor.agentId);
       if (actorAgent && actorAgent.companyId === companyId && canCreateAgentsLegacy(actorAgent)) return;
+      if (actorAgent && actorAgent.companyId === companyId && TASK_ASSIGN_ROLES.has(actorAgent.role)) return;
       throw forbidden("Missing permission: tasks:assign");
     }
     throw unauthorized();
@@ -585,7 +589,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
         void indexComment(commentBody, {
           companyId: issue.companyId,
           agentId: actor.agentId,
-          issueId: id,
+          linkType: "issue",
+          linkId: id,
           commentId: cId,
           projectId: existing.projectId,
           runId: actor.runId,
@@ -919,41 +924,7 @@ export function issueRoutes(db: Db, storage: StorageService) {
     res.json(removed);
   });
 
-  router.get("/issues/:id/comments", async (req, res) => {
-    const id = req.params.id as string;
-    const issue = await svc.getById(id);
-    if (!issue) {
-      res.status(404).json({ error: "Issue not found" });
-      return;
-    }
-    assertCompanyAccess(req, issue.companyId);
-    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
-    const since = req.query.since as string | undefined;
-    const comments = await svc.listComments(id, {
-      limit: limit && !isNaN(limit) ? limit : undefined,
-      since,
-    });
-    res.json(isCompact(req) ? comments.map((c: any) => compactComment(c)) : comments);
-  });
-
-  router.get("/issues/:id/comments/:commentId", async (req, res) => {
-    const id = req.params.id as string;
-    const commentId = req.params.commentId as string;
-    const issue = await svc.getById(id);
-    if (!issue) {
-      res.status(404).json({ error: "Issue not found" });
-      return;
-    }
-    assertCompanyAccess(req, issue.companyId);
-    const comment = await svc.getComment(commentId);
-    if (!comment || comment.issueId !== id) {
-      res.status(404).json({ error: "Comment not found" });
-      return;
-    }
-    res.json(comment);
-  });
-
-  router.post("/issues/:id/comments", validate(addIssueCommentSchema), async (req, res) => {
+  router.post("/comments/issue/:id", validate(addIssueCommentSchema), async (req, res) => {
     const id = req.params.id as string;
     const issue = await svc.getById(id);
     if (!issue) {
@@ -1076,7 +1047,8 @@ export function issueRoutes(db: Db, storage: StorageService) {
       void indexComment(req.body.body, {
         companyId: currentIssue.companyId,
         agentId: actor.agentId,
-        issueId: id,
+        linkType: "issue",
+        linkId: id,
         commentId: comment.id,
         projectId: currentIssue.projectId,
         runId: actor.runId,

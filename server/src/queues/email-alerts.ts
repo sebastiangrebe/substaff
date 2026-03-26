@@ -108,15 +108,27 @@ export type EmailAlertJobData =
       companyName: string;
       agentCount: number;
     }
-  // ── Tier 2: Run failures (persistent) ──
+  // ── Tier 1: Plan reviews ──
   | {
-      type: "run-failures-recurring";
+      type: "plan-submitted";
       vendorId: string;
       companyId: string;
-      agentId: string;
-      failureCount: number;
-      lastError: string;
-    };
+      planId: string;
+      issueId: string;
+      issueTitle: string;
+      issueIdentifier: string | null;
+      agentName: string;
+    }
+  // ── Tier 1: Join requests ──
+  | {
+      type: "join-request-received";
+      vendorId: string;
+      companyId: string;
+      requestId: string;
+      requestType: "agent" | "human";
+      name: string;
+    }
+;
 
 let queue: Queue | null = null;
 
@@ -446,28 +458,46 @@ export function createEmailAlertsWorker(redisUrl: string, db: Db) {
           break;
         }
 
-        // ── Tier 2: Recurring failures ──
+        // ── Tier 1: Plan reviews ──
 
-        case "run-failures-recurring": {
-          const [agent] = await db
-            .select({ name: agents.name })
-            .from(agents)
-            .where(eq(agents.id, data.agentId));
-
-          const agentName = agent?.name ?? data.agentId;
+        case "plan-submitted": {
+          const label = data.issueIdentifier ?? data.issueId.slice(0, 8);
 
           await sendEmail(
             to,
-            `Agent "${agentName}" has ${data.failureCount} consecutive failures`,
+            `Plan review needed: ${label} — ${data.issueTitle}`,
             emailWrapper([
-              `<h2>Recurring Agent Failures</h2>`,
-              `<p>Agent <strong>${agentName}</strong> has failed <strong>${data.failureCount}</strong> consecutive runs.</p>`,
-              `<p>Last error: <code>${data.lastError}</code></p>`,
-              `<p>Consider pausing the agent and reviewing its configuration or run logs.</p>`,
+              `<h2>New Plan for Review</h2>`,
+              `<p><strong>${data.agentName}</strong> has submitted a task plan for <strong>${label}</strong> that needs your approval.</p>`,
+              `<p>Task: <strong>${data.issueTitle}</strong></p>`,
+              `<p>Log in to Substaff to review, approve, or reject the plan.</p>`,
             ].join("\n")),
           );
           break;
         }
+
+        // ── Tier 1: Join requests ──
+
+        case "join-request-received": {
+          const [company] = await db
+            .select({ name: companies.name })
+            .from(companies)
+            .where(eq(companies.id, data.companyId));
+
+          const typeLabel = data.requestType === "agent" ? "An agent" : "A user";
+
+          await sendEmail(
+            to,
+            `Join request: ${data.name} wants to join ${company?.name ?? "your company"}`,
+            emailWrapper([
+              `<h2>New Join Request</h2>`,
+              `<p>${typeLabel} named <strong>${data.name}</strong> has requested to join <strong>${company?.name ?? "your company"}</strong>.</p>`,
+              `<p>Log in to Substaff to approve or reject this request.</p>`,
+            ].join("\n")),
+          );
+          break;
+        }
+
       }
 
       logger.info({ type: data.type, to }, "Email alert sent");

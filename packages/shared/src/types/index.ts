@@ -33,7 +33,6 @@ export type { Project, ProjectGoalRef, ProjectWorkspace } from "./project.js";
 export type {
   Issue,
   IssueAssigneeAdapterOverrides,
-  IssueComment,
   IssueAncestor,
   IssueAncestorProject,
   IssueAncestorGoal,
@@ -43,6 +42,7 @@ export type {
   IssueDependency,
   IssueLabel,
 } from "./issue.js";
+export type { Comment, CommentLinkType, IssueComment, ApprovalComment } from "./comment.js";
 export type { Goal } from "./goal.js";
 export type {
   Objective,
@@ -51,7 +51,7 @@ export type {
   KeyResultWithEntries,
   ObjectiveWithKeyResults,
 } from "./strategy.js";
-export type { Approval, ApprovalComment } from "./approval.js";
+export type { Approval } from "./approval.js";
 export type {
   SecretProvider,
   SecretVersionSelector,

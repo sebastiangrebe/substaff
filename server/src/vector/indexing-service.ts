@@ -21,14 +21,17 @@ interface IndexRunOptions {
 interface IndexCommentOptions {
   companyId: string;
   agentId: string;
-  issueId: string;
+  linkType: string;
+  linkId: string;
   commentId: string;
+  /** @deprecated Use linkId instead */
+  issueId?: string;
   projectId?: string | null;
   runId?: string | null;
 }
 
 /**
- * Index an agent's issue comment into Qdrant for future knowledge search.
+ * Index an agent's comment into Qdrant for future knowledge search.
  * Fire-and-forget — swallows errors and logs them.
  */
 export async function indexComment(
@@ -55,7 +58,9 @@ export async function indexComment(
       company_id: opts.companyId,
       project_id: opts.projectId ?? null,
       agent_id: opts.agentId,
-      issue_id: opts.issueId,
+      link_type: opts.linkType,
+      link_id: opts.linkId,
+      issue_id: opts.issueId ?? (opts.linkType === "issue" ? opts.linkId : null),
       run_id: opts.runId ?? null,
       comment_id: opts.commentId,
       artifact_type: "comment",

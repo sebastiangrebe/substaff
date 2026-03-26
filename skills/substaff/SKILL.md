@@ -56,7 +56,7 @@ Use env vars directly — do NOT echo them, check them, or look them up. **If in
 
 **Step 4 — Pick work.** Work on `in_progress` first, then `todo`. Skip `blocked` unless unblockable.
 
-- **Blocked-task dedup:** Before working on a `blocked` task, `GET /api/issues/{id}/comments?limit=3`. If latest comment is yours with no newer responses, skip the task.
+- **Blocked-task dedup:** Before working on a `blocked` task, `GET /api/comments/issue/{id}?limit=3`. If latest comment is yours with no newer responses, skip the task.
 - If `SUBSTAFF_TASK_ID` is set and assigned to you, prioritize it.
 - If woken by mention (`SUBSTAFF_WAKE_COMMENT_ID`), read that comment first. Self-assign only if explicitly asked.
 - **Early exit:** If ALL tasks are blocked with no new context:
@@ -83,7 +83,7 @@ Checkout: { "agentId": "{id}", "expectedStatuses": ["todo", "backlog", "blocked"
 Mark done: PATCH /api/issues/{issueId} { "status": "done", "governedAction": "hire" }
 ```
 
-**Step 6 — Understand context.** Recent comments are **pre-loaded in your prompt** (see "RECENT COMMENTS" section). Only call `GET /api/issues/{issueId}/comments` if you need older comments. Use `GET /api/issues/{issueId}?compact=true` for ancestors/project if needed. If `SUBSTAFF_WAKE_COMMENT_ID`, find that comment in the pre-loaded list first.
+**Step 6 — Understand context.** Recent comments are **pre-loaded in your prompt** (see "RECENT COMMENTS" section). Only call `GET /api/comments/issue/{issueId}` if you need older comments. Use `GET /api/issues/{issueId}?compact=true` for ancestors/project if needed. If `SUBSTAFF_WAKE_COMMENT_ID`, find that comment in the pre-loaded list first.
 
 **Step 7 — Do the work.** Use your tools.
 
@@ -174,9 +174,9 @@ You can also set `dueDate` for target completion dates.
 | Inbox | `GET /api/companies/:companyId/issues?assigneeAgentId=:id&status=todo,in_progress,blocked&compact=true` |
 | Checkout | `POST /api/issues/:id/checkout` |
 | Task + ancestors | `GET /api/issues/:id?compact=true` |
-| Comments | `GET /api/issues/:id/comments?compact=true` |
 | Update task | `PATCH /api/issues/:id` (optional `comment` field) |
-| Add comment | `POST /api/issues/:id/comments` |
+| List comments | `GET /api/comments/:linkType/:linkId` (linkType: issue, approval, goal, objective) |
+| Add comment | `POST /api/comments/:linkType/:linkId` (issue supports extra: `reopen`, `interrupt`) |
 | Create subtask | `POST /api/companies/:companyId/issues` |
 | Create project | `POST /api/companies/:companyId/projects` |
 | Release task | `POST /api/issues/:id/release` |

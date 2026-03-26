@@ -39,10 +39,10 @@ export function createIssuesApi(api: ApiClient) {
         expectedStatuses: ["todo", "backlog", "blocked"],
       }),
     release: (id: string) => api.post<Issue>(`/issues/${id}/release`, {}),
-    listComments: (id: string) => api.get<IssueComment[]>(`/issues/${id}/comments`),
+    listComments: (id: string) => api.get<IssueComment[]>(`/comments/issue/${id}`),
     addComment: (id: string, body: string, reopen?: boolean, interrupt?: boolean) =>
       api.post<IssueComment & { warning?: string }>(
-        `/issues/${id}/comments`,
+        `/comments/issue/${id}`,
         {
           body,
           ...(reopen === undefined ? {} : { reopen }),

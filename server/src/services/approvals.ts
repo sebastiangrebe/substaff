@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "@substaff/db";
-import { approvalComments, approvals } from "@substaff/db";
+import { comments, approvals } from "@substaff/db";
 import { ACTIONABLE_APPROVAL_STATUSES } from "@substaff/shared";
 import { notFound, unprocessable } from "../errors.js";
 import { agentService } from "./agents.js";
@@ -174,14 +174,15 @@ export function approvalService(db: Db) {
       const existing = await getExistingApproval(approvalId);
       return db
         .select()
-        .from(approvalComments)
+        .from(comments)
         .where(
           and(
-            eq(approvalComments.approvalId, approvalId),
-            eq(approvalComments.companyId, existing.companyId),
+            eq(comments.linkType, "approval"),
+            eq(comments.linkId, approvalId),
+            eq(comments.companyId, existing.companyId),
           ),
         )
-        .orderBy(asc(approvalComments.createdAt));
+        .orderBy(asc(comments.createdAt));
     },
 
     addComment: async (
@@ -191,10 +192,11 @@ export function approvalService(db: Db) {
     ) => {
       const existing = await getExistingApproval(approvalId);
       return db
-        .insert(approvalComments)
+        .insert(comments)
         .values({
           companyId: existing.companyId,
-          approvalId,
+          linkType: "approval",
+          linkId: approvalId,
           authorAgentId: actor.agentId ?? null,
           authorUserId: actor.userId ?? null,
           body,

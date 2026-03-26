@@ -2,7 +2,7 @@ import { pgTable, uuid, timestamp, index, uniqueIndex } from "drizzle-orm/pg-cor
 import { companies } from "./companies.js";
 import { issues } from "./issues.js";
 import { assets } from "./assets.js";
-import { issueComments } from "./issue_comments.js";
+import { comments } from "./comments.js";
 
 export const issueAttachments = pgTable(
   "issue_attachments",
@@ -11,7 +11,7 @@ export const issueAttachments = pgTable(
     companyId: uuid("company_id").notNull().references(() => companies.id),
     issueId: uuid("issue_id").notNull().references(() => issues.id, { onDelete: "cascade" }),
     assetId: uuid("asset_id").notNull().references(() => assets.id, { onDelete: "cascade" }),
-    issueCommentId: uuid("issue_comment_id").references(() => issueComments.id, { onDelete: "set null" }),
+    issueCommentId: uuid("issue_comment_id").references(() => comments.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

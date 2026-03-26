@@ -329,45 +329,5 @@ export function approvalRoutes(db: Db) {
     res.json(redactApprovalPayload(approval));
   });
 
-  router.get("/approvals/:id/comments", async (req, res) => {
-    const id = req.params.id as string;
-    const approval = await svc.getById(id);
-    if (!approval) {
-      res.status(404).json({ error: "Approval not found" });
-      return;
-    }
-    assertCompanyAccess(req, approval.companyId);
-    const comments = await svc.listComments(id);
-    res.json(comments);
-  });
-
-  router.post("/approvals/:id/comments", validate(addApprovalCommentSchema), async (req, res) => {
-    const id = req.params.id as string;
-    const approval = await svc.getById(id);
-    if (!approval) {
-      res.status(404).json({ error: "Approval not found" });
-      return;
-    }
-    assertCompanyAccess(req, approval.companyId);
-    const actor = getActorInfo(req);
-    const comment = await svc.addComment(id, req.body.body, {
-      agentId: actor.agentId ?? undefined,
-      userId: actor.actorType === "user" ? actor.actorId : undefined,
-    });
-
-    await logActivity(db, {
-      companyId: approval.companyId,
-      actorType: actor.actorType,
-      actorId: actor.actorId,
-      agentId: actor.agentId,
-      action: "approval.comment_added",
-      entityType: "approval",
-      entityId: approval.id,
-      details: { commentId: comment.id },
-    });
-
-    res.status(201).json(comment);
-  });
-
   return router;
 }

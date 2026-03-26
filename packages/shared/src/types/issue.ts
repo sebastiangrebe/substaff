@@ -93,17 +93,6 @@ export interface Issue {
   updatedAt: Date;
 }
 
-export interface IssueComment {
-  id: string;
-  companyId: string;
-  issueId: string;
-  authorAgentId: string | null;
-  authorUserId: string | null;
-  body: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
 export interface IssueDependency {
   id: string;
   companyId: string;

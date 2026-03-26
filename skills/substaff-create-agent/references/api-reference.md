@@ -18,8 +18,8 @@ Approval collaboration:
 - `GET /api/approvals/:approvalId`
 - `POST /api/approvals/:approvalId/request-revision` (board)
 - `POST /api/approvals/:approvalId/resubmit`
-- `GET /api/approvals/:approvalId/comments`
-- `POST /api/approvals/:approvalId/comments`
+- `GET /api/comments/approval/:approvalId`
+- `POST /api/comments/approval/:approvalId`
 - `GET /api/approvals/:approvalId/issues`
 
 ## `POST /api/companies/:companyId/agent-hires`

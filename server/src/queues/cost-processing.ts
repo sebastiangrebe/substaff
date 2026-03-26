@@ -280,6 +280,26 @@ export function createCostProcessingWorker(redisUrl: string, db: Db) {
             shouldPause = true;
             pauseReason = "company total budget exceeded";
           }
+          // Warn at 80% of monthly budget — only on the crossing event
+          if (
+            !shouldPause &&
+            company.budgetMonthlyCents > 0
+          ) {
+            const threshold = company.budgetMonthlyCents * 0.8;
+            const previousSpent = company.spentMonthlyCents - platformCostCents;
+            if (previousSpent < threshold && company.spentMonthlyCents >= threshold) {
+              const percent = Math.round((company.spentMonthlyCents / company.budgetMonthlyCents) * 100);
+              const { enqueueEmailAlert } = await import("./email-alerts.js");
+              enqueueEmailAlert({
+                type: "company-budget-approaching",
+                vendorId,
+                companyId,
+                budgetCents: company.budgetMonthlyCents,
+                spentCents: company.spentMonthlyCents,
+                percent,
+              });
+            }
+          }
         }
       }
 

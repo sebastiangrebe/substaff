@@ -91,7 +91,7 @@ curl -sS -X POST "$SUBSTAFF_API_URL/api/companies/$SUBSTAFF_COMPANY_ID/agent-hir
 curl -sS "$SUBSTAFF_API_URL/api/approvals/<approval-id>" \
   -H "Authorization: Bearer $SUBSTAFF_API_KEY"
 
-curl -sS -X POST "$SUBSTAFF_API_URL/api/approvals/<approval-id>/comments" \
+curl -sS -X POST "$SUBSTAFF_API_URL/api/comments/approval/<approval-id>" \
   -H "Authorization: Bearer $SUBSTAFF_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"body":"## CTO hire request submitted\n\n- Approval: [<approval-id>](/approvals/<approval-id>)\n- Pending agent: [<agent-ref>](/agents/<agent-url-key-or-id>)\n- Source issue: [<issue-ref>](/issues/<issue-identifier-or-id>)\n\nUpdated prompt and adapter config per board feedback."}'

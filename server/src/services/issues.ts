@@ -10,7 +10,7 @@ import {
   assetLinks,
   issueDependencies,
   issueLabels,
-  issueComments,
+  comments,
   issues,
   labels,
   projectWorkspaces,
@@ -297,10 +297,11 @@ export function issueService(db: Db) {
       const commentContainsMatch = sql<boolean>`
         EXISTS (
           SELECT 1
-          FROM ${issueComments}
-          WHERE ${issueComments.issueId} = ${issues.id}
-            AND ${issueComments.companyId} = ${companyId}
-            AND ${issueComments.body} ILIKE ${containsPattern} ESCAPE '\\'
+          FROM ${comments}
+          WHERE ${comments.linkType} = 'issue'
+            AND ${comments.linkId} = ${issues.id}
+            AND ${comments.companyId} = ${companyId}
+            AND ${comments.body} ILIKE ${containsPattern} ESCAPE '\\'
         )
       `;
       if (filters?.status) {
@@ -773,23 +774,23 @@ export function issueService(db: Db) {
         .then((rows) => rows[0] ?? null),
 
     listComments: (issueId: string, opts?: { limit?: number; since?: string }) => {
-      const conditions = [eq(issueComments.issueId, issueId)];
+      const conditions = [eq(comments.linkType, "issue"), eq(comments.linkId, issueId)];
       if (opts?.since) {
-        conditions.push(gt(issueComments.createdAt, new Date(opts.since)));
+        conditions.push(gt(comments.createdAt, new Date(opts.since)));
       }
       return db
         .select()
-        .from(issueComments)
+        .from(comments)
         .where(and(...conditions))
-        .orderBy(desc(issueComments.createdAt))
+        .orderBy(desc(comments.createdAt))
         .limit(opts?.limit ?? 1000);
     },
 
     getComment: (commentId: string) =>
       db
         .select()
-        .from(issueComments)
-        .where(eq(issueComments.id, commentId))
+        .from(comments)
+        .where(eq(comments.id, commentId))
         .then((rows) => rows[0] ?? null),
 
     addComment: async (issueId: string, body: string, actor: { agentId?: string; userId?: string }) => {
@@ -802,10 +803,11 @@ export function issueService(db: Db) {
       if (!issue) throw notFound("Issue not found");
 
       const [comment] = await db
-        .insert(issueComments)
+        .insert(comments)
         .values({
           companyId: issue.companyId,
-          issueId,
+          linkType: "issue",
+          linkId: issueId,
           authorAgentId: actor.agentId ?? null,
           authorUserId: actor.userId ?? null,
           body,
@@ -1000,16 +1002,16 @@ export function issueService(db: Db) {
         .then((rows) => rows[0] ?? null);
       if (!issue) return [];
 
-      const comments = await db
-        .select({ body: issueComments.body })
-        .from(issueComments)
-        .where(eq(issueComments.issueId, issueId));
+      const issueComments = await db
+        .select({ body: comments.body })
+        .from(comments)
+        .where(and(eq(comments.linkType, "issue"), eq(comments.linkId, issueId)));
 
       const mentionedIds = new Set<string>();
       for (const source of [
         issue.title,
         issue.description ?? "",
-        ...comments.map((comment) => comment.body),
+        ...issueComments.map((comment) => comment.body),
       ]) {
         for (const projectId of extractProjectMentionIds(source)) {
           mentionedIds.add(projectId);
